@@ -15,7 +15,7 @@
     "format": "biome check --write .",
     "test": "vitest run",
     "e2e": "wxt build && playwright test",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare && (git config core.hooksPath .githooks || true)"
   },
   "dependencies": {
     "@webext-core/messaging": "4.0.1",

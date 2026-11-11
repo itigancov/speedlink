@@ -1,0 +1,7 @@
+#!/bin/sh
+# Local stand-in for "require CI" (branch protection isn't enforced on this private repo's plan).
+# Runs the fast half of the CI gate; e2e still runs in CI. Skip once with `git push --no-verify`.
+set -e
+echo "pre-push: pnpm check && pnpm test"
+pnpm check
+pnpm test

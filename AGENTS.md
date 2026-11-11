@@ -12,7 +12,7 @@ pnpm only, at the version in `packageManager`: `pnpm install`, `pnpm <script>`, 
 - `pnpm e2e`: builds, then runs Playwright against the build (it also builds a negative-control variant into `.output-e2e-throw/`). First run needs `pnpm exec playwright install chromium`.
 - `pnpm dev` / `pnpm build` / `pnpm zip`: WXT watch mode, unpacked build in `.output/`, Store zip.
 
-Done means `check`, `test` and `e2e` all pass.
+Done means `check`, `test` and `e2e` all pass. A `pre-push` hook (`.githooks/`, wired by `postinstall`) runs `check` and `test` before every push; fix the failure rather than skipping it.
 
 ## Layout and the boundary
 
