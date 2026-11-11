@@ -1,0 +1,3 @@
+saveExact: true
+# Pins are bumped deliberately; no release-age cooldown (see backlog item 01).
+minimumReleaseAge: 0

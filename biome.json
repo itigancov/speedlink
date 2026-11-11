@@ -1,0 +1,113 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/.wxt",
+      "!**/.output",
+      "!**/.output-e2e-throw",
+      "!**/playwright-report",
+      "!**/test-results",
+      "!**/*.md"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "domains": {
+      "react": "recommended"
+    },
+    "rules": {
+      "preset": "recommended",
+      "a11y": "error",
+      "correctness": {
+        "useExhaustiveDependencies": "error",
+        "useHookAtTopLevel": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/domain/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "wxt": "src/domain/ is pure TS: no WXT.",
+                  "#imports": "src/domain/ is pure TS: no WXT auto-imports.",
+                  "#i18n": "src/domain/ is pure TS: strings go through platform/.",
+                  "react": "src/domain/ is pure TS: no React.",
+                  "react-dom": "src/domain/ is pure TS: no React.",
+                  "webextension-polyfill": "src/domain/ is pure TS: no browser APIs.",
+                  "@wxt-dev/browser": "src/domain/ is pure TS: no browser APIs."
+                },
+                "patterns": [
+                  {
+                    "group": ["wxt/**"],
+                    "message": "src/domain/ is pure TS: no WXT."
+                  },
+                  {
+                    "group": ["@webext-core/**"],
+                    "message": "src/domain/ is pure TS: no browser APIs."
+                  },
+                  {
+                    "group": ["react/**", "react-dom/**"],
+                    "message": "src/domain/ is pure TS: no React."
+                  },
+                  {
+                    "group": [
+                      "@/platform",
+                      "@/platform/**",
+                      "~/platform",
+                      "~/platform/**",
+                      "**/platform",
+                      "**/platform/**"
+                    ],
+                    "message": "src/domain/ must not depend on platform/; pass data in instead."
+                  }
+                ]
+              }
+            },
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "chrome": "src/domain/ is pure TS: browser APIs belong in platform/.",
+                  "browser": "src/domain/ is pure TS: browser APIs belong in platform/."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
