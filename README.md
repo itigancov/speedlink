@@ -2,7 +2,7 @@
 
 Chrome extension: hold ⌥ (Alt) and press a key to open or switch to that key's page.
 
-Private repo. Requirements live in [`docs/product-spec.md`](docs/product-spec.md), terms in [`GLOSSARY.md`](GLOSSARY.md), and contributor and agent conventions in [`AGENTS.md`](AGENTS.md).
+Requirements live in [`docs/product-spec.md`](docs/product-spec.md), terms in [`GLOSSARY.md`](GLOSSARY.md), and contributor and agent conventions in [`AGENTS.md`](AGENTS.md).
 
 ```sh
 pnpm install
