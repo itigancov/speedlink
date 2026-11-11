@@ -566,9 +566,9 @@ Key-state colors live inside `KeyCap`.
 - Safety net: CWS **Rollback** to 1.6. Migration leaves `speedlink` untouched, so 1.6 resumes as before.
 
 **Publishing**
-- `release.yml`, triggered by a `v*` tag: check/test/build/e2e → `wxt zip` → GitHub Release with the zip → `wxt submit` (CWS API v2, submit for review, **no auto-publish**).
-- Secrets live in the GitHub Environment `chrome-web-store` (tag-only): service-account JSON, publisher ID, extension ID.
-- Prerequisite: a Google Cloud project + a service account linked to the CWS developer account. Fallback: a manual zip upload.
+- `release.yml`, triggered by a `v*` tag: check/test/build/e2e → `wxt zip` → GitHub Release with the zip → `wxt submit` (CWS API v2 via `CHROME_API_VERSION=v2`, submit for review, **no auto-publish**: deferred publish is `CHROME_PUBLISH_TYPE=STAGED_PUBLISH`).
+- Credentials live in the GitHub Environment `chrome-web-store` (tag rule `v*` only): one secret, the service-account private key, and three variables: the service-account client email, the publisher ID and the extension ID. The repo is public, so these Environment features work on GitHub Free.
+- Prerequisite: a Google Cloud project + a service account linked to the CWS developer account. Fallback: a manual zip upload. Where everything lives, the dry run, key rotation and the fallback: `docs/publishing.md`.
 
 **Listing**
 - New English summary and description, worded from the glossary.
