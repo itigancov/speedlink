@@ -36,8 +36,18 @@ export function browserOs(): BrowserOs {
 
 /** The locale keys for each platform's trigger text. */
 const TRIGGER_KEYS = {
-  mac: { label: 'platform.mac.trigger', word: 'platform.mac.triggerWord', chord: 'platform.mac.chord' },
-  other: { label: 'platform.other.trigger', word: 'platform.other.triggerWord', chord: 'platform.other.chord' },
+  mac: {
+    label: 'platform.mac.trigger',
+    word: 'platform.mac.triggerWord',
+    chord: 'platform.mac.chord',
+    plusKey: 'platform.mac.plusKey',
+  },
+  other: {
+    label: 'platform.other.trigger',
+    word: 'platform.other.triggerWord',
+    chord: 'platform.other.chord',
+    plusKey: 'platform.other.plusKey',
+  },
 } as const;
 
 /** "⌥ Option" or "Alt". */
@@ -53,6 +63,11 @@ export function triggerWord(platform: Platform = PLATFORM): string {
 /** "⌥K" or "Alt+K". */
 export function chordLabel(key: KeyLabel, platform: Platform = PLATFORM): string {
   return i18n.t(TRIGGER_KEYS[platform].chord, [key]);
+}
+
+/** "⌥ + key" or "Alt + key", for copy about every key at once. */
+export function triggerPlusKey(platform: Platform = PLATFORM): string {
+  return i18n.t(TRIGGER_KEYS[platform].plusKey);
 }
 
 export interface ModifierKey {

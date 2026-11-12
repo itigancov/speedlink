@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { browserOsFrom, chordLabel, modifierRow, platformFrom, triggerLabel, triggerWord } from './platform-labels';
+import {
+  browserOsFrom,
+  chordLabel,
+  modifierRow,
+  platformFrom,
+  triggerLabel,
+  triggerPlusKey,
+  triggerWord,
+} from './platform-labels';
 
 const MAC =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
@@ -48,6 +56,11 @@ describe('trigger labels', () => {
     expect(chordLabel('K', 'mac')).toBe('⌥K');
     expect(chordLabel('K', 'other')).toBe('Alt+K');
     expect(chordLabel('7', 'other')).toBe('Alt+7');
+  });
+
+  it('writes the trigger with any key as "⌥ + key" on a Mac and "Alt + key" elsewhere', () => {
+    expect(triggerPlusKey('mac')).toBe('⌥ + key');
+    expect(triggerPlusKey('other')).toBe('Alt + key');
   });
 });
 
