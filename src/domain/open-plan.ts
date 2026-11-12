@@ -8,6 +8,8 @@ export interface PlanTab {
   windowId: number;
   index: number;
   url: string;
+  /** The page title, '' when Chrome gives none. */
+  title: string;
   lastAccessed: number;
   pinned: boolean;
   incognito: boolean;

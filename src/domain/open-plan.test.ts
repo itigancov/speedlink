@@ -11,6 +11,7 @@ const tab = (id: number, fields: Partial<PlanTab> = {}): PlanTab => ({
   windowId: 1,
   index: id,
   url: 'https://other.example/',
+  title: 'Other',
   lastAccessed: id,
   pinned: false,
   incognito: false,

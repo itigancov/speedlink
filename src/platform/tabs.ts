@@ -15,6 +15,7 @@ export async function readPlanTabs(): Promise<PlanTab[]> {
             windowId: tab.windowId,
             index: tab.index,
             url: tab.url ?? '',
+            title: tab.title ?? '',
             lastAccessed: tab.lastAccessed ?? 0,
             pinned: tab.pinned,
             incognito: tab.incognito,
@@ -23,6 +24,56 @@ export async function readPlanTabs(): Promise<PlanTab[]> {
           },
         ],
   );
+}
+
+/** Events closer together than this give one re-read. */
+const COALESCE_MS = 50;
+
+/**
+ * Calls back with every open tab, read fresh, once at the start and again after any change that can alter a tab's
+ * link or window: created, removed, replaced, a URL update, a window opened or closed. A burst of events gives one
+ * read, and an older read that lands late is dropped. Returns the unsubscribe.
+ */
+export function watchPlanTabs(callback: (tabs: PlanTab[]) => void): () => void {
+  let active = true;
+  let latest = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const read = () => {
+    timer = undefined;
+    const sequence = ++latest;
+    void readPlanTabs().then(
+      (tabs) => {
+        if (active && sequence === latest) callback(tabs);
+      },
+      (error: unknown) => console.error('SpeedLink: could not read the open tabs', error),
+    );
+  };
+  const schedule = () => {
+    timer ??= setTimeout(read, COALESCE_MS);
+  };
+  const onUpdated = (_tabId: number, change: Browser.tabs.OnUpdatedInfo) => {
+    if (change.url !== undefined) schedule();
+  };
+
+  browser.tabs.onCreated.addListener(schedule);
+  browser.tabs.onRemoved.addListener(schedule);
+  browser.tabs.onReplaced.addListener(schedule);
+  browser.tabs.onUpdated.addListener(onUpdated);
+  browser.windows.onCreated.addListener(schedule);
+  browser.windows.onRemoved.addListener(schedule);
+  read();
+
+  return () => {
+    active = false;
+    clearTimeout(timer);
+    browser.tabs.onCreated.removeListener(schedule);
+    browser.tabs.onRemoved.removeListener(schedule);
+    browser.tabs.onReplaced.removeListener(schedule);
+    browser.tabs.onUpdated.removeListener(onUpdated);
+    browser.windows.onCreated.removeListener(schedule);
+    browser.windows.onRemoved.removeListener(schedule);
+  };
 }
 
 export interface OpenOutcome {
