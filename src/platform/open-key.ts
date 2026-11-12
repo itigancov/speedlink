@@ -2,7 +2,7 @@
 // A free key gets the free-key toast instead (§4.3, §6).
 import type { Browser } from 'wxt/browser';
 import type { Key } from '@/domain/keys';
-import { planOpen } from '@/domain/open-plan';
+import { planOpen, trialShortcut } from '@/domain/open-plan';
 import { displayName } from '@/domain/shortcut';
 import { createBadgeFlash } from './badge';
 import { sendToTab } from './injection';
@@ -16,6 +16,8 @@ const LOAD_TIMEOUT_MS = 10_000;
 export interface OpenKeyRequest {
   key: Key;
   force: boolean;
+  /** Options' Try ⌥K: opened through `trialShortcut`, so the Options tab is never replaced or closed. */
+  trial?: boolean;
 }
 
 export type OpenKey = (request: OpenKeyRequest, senderTab: Browser.tabs.Tab | undefined) => Promise<OpenKeyReply>;
@@ -31,22 +33,23 @@ function sendToast(tabId: number, toast: PageToastData): void {
 }
 
 /**
- * The function behind the `openKey` message (and the e2e hook). `senderTab` is the tab the key was pressed on,
+ * The function behind the `openKey` and `tryKey` messages (and the e2e hook). `senderTab` is the tab the key was pressed on,
  * also for a press in a sub-frame. The keymap and the tabs are read fresh on every call. A tab API failure replies
  * `failed` and is logged, never retried, so a flaky moment can't open a link twice.
  */
 export function createOpenKey(): OpenKey {
   const flash = createBadgeFlash();
 
-  return async ({ key, force }, senderTab) => {
+  return async ({ key, force, trial = false }, senderTab) => {
     if (senderTab?.id === undefined) return { kind: 'failed' };
     try {
       const [keymap, tabs] = await Promise.all([readKeymap(), readPlanTabs()]);
-      const shortcut = keymap[key];
-      if (shortcut === undefined) {
+      const stored = keymap[key];
+      if (stored === undefined) {
         sendToast(senderTab.id, { kind: 'free', key });
         return { kind: 'free' };
       }
+      const shortcut = trial ? trialShortcut(stored) : stored;
       const currentTab = tabs.find((tab) => tab.id === senderTab.id);
       if (currentTab === undefined) return { kind: 'failed' };
 

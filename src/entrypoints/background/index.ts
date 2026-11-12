@@ -10,6 +10,7 @@ export default defineBackground(() => {
 
   const openKey = createOpenKey();
   onMessage('openKey', ({ data, sender }) => openKey(data, sender.tab));
+  onMessage('tryKey', ({ data, sender }) => openKey({ key: data.key, force: false, trial: true }, sender.tab));
   onMessage('openOptions', ({ data, sender }) => openOptions(data?.key, sender.tab));
 
   // e2e only: drive the same openKey from Playwright with a real sender tab. Compiled away in every other build.

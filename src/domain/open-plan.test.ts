@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type PlanTab, planOpen } from './open-plan';
+import { type PlanTab, planOpen, trialShortcut } from './open-plan';
 import type { ShortcutDraft } from './shortcut';
 import { validShortcut } from './test-shortcut';
 
@@ -11,6 +11,7 @@ const tab = (id: number, fields: Partial<PlanTab> = {}): PlanTab => ({
   windowId: 1,
   index: id,
   url: 'https://other.example/',
+  title: 'Other',
   lastAccessed: id,
   pinned: false,
   incognito: false,
@@ -219,5 +220,63 @@ describe('planOpen: Force new tab', () => {
   it('opens a new tab even when the current tab matches', () => {
     const onIt = tab(1, { index: 3, url: LINK });
     expect(plan({ openMode: 'smart' }, [onIt], true, onIt)).toEqual(createNext);
+  });
+});
+
+describe('trialShortcut', () => {
+  it('turns This tab into New tab', () => {
+    expect(trialShortcut(shortcut({ openMode: 'this' })).openMode).toBe('new');
+  });
+
+  it.each(['smart', 'new', 'bg'] as const)('keeps %s', (openMode) => {
+    expect(trialShortcut(shortcut({ openMode })).openMode).toBe(openMode);
+  });
+
+  it.each(['smart', 'new', 'this', 'bg'] as const)('always drops close current (%s)', (openMode) => {
+    expect(trialShortcut(shortcut({ openMode, closeCurrent: true })).closeCurrent).toBe(false);
+  });
+
+  it('keeps every other field, unknown ones included', () => {
+    const trial = trialShortcut(shortcut({ name: 'Docs', tabMatch: 'page', openMode: 'this', future: { x: 1 } }));
+    expect(trial).toEqual({
+      link: LINK,
+      name: 'Docs',
+      openMode: 'new',
+      tabMatch: 'page',
+      closeCurrent: false,
+      future: { x: 1 },
+    });
+  });
+});
+
+describe('planOpen on a trial from Options', () => {
+  /** The Options page, an extension page. Every shortcut has close current on; no plan may close Options. */
+  const options = tab(1, { index: 3, url: 'chrome-extension://abc/options.html#key=D' });
+  const trial = (fields: Partial<ShortcutDraft>, tabs: PlanTab[] = [options]) =>
+    planOpen(trialShortcut(shortcut({ closeCurrent: true, ...fields })), { currentTab: options, tabs, force: false });
+
+  it('Smart switch with a matching tab activates it', () => {
+    expect(trial({ openMode: 'smart' }, [options, tab(5, { url: LINK })])).toEqual({
+      kind: 'activate',
+      tabId: 5,
+      windowId: 1,
+      badge: 'target',
+    });
+  });
+
+  it('Smart switch without a match opens a new tab', () => {
+    expect(trial({ openMode: 'smart' })).toEqual(createNext);
+  });
+
+  it('New tab opens a new active tab', () => {
+    expect(trial({ openMode: 'new' })).toEqual(createNext);
+  });
+
+  it('This tab opens a new tab and never updates Options', () => {
+    expect(trial({ openMode: 'this' })).toEqual(createNext);
+  });
+
+  it('Background tab opens an inactive tab', () => {
+    expect(trial({ openMode: 'bg' })).toEqual({ ...createNext, active: false, badge: 'current' });
   });
 });

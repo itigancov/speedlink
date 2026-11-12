@@ -6,6 +6,7 @@ platform:
     trigger: ⌥ Option
     triggerWord: Option
     chord: ⌥$1
+    plusKey: ⌥ + key
     fn: fn
     control: ⌃
     option: ⌥ option
@@ -14,6 +15,7 @@ platform:
     trigger: Alt
     triggerWord: Alt
     chord: Alt+$1
+    plusKey: Alt + key
     control: Ctrl
     alt: Alt
   space: space
@@ -28,3 +30,70 @@ pageToast:
   switched: Switched to your open $1 tab
   openNew: Open new
   close: Close
+options:
+  loading: Loading your keys…
+  search:
+    label: Find a link, site or key
+    placeholder: Find a link, site or key…
+  holdHint:
+    before: Hold
+    after: anywhere to see your keys
+  heading: Keymap
+  subline:
+    before: Press
+    after: on any page to open its link.
+    used: $1 of 35 keys in use.
+  view:
+    label: View
+    keyboard: Keyboard
+    list: List
+    listSoon: The list view is on its way.
+  legend:
+    assigned: Assigned
+    selected: Selected
+    free: Free
+    open: Open in a tab right now
+  inspector:
+    label: Key details
+    freeKey: Free key
+    status: $1 + $2 · $3
+    statusOpen: open in a tab now
+    statusFree: paste a link to assign
+    link: Link
+    linkPlaceholder: Paste a link or type a site
+    linkError: Enter a web address, like github.com or https://example.com.
+    useTab: Use $1
+    noWebPage: No web page open
+    name: Name — shown in the overlay
+    namePlaceholder: Taken from the page title
+    whenPressed: When I press it
+    recommended: Recommended
+    tabMatchPrompt: Count a tab as “already open” when it shows
+    closeCurrent: Close the tab I’m on afterwards
+    clear: Clear key
+    saved: Saved
+    saveError: Couldn’t save
+    try: Try $1
+  openMode:
+    smart:
+      title: Smart switch
+      description: Jump to the tab if it’s already open, otherwise open it in a new tab.
+    new:
+      title: New tab
+      description: Always open a fresh tab next to this one.
+    this:
+      title: This tab
+      description: Replace the page you’re looking at.
+    bg:
+      title: Background tab
+      description: Open quietly and stay where you are.
+  tabMatch:
+    exact:
+      title: This exact link
+      hint: Only a tab with exactly $1 is reused.
+    page:
+      title: This page
+      hint: "Reuses a tab on $1, ignoring ?query and #anchors."
+    site:
+      title: Any page of the site
+      hint: Reuses any tab on $1 — e.g. a video you left open.

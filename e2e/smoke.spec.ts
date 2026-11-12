@@ -4,7 +4,10 @@ test('the service worker registers and exposes the extension ID', async ({ exten
   expect(extensionId).toMatch(/^[a-p]{32}$/);
 });
 
-for (const page of ['options', 'popup', 'welcome']) {
+/** Each page's top heading: Options shows the keymap (product spec §8.1), the others are still placeholders. */
+const HEADINGS = { options: 'Keymap', popup: 'SpeedLink', welcome: 'SpeedLink' };
+
+for (const [page, heading] of Object.entries(HEADINGS)) {
   test(`${page}.html opens with no page errors`, async ({ context, extensionId }) => {
     const tab = await context.newPage();
     const errors: string[] = [];
@@ -13,7 +16,7 @@ for (const page of ['options', 'popup', 'welcome']) {
 
     await tab.goto(`chrome-extension://${extensionId}/${page}.html`);
 
-    await expect(tab.getByRole('heading', { level: 1, name: 'SpeedLink' })).toBeVisible();
+    await expect(tab.getByRole('heading', { level: 1, name: heading })).toBeVisible();
     expect(errors).toEqual([]);
   });
 }

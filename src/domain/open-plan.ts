@@ -8,6 +8,8 @@ export interface PlanTab {
   windowId: number;
   index: number;
   url: string;
+  /** The page title, '' when Chrome gives none. */
+  title: string;
   lastAccessed: number;
   pinned: boolean;
   incognito: boolean;
@@ -112,4 +114,17 @@ export function planOpen(shortcut: Shortcut, context: OpenContext): OpenPlan {
       };
     }
   }
+}
+
+/**
+ * Options' Try ⌥K (product spec §8.5): the shortcut as it opens from Options, which must never be replaced or
+ * closed. This tab becomes New tab and close current is dropped; every other field, unknown ones too, is kept.
+ * Only enum fields change, to valid values, so the result is still a valid `Shortcut`.
+ */
+export function trialShortcut(shortcut: Shortcut): Shortcut {
+  return {
+    ...shortcut,
+    openMode: shortcut.openMode === 'this' ? 'new' : shortcut.openMode,
+    closeCurrent: false,
+  } as unknown as Shortcut;
 }

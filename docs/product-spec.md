@@ -190,7 +190,7 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
 - **Top row**: badge "⌥ held" + the search field "Press a key — or keep typing to search".
 - **Footer legend**: key go · ⇧ + key force new tab · type search names & links · ⌥ release or Esc close · green dot "open now — will switch, not reopen".
 - **Empty keymap**: "No keys yet" + an "Open keymap" link.
-- **Mouse**: tile click opens, ⇧+click = Force new tab; both work in Peek too. A pencil on tile hover/focus opens Options `?key=K` (focusing an existing tab) and closes the overlay.
+- **Mouse**: tile click opens, ⇧+click = Force new tab; both work in Peek too. A pencil on tile hover/focus opens Options `#key=K` (focusing an existing tab without reloading it) and closes the overlay.
 - ⌥+free key while the overlay is open: the overlay closes and the "⌥K is free" toast appears.
 - The overlay model (tiles, Open now, tab N, other window) comes from the background on open.
 ↳ rebuild map: issues/13-keyboard-capture.md (keyboard capture), issues/06-behavior-audit.md (behavior audit)
@@ -280,9 +280,9 @@ There is no left nav: only Keymap is left.
 
 ### 8.2 Selection
 - Exactly one key is always selected.
-- `?key=K` selects K. It is used by the overlay pencil and by ⌥S on restricted pages.
+- `#key=K` selects K. It is used by the overlay pencil and by ⌥S on restricted pages. It is read on load and on `hashchange`; S is never selected.
 - Otherwise the first assigned key in keyboard order is selected; with an empty keymap, the first free key.
-- The selection is mirrored to `?key=K`.
+- The selection is mirrored to `#key=K` with `history.replaceState`.
 
 ### 8.3 Inspector ("Key details")
 **Header**
@@ -292,7 +292,7 @@ There is no left nav: only Keymap is left.
 
 **Link**
 - Placeholder "Paste a link or type a site", plus a **Use current tab** icon button.
-- Use current tab takes the active tab of the last focused normal window (not an extension page, http(s) only). Otherwise the button is disabled with the tooltip "No web page open".
+- Use current tab takes the most recently used (`lastAccessed`) http(s) tab in a normal, non-incognito window, never an extension page; the tooltip names its title. Without one, the button is disabled with the tooltip "No web page open".
 - It fills Link, and Name if Name is empty (tab title).
 
 **Name**: "— shown in the overlay", placeholder "Taken from the page title".
