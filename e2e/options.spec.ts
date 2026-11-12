@@ -3,7 +3,7 @@ import { FIXTURE_PORT } from '../playwright.config';
 import { expect, test } from './extension';
 
 // The Options keymap in the built extension (product spec §8): editing, validation, Clear key, Try ⌥K through the
-// real `tryKey` message, the hash selection, v1-imported keys and live sync changes. Each combination is unit-tested
+// real `tryKey` message, the hash selection, v1-imported keys, live sync changes, the `/` search and the List view. Each combination is unit-tested
 // in src/entrypoints/options/OptionsPage.test.tsx; this covers real storage, real tabs and the background.
 
 interface Tab {
@@ -186,4 +186,97 @@ test('a change from another device shows up without a reload', async ({ context,
   await expect(page.getByLabel('Name — shown in the overlay')).toHaveValue('After');
   await expect(keyCap(page, 'Y')).toHaveAccessibleName(/Y: 127\.0\.0\.1:4321$/);
   expect(errors).toEqual([]);
+});
+
+test.describe('/ search and the List view', () => {
+  const search = (page: Page) => page.getByRole('searchbox', { name: 'Find a link, site or key' });
+  const linkField = (page: Page) => page.getByRole('textbox', { name: 'Link', exact: true });
+  const bodyRows = (page: Page) => page.locator('tbody tr');
+
+  async function seed(worker: Worker) {
+    await store(worker, 'Y', { link: 'https://youtube.com/watch', name: 'Videos' });
+    await store(worker, 'G', { link: 'https://github.com/pulls', name: 'Pull requests' });
+    await store(worker, 'M', { link: 'https://mail.google.com/' });
+  }
+
+  test('Keyboard view: / then a name fragment dims the rest, ↵ selects and focuses Link', async ({
+    context,
+    extensionId,
+  }) => {
+    await seed(await serviceWorker(context, extensionId));
+    const { page, errors } = await openOptions(context, extensionId, 'Y');
+
+    await page.locator('body').press('/');
+    await expect(search(page)).toBeFocused();
+    await page.keyboard.type('pull');
+
+    await expect(keyCap(page, 'G')).not.toHaveAttribute('data-dimmed');
+    await expect(keyCap(page, 'Y')).toHaveAttribute('data-dimmed', 'true');
+    await expect(keyCap(page, 'W')).toHaveAttribute('data-dimmed', 'true');
+
+    await page.keyboard.press('Enter');
+    await expect(keyCap(page, 'G')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('heading', { level: 2 })).toHaveText('Pull requests');
+    await expect(linkField(page)).toBeFocused();
+    await expect(search(page)).toHaveValue('pull');
+    expect(new URL(page.url()).hash).toBe('#key=G');
+    expect(errors).toEqual([]);
+  });
+
+  test('List view: a link fragment hides the other rows; ↵ and a row click select', async ({
+    context,
+    extensionId,
+  }) => {
+    await seed(await serviceWorker(context, extensionId));
+    const { page, errors } = await openOptions(context, extensionId, 'Y');
+    await page.getByRole('radio', { name: 'List' }).click();
+    await expect(bodyRows(page)).toHaveCount(3);
+
+    await page.locator('body').press('/');
+    await page.keyboard.type('.com/');
+    await expect(bodyRows(page)).toHaveCount(3);
+    await search(page).fill('google');
+    await expect(bodyRows(page)).toHaveCount(1);
+    await expect(bodyRows(page)).toContainText('mail.google.com');
+
+    await page.keyboard.press('Enter');
+    await expect(bodyRows(page)).toHaveAttribute('aria-selected', 'true');
+    await expect(linkField(page)).toBeFocused();
+    expect(new URL(page.url()).hash).toBe('#key=M');
+
+    await search(page).fill('');
+    await bodyRows(page).filter({ hasText: 'Pull requests' }).getByText('Pull requests').click();
+    await expect(page.getByRole('heading', { level: 2 })).toHaveText('Pull requests');
+    expect(new URL(page.url()).hash).toBe('#key=G');
+    expect(errors).toEqual([]);
+  });
+
+  test('/ typed in Link stays in the field and leaves the search empty', async ({ context, extensionId }) => {
+    const { page, errors } = await openOptions(context, extensionId, 'K');
+    await linkField(page).click();
+    await page.keyboard.type('github.com/pulls');
+    await expect(linkField(page)).toHaveValue('github.com/pulls');
+    await expect(linkField(page)).toBeFocused();
+    await expect(search(page)).toHaveValue('');
+    expect(errors).toEqual([]);
+  });
+
+  test('Esc clears the query; a no-match query says "No keys match" in List view', async ({ context, extensionId }) => {
+    await seed(await serviceWorker(context, extensionId));
+    const { page, errors } = await openOptions(context, extensionId, 'Y');
+    await page.getByRole('radio', { name: 'List' }).click();
+
+    await page.locator('body').press('/');
+    await page.keyboard.type('zzz');
+    await expect(page.getByText('No keys match')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(search(page)).toHaveValue('');
+    await expect(search(page)).toBeFocused();
+    await expect(bodyRows(page)).toHaveCount(3);
+
+    await page.keyboard.press('Escape');
+    await expect(search(page)).not.toBeFocused();
+    expect(errors).toEqual([]);
+  });
 });
