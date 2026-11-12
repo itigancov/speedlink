@@ -1,5 +1,6 @@
 // Every trigger label (product spec §4.7). Mac vs everything else is decided once, synchronously, from the user
 // agent; the text lives in en.yml. Each label function takes the platform for tests and the gallery.
+import type { BrowserOs } from '@/domain/keydown';
 import type { KeyLabel } from '@/domain/keys';
 
 export type Platform = 'mac' | 'other';
@@ -9,8 +10,29 @@ export function platformFrom(userAgent: string): Platform {
   return /Macintosh|Mac OS X/.test(userAgent) ? 'mac' : 'other';
 }
 
-/** The platform this context runs on. `navigator` exists in pages, content scripts and the service worker. */
-export const PLATFORM: Platform = platformFrom(globalThis.navigator?.userAgent ?? '');
+/** `navigator` exists in pages, content scripts and the service worker. */
+const USER_AGENT = globalThis.navigator?.userAgent ?? '';
+
+/** The platform this context runs on. */
+export const PLATFORM: Platform = platformFrom(USER_AGENT);
+
+/**
+ * The OS by name, for the free browser keys a trigger leaves alone (§4.3) and nothing else: labels stay Mac vs
+ * other. ChromeOS's user agent also says Linux, so it is checked first.
+ */
+export function browserOsFrom(userAgent: string): BrowserOs {
+  if (/CrOS/.test(userAgent)) return 'chromeos';
+  if (/Windows/.test(userAgent)) return 'windows';
+  if (platformFrom(userAgent) === 'mac') return 'mac';
+  return 'linux';
+}
+
+const BROWSER_OS = browserOsFrom(USER_AGENT);
+
+/** The OS of this context's browser. */
+export function browserOs(): BrowserOs {
+  return BROWSER_OS;
+}
 
 /** The locale keys for each platform's trigger text. */
 const TRIGGER_KEYS = {

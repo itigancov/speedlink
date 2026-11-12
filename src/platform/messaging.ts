@@ -22,7 +22,7 @@ export type OpenKeyReply =
  * Directions:
  * - content → bg: openKey, assignPage, undo, openOptions, getOverlayModel, frameEvent
  * - popup → bg: assignPage, openOptions
- * - bg → tab (frameId 0, via item 08's `sendToTab`): ping, overlay, toast, frameEvent
+ * - bg → tab (frameId 0, via `sendToTab` in `injection.ts`): ping, overlay, toast, frameEvent
  */
 export interface ProtocolMap {
   // content → bg
@@ -45,22 +45,26 @@ export interface ProtocolMap {
   /** Hold/release state shared between frames; relayed through the background to the top frame. */
   frameEvent(data: {
     kind: 'hold-start' | 'hold-cancel' | 'release' | 'key';
-    // TODO(item 08): the rest of the payload
+    // TODO(item 16): the rest of the payload, with the relay and its first consumer
   }): void;
 
   // bg → tab
 
-  /** Liveness check before injecting the content script. */
-  ping(): unknown; // TODO(item 08): reply shape
+  /** Liveness check before injecting the content script: every frame's script answers `true`. */
+  ping(): true;
 
   /** Overlay control from the `toggle-overlay` command and the background. */
   overlay(data: { action: 'toggle' | 'pin' | 'cancel-hold' }): void;
 
-  /** Show a page toast. */
-  toast(data: {
-    kind: 'saved' | 'free' | 'switched';
-    // TODO(item 10/14): the rest of the payload and the remaining kinds
-  }): void;
+  /** Show a page toast. `free`: ⌥ + a free key was pressed on the page. */
+  toast(
+    data:
+      | { kind: 'free'; key: Key }
+      | {
+          kind: 'saved' | 'switched';
+          // TODO(item 10/14): the rest of the payload and the remaining kinds
+        },
+  ): void;
 }
 
 export const { sendMessage, onMessage } = defineExtensionMessaging<ProtocolMap>();

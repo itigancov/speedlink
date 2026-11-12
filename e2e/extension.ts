@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { type BrowserContext, test as base, chromium, type Page } from '@playwright/test';
+import { type BrowserContext, test as base, chromium, type Page, type Worker } from '@playwright/test';
 
 export const EXTENSION_PATH = resolve(import.meta.dirname, '../.output/chrome-mv3');
 export const THROW_EXTENSION_PATH = resolve(import.meta.dirname, '../.output-e2e-throw/chrome-mv3');
@@ -17,6 +17,12 @@ interface Fixtures {
   extensionId: string;
   /** Opens a page with CDP `Runtime.exceptionThrown` capture attached before any script runs. */
   openWithExceptionCapture: (url: string) => Promise<{ page: Page; exceptions: CapturedException[] }>;
+  /**
+   * Updates the extension in place, as the Store would: Chrome reloads it from the same folder under the same ID,
+   * fires `onInstalled` with `reason: 'update'` and orphans the old content scripts. Resolves with the new
+   * service worker. (`chrome.runtime.reload()` would unload a command-line-loaded extension for good.)
+   */
+  updateExtension: () => Promise<Worker>;
 }
 
 export const test = base.extend<Fixtures>({
@@ -26,7 +32,12 @@ export const test = base.extend<Fixtures>({
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
       headless: true,
-      args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
+      // The unsafe-debugging flag opens CDP's Extensions domain, so a spec can update the extension in place.
+      args: [
+        `--disable-extensions-except=${extensionPath}`,
+        `--load-extension=${extensionPath}`,
+        '--enable-unsafe-extension-debugging',
+      ],
     });
     await use(context);
     await context.close();
@@ -49,6 +60,18 @@ export const test = base.extend<Fixtures>({
       await cdp.send('Runtime.enable');
       await page.goto(url, { waitUntil: 'load' });
       return { page, exceptions };
+    });
+  },
+
+  updateExtension: async ({ context, extensionPath }, use) => {
+    await use(async () => {
+      const browser = context.browser();
+      if (browser === null) throw new Error('no browser for CDP');
+      const cdp = await browser.newBrowserCDPSession();
+      const next = context.waitForEvent('serviceworker');
+      await cdp.send('Extensions.loadUnpacked' as never, { path: extensionPath } as never);
+      await cdp.detach();
+      return next;
     });
   },
 });
