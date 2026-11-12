@@ -1,3 +1,4 @@
+import { registerInjectionOnInstall } from '@/platform/injection';
 import { onMessage } from '@/platform/messaging';
 import { createOpenKey } from '@/platform/open-key';
 import { openOptions } from '@/platform/options-tab';
@@ -5,6 +6,7 @@ import { registerStoragePreparation } from '@/platform/storage-preparation';
 
 export default defineBackground(() => {
   registerStoragePreparation();
+  registerInjectionOnInstall();
 
   const openKey = createOpenKey();
   onMessage('openKey', ({ data, sender }) => openKey(data, sender.tab));

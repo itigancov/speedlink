@@ -209,6 +209,42 @@ describe('openKey', () => {
   });
 });
 
+describe('openKey: the free signal', () => {
+  /** Messages sent to tabs, as `<tabId>/<frameId> <type> <data>`; the tab's script answers every one. */
+  let sent: string[];
+
+  beforeEach(() => {
+    sent = [];
+    vi.spyOn(browser.tabs, 'sendMessage').mockImplementation(((
+      tabId: number,
+      message: { type: string; data: unknown },
+      options: { frameId?: number } | undefined,
+      callback: (response: unknown) => void,
+    ) => {
+      sent.push(`${tabId}/${options?.frameId} ${message.type} ${JSON.stringify(message.data ?? null)}`);
+      callback({ res: message.type === 'ping' ? true : undefined });
+    }) as never);
+  });
+
+  it('on a free key, sends the free toast to the top frame of the tab the key was pressed on', async () => {
+    openTabs([current]);
+
+    expect(await createOpenKey()({ key: 'D', force: false }, current)).toEqual({ kind: 'free' });
+
+    await vi.waitFor(() => expect(sent).toEqual(['1/0 ping null', '1/0 toast {"kind":"free","key":"D"}']));
+  });
+
+  it('sends nothing for an assigned key', async () => {
+    openTabs([current]);
+    await store('D', { openMode: 'new' });
+
+    await createOpenKey()({ key: 'D', force: false }, current);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(sent).toEqual([]);
+  });
+});
+
 describe('openKey: badge flash', () => {
   it('after a switch, shows the key on the target at once, in the accent colour, then clears it after 1.5 s', async () => {
     openTabs([current, tab(5, { url: LINK })]);

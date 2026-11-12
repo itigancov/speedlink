@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Fixture: keys</title>
+    <script>
+      // What the page's own key listeners see: one on window in the capture phase, one bubbling on document.
+      window.seen = [];
+      window.addEventListener('keydown', (e) => window.seen.push(`capture ${e.code}`), true);
+      document.addEventListener('keydown', (e) => window.seen.push(`bubble ${e.code}`));
+    </script>
+  </head>
+  <body>
+    <h1>Keys</h1>
+    <label>Input <input id="input" /></label>
+    <label>Textarea <textarea id="textarea"></textarea></label>
+    <div id="editor" contenteditable="true">Rich editor</div>
+  </body>
+</html>

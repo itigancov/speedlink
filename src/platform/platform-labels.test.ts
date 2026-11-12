@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chordLabel, modifierRow, platformFrom, triggerLabel, triggerWord } from './platform-labels';
+import { browserOsFrom, chordLabel, modifierRow, platformFrom, triggerLabel, triggerWord } from './platform-labels';
 
 const MAC =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
@@ -18,6 +18,18 @@ describe('platformFrom', () => {
     ['an empty user agent', '', 'other'],
   ] as const)('%s is %s', (_, userAgent, platform) => {
     expect(platformFrom(userAgent)).toBe(platform);
+  });
+});
+
+describe('browserOsFrom', () => {
+  it.each([
+    ['macOS', MAC, 'mac'],
+    ['Windows', WINDOWS, 'windows'],
+    ['Linux', LINUX, 'linux'],
+    ['ChromeOS', CHROMEOS, 'chromeos'],
+    ['an empty user agent', '', 'linux'],
+  ] as const)('%s is %s', (_, userAgent, os) => {
+    expect(browserOsFrom(userAgent)).toBe(os);
   });
 });
 

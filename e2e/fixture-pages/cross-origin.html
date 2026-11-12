@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Fixture: cross-origin child</title>
+  </head>
+  <body>
+    <h1>Cross-origin parent</h1>
+    <!-- The page is served from 127.0.0.1, so a localhost child is another origin on the same server. -->
+    <iframe id="child" title="Cross-origin child frame"></iframe>
+    <script>
+      document.getElementById('child').src = `http://localhost:${location.port}/frame-child.html`;
+    </script>
+  </body>
+</html>
