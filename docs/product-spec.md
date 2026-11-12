@@ -274,9 +274,10 @@ There is no left nav: only Keymap is left.
 - A legend, plus "Drag a key onto another to swap".
 
 **List view**
-- Columns Key · Name · Link · Opens as ("· closes current" when set).
+- Columns Key · Name · Link · Opens as ("· closes current" when set, never for This tab, where it is ignored).
 - Only assigned keys, in keyboard order, with no sorting. A row click selects.
-- Empty → "No keys yet — pick one in Keyboard view".
+- The Key cell shows the open-now dot. Name falls back to the site, shown muted. The Link is truncated to one line, with the full link in a tooltip.
+- Empty → "No keys yet — pick one in Keyboard view" (it wins over a query). A query that matches no assigned key, including one that matches only free keys, shows "No keys match".
 
 ### 8.2 Selection
 - Exactly one key is always selected.
@@ -331,9 +332,11 @@ There is no left nav: only Keymap is left.
 - Disabled on a free key.
 
 ### 8.6 `/` search
-- `/` focuses the search; it matches per §2.7.
-- Keyboard view dims non-matching keys; List view hides non-matching rows.
-- ↵ selects the first match; Esc clears.
+- `/` focuses the search and selects its text; it matches per §2.7. `/` is ignored in editable fields (inputs, textareas, contenteditable) and with ⌘, Ctrl or ⌥ held.
+- Filtering is live on every keystroke. Keyboard view dims non-matching keys; List view hides non-matching rows.
+- ↵ selects the exact key-label match first, otherwise the first match in keyboard order; in List view, the first visible row. It moves focus to Link and keeps the query. ↵ with no match does nothing.
+- Esc clears the query; a second Esc on an empty field leaves it. Esc only applies while the search field has focus.
+- Typing never changes the selection. The query is shared by both views, not persisted, and empty on load.
 - No match → all keys dimmed / "No keys match".
 
 ### 8.7 Drag-to-swap
