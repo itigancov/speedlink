@@ -43,20 +43,19 @@ Optional pre-check: `chrome.management.getPermissionWarningsByManifest` on the t
 
 ### Run
 
-1. In `$W/tool`, start the server with `WRITE_KEY=1 npm start`. It listens on `http://localhost:8080`, and `WRITE_KEY=1` keeps the signing key in `key.pem` so the ID stays the same across restarts. The server only serves the version uploaded **last**, so upload the packages one at a time, in this order.
+1. In `$W/tool`, start the server with `WRITE_KEY=1 npm start`. It listens on `http://localhost:8080`, and `WRITE_KEY=1` keeps the signing key in `key.pem` so the ID stays the same across restarts. The server only serves the version uploaded **last**, so upload the packages one at a time, in this order. Upload each one **once**: the tool clears its `tmp/` before checking the version, so a rejected upload ("Please increase the version field") deletes the CRX it was serving, and **Update** then fetches nothing while `updates.xml` still offers the new version (`/extension.crx` returns 404). If that happens, restart the server (the key in `key.pem` keeps the ID) and upload that package again.
 2. Start Chromium with a throwaway profile: `Chromium.app/Contents/MacOS/Chromium --user-data-dir=$W/profile --no-first-run --no-default-browser-check`. Open `chrome://extensions` and turn on **Developer mode**.
 3. **Install 1.6.** Upload the 1.6 zip on `http://localhost:8080` (drag-and-drop, or `curl -H 'Content-Type: application/zip' --data-binary @speedlink-1.6.zip http://localhost:8080/upload/zip`). Download `http://localhost:8080/extension.crx` and drag the file onto `chrome://extensions`, then accept the install prompt.
 4. **Before.** Under **Details**, write down the version, the ID and the **Permissions** list.
 5. **Seed data.** In 1.6, assign 3–4 shortcuts to ordinary sites, one of them on S (assignable in 1.6, reserved in 4.0, so migration has to move it).
-6. **Update to 4.0.** Upload the 4.0 zip, then click **Update** at the top of `chrome://extensions`.
-7. **Check 4.0.** It passes only if all of these hold:
+6. **Update to 4.0.** Upload the 4.0 zip, then click **Update** at the top of `chrome://extensions`.7. **Check 4.0.** It passes only if all of these hold:
    - the card shows the 4.0 version with the toggle on;
    - there is no permission prompt and no "needs your approval" / re-enable banner on the card or in the toolbar menu;
    - **Inspect views** shows a service-worker link and there's no **Errors** button. "(inactive)" alone is fine: an idle MV3 worker stops after about 30 seconds, and clicking the link wakes it.
 
    Under **Details**, write down the permission list after the update.
 8. **Migration look (observation only).** Open SpeedLink's Options and note whether the 1.6 shortcuts are there and where S went. This doesn't affect the verdict. Problems go to the v1 migration work. ⌥S (Alt+S) left unbound after this update is expected (4.0.1 fixes it).
-9. **Control.** Upload the control zip and click **Update**. Chromium must disable the extension and ask to approve the history permission. Write down what it shows.
+9. **Control.** Upload the control zip and click **Update**. Chromium must disable the extension and ask to approve the history permission: the card shows the control's version with the toggle off, and the toolbar shows **Action Required**. Write down what it shows.
 
 ### Verdict
 
