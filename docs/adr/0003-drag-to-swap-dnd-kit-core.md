@@ -1,0 +1,3 @@
+# Drag-to-swap uses `@dnd-kit/core` 6.3.1
+
+The Options Keyboard view rearranges keys by dragging one onto another, with the mouse and from the keyboard (product spec §8.7). We use `@dnd-kit/core` at exactly 6.3.1 and nothing else from dnd-kit: `useDraggable`, `useDroppable`, the pointer and keyboard sensors, `DragOverlay` and its screen-reader announcements cover the whole feature, so `@dnd-kit/sortable` isn't needed. It is stable, widely used, ships a keyboard sensor and live-region announcements we can localize, and its peer range covers React 19. We chose it over `@dnd-kit/react` (0.5.x at the time), which is maintained but not yet 1.0, so its API may still change. Moving to it later is a deliberate change that replaces this ADR.
