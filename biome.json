@@ -11,6 +11,7 @@
       "!**/.wxt",
       "!**/.output",
       "!**/.output-e2e-throw",
+      "!**/.output-e2e-hooks",
       "!**/playwright-report",
       "!**/test-results",
       "!**/*.md"

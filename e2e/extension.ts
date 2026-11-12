@@ -3,6 +3,8 @@ import { type BrowserContext, test as base, chromium, type Page } from '@playwri
 
 export const EXTENSION_PATH = resolve(import.meta.dirname, '../.output/chrome-mv3');
 export const THROW_EXTENSION_PATH = resolve(import.meta.dirname, '../.output-e2e-throw/chrome-mv3');
+/** The extension with test hooks on the service worker (`SPEEDLINK_E2E_HOOKS=1`). */
+export const HOOKS_EXTENSION_PATH = resolve(import.meta.dirname, '../.output-e2e-hooks/chrome-mv3');
 
 export interface CapturedException {
   url: string | undefined;
