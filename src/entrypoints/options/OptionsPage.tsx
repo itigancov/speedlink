@@ -12,6 +12,7 @@ import { isOpenNow } from '@/domain/tab-match';
 import { useAutosave } from '@/hooks/use-autosave';
 import { useKeymap } from '@/hooks/use-keymap';
 import { lastWebTab, useOpenTabs } from '@/hooks/use-open-tabs';
+import { isEditableTarget } from '@/platform/key-capture';
 import { writeChange } from '@/platform/keymap-store';
 import { sendMessage } from '@/platform/messaging';
 import { triggerLabel, triggerPlusKey } from '@/platform/platform-labels';
@@ -62,14 +63,18 @@ function Header({ search }: { search: SearchProps }) {
   );
 }
 
-const isEditable = (target: EventTarget | null) =>
-  target instanceof HTMLElement && (target.isContentEditable || target.matches('input, textarea, select'));
-
 /** `/` anywhere on the page, outside a field and without ⌘, Ctrl or ⌥, jumps to the search and selects its text. */
 function useSlashFocus(input: RefObject<HTMLInputElement | null>) {
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || isEditable(event.target)) return;
+      if (
+        event.key !== '/' ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        isEditableTarget(event.composedPath()[0])
+      )
+        return;
       event.preventDefault();
       input.current?.focus();
       input.current?.select();

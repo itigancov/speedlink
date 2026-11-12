@@ -567,6 +567,14 @@ describe('/ search', () => {
     }
   });
 
+  it('/ on a checkbox or radio still jumps to the search', async () => {
+    await renderPage('#key=K');
+    const close = screen.getByRole('checkbox', { name: 'Close the tab I’m on afterwards' });
+    act(() => close.focus());
+    slash(close);
+    expect(document.activeElement).toBe(searchField());
+  });
+
   it('/ in Link, Name or the search field is not taken over', async () => {
     await renderPage('#key=K');
     for (const field of [linkField(), nameField(), searchField()]) {

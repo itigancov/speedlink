@@ -66,3 +66,20 @@ describe('KeyCap states', () => {
     expect(clicks).toBe(1);
   });
 });
+
+describe('KeyCap dimmed', () => {
+  it('keeps its state, accessible name and click when dimmed', () => {
+    let clicks = 0;
+    render(<KeyCap label="K" state="selected" dimmed open name="GitHub" platform="mac" onClick={() => clicks++} />);
+    const button = screen.getByRole('button', { name: 'Option K: GitHub, open in a tab' });
+    expect(button.dataset.dimmed).toBe('true');
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    button.click();
+    expect(clicks).toBe(1);
+  });
+
+  it('is not dimmed by default', () => {
+    render(<KeyCap label="K" state="free" platform="mac" />);
+    expect(screen.getByRole('button').dataset.dimmed).toBeUndefined();
+  });
+});

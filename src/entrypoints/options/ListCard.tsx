@@ -3,22 +3,13 @@ import { cn } from 'cn';
 import { KeyCap } from '@/components/KeyCap';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import type { Keymap } from '@/domain/keymap-ops';
-import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
+import { KEYBOARD_ORDER } from '@/domain/keys';
 import { siteOf } from '@/domain/link';
 import { displayName, type Shortcut } from '@/domain/shortcut';
-import type { Platform } from '@/platform/platform-labels';
+import type { KeyboardCardProps } from './KeyboardCard';
 
-export interface ListCardProps {
-  keymap: Keymap;
-  /** Keys whose shortcut is open in a tab right now. */
-  openKeys: ReadonlySet<Key>;
-  selected: Key;
-  /** The keys a search matches, or null with no search: every other row is hidden. */
-  matches?: ReadonlySet<Key> | null;
-  onSelect: (key: Key) => void;
-  platform?: Platform;
-}
+/** The same inputs as the Keyboard view; `matches` hides the rows outside a search instead of dimming them. */
+export type ListCardProps = KeyboardCardProps;
 
 function opensAs(shortcut: Shortcut): string {
   const mode = i18n.t(`options.openMode.${shortcut.openMode}.title`);
@@ -39,8 +30,11 @@ function Message({ children }: { children: string }) {
 }
 
 export function ListCard({ keymap, openKeys, selected, matches = null, onSelect, platform }: ListCardProps) {
-  const assigned = KEYBOARD_ORDER.filter((key) => keymap[key] !== undefined);
-  const rows = matches === null ? assigned : assigned.filter((key) => matches.has(key));
+  const assigned = KEYBOARD_ORDER.flatMap((key) => {
+    const shortcut = keymap[key];
+    return shortcut === undefined ? [] : [{ key, shortcut }];
+  });
+  const rows = matches === null ? assigned : assigned.filter(({ key }) => matches.has(key));
 
   return (
     <div className="rounded-2xl border bg-card p-4">
@@ -59,8 +53,7 @@ export function ListCard({ keymap, openKeys, selected, matches = null, onSelect,
           ) : rows.length === 0 ? (
             <Message>{i18n.t('options.list.noMatch')}</Message>
           ) : (
-            rows.map((key) => {
-              const shortcut = keymap[key] as Shortcut;
+            rows.map(({ key, shortcut }) => {
               const isSelected = key === selected;
               return (
                 // The key button in the first cell is the row's keyboard path; a click anywhere on the row selects too.
