@@ -47,7 +47,14 @@ options:
     label: View
     keyboard: Keyboard
     list: List
-    listSoon: The list view is on its way.
+  list:
+    key: Key
+    name: Name
+    link: Link
+    opensAs: Opens as
+    closesCurrent: · closes current
+    empty: No keys yet — pick one in Keyboard view
+    noMatch: No keys match
   legend:
     assigned: Assigned
     selected: Selected
