@@ -9,7 +9,7 @@ pnpm only, at the version in `packageManager`: `pnpm install`, `pnpm <script>`, 
 - `pnpm check`: the read-only gate (Biome lint + format verification, then `wxt prepare && tsc --noEmit`). CI runs the same command.
 - `pnpm format`: apply formatting and sort imports. Fix style with this, by hand never.
 - `pnpm test`: Vitest once. Run a single file with `pnpm test src/path/file.test.ts`.
-- `pnpm e2e`: builds, then runs Playwright against the build (it also builds a negative-control variant into `.output-e2e-throw/`). First run needs `pnpm exec playwright install chromium`.
+- `pnpm e2e`: builds, then runs Playwright against the build (it also builds a negative-control variant into `.output-e2e-throw/` and a variant with service-worker test hooks into `.output-e2e-hooks/`). First run needs `pnpm exec playwright install chromium`.
 - `pnpm dev` / `pnpm build` / `pnpm zip`: WXT watch mode, unpacked build in `.output/`, Store zip.
 
 Done means `check`, `test` and `e2e` all pass. A `pre-push` hook (`.githooks/`, wired by `postinstall`) runs `check` and `test` before every push; fix the failure rather than skipping it.
@@ -19,8 +19,8 @@ Done means `check`, `test` and `e2e` all pass. A `pre-push` hook (`.githooks/`, 
 ```
 src/entrypoints/   background/, hud.content/ (the page content script), popup/, options/, welcome/ (unlisted page),
                    gallery/ (dev-only: every shared piece in every state; dropped from builds)
-src/domain/        pure TS: keys, shortcut, link, tab-match, keymap-ops, fitting-keys, open-plan, search, migrations
-src/platform/      everything touching chrome.*: stores, tabs, injection, commands, messaging, platform-labels, hud-font, i18n
+src/domain/        pure TS: keys, shortcut, link, tab-match, keymap-ops, fitting-keys, open-plan, restricted, search, migrations
+src/platform/      everything touching chrome.*: stores, tabs (open executor), open-key, options-tab, badge, injection, commands, messaging, platform-labels, hud-font, i18n
 src/components/ui/ stock shadcn;  src/components/: shared custom (KeyCap, KeyboardGrid, Monogram)
 src/hooks/  src/assets/ (theme.css, fonts)  src/locales/en.yml
 public/icon/       extension icons;  public/fonts/  Inter woff2 + OFL.txt (see README)

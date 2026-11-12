@@ -1,4 +1,16 @@
 import { defineExtensionMessaging } from '@webext-core/messaging';
+import type { Key } from '@/domain/keys';
+import type { OpenMode } from '@/domain/shortcut';
+
+/**
+ * What `openKey` did. `opened.switched` is true when Smart switch activated an existing tab; the background sends
+ * the switched toast itself (item 10), since the caller's tab may already be closed.
+ */
+export type OpenKeyReply =
+  | { kind: 'opened'; tabId: number; switched: boolean }
+  | { kind: 'noop' }
+  | { kind: 'free' }
+  | { kind: 'failed' };
 
 /**
  * The one message protocol (product spec §11.4). Every message between the background, content scripts and
@@ -15,22 +27,17 @@ import { defineExtensionMessaging } from '@webext-core/messaging';
 export interface ProtocolMap {
   // content → bg
 
-  /** ⌥+key pressed on a page. `key` becomes the domain Key type in item 03. */
-  openKey(data: { key: string; force: boolean }): unknown; // TODO(item 07): reply shape
+  /** ⌥+key pressed on a page (sender.tab is the current tab, sub-frames too); `force` is Force new tab. */
+  openKey(data: { key: Key; force: boolean }): OpenKeyReply;
 
   /** Assign the current page to a key (popup, free-key toast). Writes the undo record in `storage.session`. */
-  assignPage(data: {
-    key: string;
-    tabId: number;
-    openMode?: unknown; // TODO(item 07): the domain open-mode type
-    resolve?: 'replace' | 'move';
-  }): unknown; // TODO(item 14): reply shape (conflict / saved + undo handle)
+  assignPage(data: { key: string; tabId: number; openMode?: OpenMode; resolve?: 'replace' | 'move' }): unknown; // TODO(item 14): reply shape (conflict / saved + undo handle)
 
   /** Undo the last assign. */
   undo(): unknown; // TODO(item 14): reply shape
 
-  /** Open the Options page, optionally with a key selected. */
-  openOptions(data?: { key?: string }): void;
+  /** Focus an open Options tab, or open one next to the sender, optionally with a key selected (`#key=K`). */
+  openOptions(data?: { key?: Key }): void;
 
   /** The overlay's model, built by the background. */
   getOverlayModel(): unknown; // TODO(item 16): overlay model type

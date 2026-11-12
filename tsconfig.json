@@ -18,5 +18,5 @@
       "#i18n": ["./.wxt/i18n/index.ts"]
     }
   },
-  "exclude": ["node_modules", ".output", ".output-e2e-throw", "playwright-report", "test-results"]
+  "exclude": ["node_modules", ".output", ".output-e2e-throw", ".output-e2e-hooks", "playwright-report", "test-results"]
 }
