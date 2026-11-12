@@ -1,7 +1,9 @@
-import type { Keymap } from './keymap-ops';
 import { isAssignable, KEYBOARD_ORDER, type Key, type KeyLabel } from './keys';
 import { mainLabel } from './link';
 import type { Shortcut } from './shortcut';
+
+/** Which keys are in use: a keymap, or any record whose entries mark keys as taken. A free key has no entry. */
+export type KeyUse = Readonly<Partial<Record<Key, unknown>>>;
 
 const MAX_SUGGESTIONS = 4;
 const WORD = /[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu;
@@ -24,7 +26,7 @@ function initialLabel(word: string): KeyLabel[] {
  * Free keys that fit a page, best first (product spec §2.6): the first letter of the site's main label, then
  * the first letters of the title's words, then the main label's remaining letters. At most 4, never S.
  */
-export function fittingKeys(keymap: Keymap, page: { link: string; title?: string }): Key[] {
+export function fittingKeys(keymap: KeyUse, page: { link: string; title?: string }): Key[] {
   const label = foldToLabels(mainLabel(page.link));
   const titleInitials = (page.title?.match(WORD) ?? []).flatMap(initialLabel);
   const candidates = [...label.slice(0, 1), ...titleInitials, ...label.slice(1)];
@@ -40,11 +42,11 @@ export function fittingKeys(keymap: Keymap, page: { link: string; title?: string
 }
 
 /** The first free key in keyboard order, or null when all 35 are in use. */
-export function firstFreeKey(keymap: Keymap): Key | null {
+export function firstFreeKey(keymap: KeyUse): Key | null {
   return KEYBOARD_ORDER.find((key) => keymap[key] === undefined) ?? null;
 }
 
 /** Where a displaced shortcut goes on a conflict-Move: a key that fits it, else the first free key. */
-export function moveTarget(keymap: Keymap, old: Shortcut): Key | null {
+export function moveTarget(keymap: KeyUse, old: Shortcut): Key | null {
   return fittingKeys(keymap, { link: old.link, title: old.name })[0] ?? firstFreeKey(keymap);
 }
