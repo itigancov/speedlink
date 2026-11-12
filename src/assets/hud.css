@@ -1,0 +1,4 @@
+/* The HUD's stylesheet, inlined into its shadow root (src/entrypoints/hud.content/hud-mount.tsx). The font is
+   declared on the host document instead (src/platform/hud-font.ts). postcss.config.mjs turns rem into px and renames
+   Tailwind's --tw-* properties for this file only, so a host page's root font size and Tailwind can't touch it. */
+@import "./tokens.css";

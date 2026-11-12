@@ -22,7 +22,7 @@ src/entrypoints/   background/, hud.content/ (the page content script), popup/, 
 src/domain/        pure TS: keys, shortcut, link, tab-match, keymap-ops, fitting-keys, open-plan, keydown, restricted, search, migrations
 src/platform/      everything touching chrome.*: stores, tabs (open executor), open-key, options-tab, badge, injection (sendToTab), key-capture, commands, messaging, platform-labels, hud-font, i18n
 src/components/ui/ stock shadcn;  src/components/: shared custom (KeyCap, KeyboardGrid, Monogram)
-src/hooks/  src/assets/ (theme.css, fonts)  src/locales/en.yml
+src/hooks/  src/assets/ (tokens.css, theme.css for pages, hud.css for the HUD)  src/locales/en.yml
 public/icon/       extension icons;  public/fonts/  Inter woff2 + OFL.txt (see README)
 e2e/               Playwright specs, harness (extension.ts) and fixture-pages/
 ```
@@ -36,7 +36,7 @@ Use the terms in `GLOSSARY.md` (it wins over every other doc). Decisions with la
 ## UI rules
 
 - Add shadcn components with `pnpm dlx shadcn@4.23.0 add <name>`. Add variants in place with `cva` in the component file.
-- Style only with tokens from `src/assets/theme.css` and the Tailwind scale; snap to the nearest token (arbitrary values like `w-[37px]` are off-limits).
+- Style only with tokens from `src/assets/tokens.css` and the Tailwind scale; snap to the nearest token (arbitrary values like `w-[37px]` are off-limits).
 - The HUD (`hud.content`) lives in a Shadow DOM on arbitrary pages, so it uses only inline, non-modal UI: our own `div role="dialog"`, cmdk `Command` inline, a custom `PageToast`. Sonner, Radix portals/dialogs/popovers and focus traps are out: Sonner crashes the content script at `document_start`, and portals and focus traps escape the shadow root or fight the host page's focus (product spec §12.3).
 
 ## Strings

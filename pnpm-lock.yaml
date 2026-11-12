@@ -224,6 +224,12 @@ importers:
       happy-dom:
         specifier: 21.0.4
         version: 21.0.4
+      postcss:
+        specifier: 8.5.32
+        version: 8.5.32
+      postcss-rem-to-responsive-pixel:
+        specifier: 7.0.9
+        version: 7.0.9(postcss@8.5.32)
       tailwindcss:
         specifier: 4.3.5
         version: 4.3.5
@@ -354,6 +360,10 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
+
+  '@csstools/css-tokenizer@4.0.2':
+    resolution: {integrity: sha512-OoKoR0f76dCY666JlcbhmVTs2drYj1GUXZTYTcbUgJjh9Nv41aFfZ21bPQTERm5+L5cBDo466NltB2lplS5GBw==}
+    engines: {node: '>=20.19.0'}
 
   '@floating-ui/core@1.8.0':
     resolution: {integrity: sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==}
@@ -1976,6 +1986,23 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
+  postcss-plugin-shared@1.2.0:
+    resolution: {integrity: sha512-59tBkBp4NPvsEdj0KigDh6jrin7Zu5pUIkn+qrnuGRlFX1NINjSTeNgrpCTgvdUv6KuDvLFsrexXB7rNu9W09Q==}
+    peerDependencies:
+      postcss: ^8
+
+  postcss-rem-to-responsive-pixel@7.0.9:
+    resolution: {integrity: sha512-eGfXUsp9Nv3EK9jyHStoKjaRgwJmOgtVz+j8YGxxqwCw1RiBJzLpCvHddn/ARBLlDLrP7UA+ldyPmV/txUN0og==}
+    engines: {node: '>=16.6.0'}
+    peerDependencies:
+      postcss: ^8
+
+  postcss-rule-unit-converter@0.3.0:
+    resolution: {integrity: sha512-ssgcaJ2d2Foc53lHJC1M6N0LLSLv+T52LVkCJfYajgygGLPm6I3snLYpJgL1cAF+jSB4fM+GihNL8vMle6wN9w==}
+    engines: {node: '>=20.19.0'}
+    peerDependencies:
+      postcss: ^8
+
   postcss@8.5.32:
     resolution: {integrity: sha512-LJlKCCAUFKOuZxipUdYw1NzIITEsPcgyOG9LkvRJvuKj/bRzbuRY0ARXvL0pWGpsZvn8jku+LMep2eU0seHp8g==}
     engines: {node: ^10 || ^12 || >=14}
@@ -2441,6 +2468,8 @@ snapshots:
 
   '@biomejs/cli-win32-x64@2.6.6':
     optional: true
+
+  '@csstools/css-tokenizer@4.0.2': {}
 
   '@floating-ui/core@1.8.0':
     dependencies:
@@ -3898,6 +3927,23 @@ snapshots:
   playwright@1.65.0:
     dependencies:
       playwright-core: 1.65.0
+
+  postcss-plugin-shared@1.2.0(postcss@8.5.32):
+    dependencies:
+      defu: 6.1.7
+      postcss: 8.5.32
+
+  postcss-rem-to-responsive-pixel@7.0.9(postcss@8.5.32):
+    dependencies:
+      postcss: 8.5.32
+      postcss-plugin-shared: 1.2.0(postcss@8.5.32)
+      postcss-rule-unit-converter: 0.3.0(postcss@8.5.32)
+
+  postcss-rule-unit-converter@0.3.0(postcss@8.5.32):
+    dependencies:
+      '@csstools/css-tokenizer': 4.0.2
+      postcss: 8.5.32
+      postcss-plugin-shared: 1.2.0(postcss@8.5.32)
 
   postcss@8.5.32:
     dependencies:

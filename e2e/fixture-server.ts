@@ -5,7 +5,11 @@ import { extname, join, normalize } from 'node:path';
 
 const root = join(import.meta.dirname, 'fixture-pages');
 const port = Number(process.argv[2]);
-const contentTypes: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript' };
+const contentTypes: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+};
 
 createServer(async (req, res) => {
   const path = normalize(new URL(req.url ?? '/', 'http://localhost').pathname).replace(/^(\.\.[/\\])+/, '');

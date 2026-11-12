@@ -81,3 +81,7 @@ The overlay while ⌥ is held: it appears after ⌥ is held alone for a moment, 
 **Pinned overlay**:
 The overlay opened with ⌥S (or pinned with S during a peek): it stays open after ⌥ is released, typing searches names and links, and Esc closes it.
 _Avoid_: sticky mode, search mode
+
+**Page toast**:
+A short message at the bottom of the current page about the key just pressed: that it is free, or that Smart switch moved to an open tab. One shows at a time.
+_Avoid_: notification, snackbar

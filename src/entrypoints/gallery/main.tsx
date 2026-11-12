@@ -7,6 +7,8 @@ import { createRoot } from 'react-dom/client';
 import { KeyboardGrid } from '@/components/KeyboardGrid';
 import { KeyCap, type KeyCapSize, type KeyCapState } from '@/components/KeyCap';
 import { Monogram } from '@/components/Monogram';
+import { PageToast } from '@/components/PageToast';
+import { createToastSlot, ToastRegion } from '@/components/ToastRegion';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -158,6 +160,63 @@ function Monograms() {
   );
 }
 
+const noop = () => {};
+
+/** The toast region, live: the buttons drive the one slot. */
+const gallerySlot = createToastSlot();
+const LONG_NAME = 'A shortcut with a very long name that keeps going well past the pill';
+
+function Toasts() {
+  return (
+    <div className="flex flex-col gap-4">
+      {PLATFORMS.map((platform) => (
+        <div key={platform} className="flex flex-col items-start gap-2">
+          <Caption>{platform}</Caption>
+          <PageToast
+            chip={chordLabel('K', platform)}
+            tone="free"
+            message={i18n.t('pageToast.free')}
+            actionLabel={i18n.t('pageToast.putPageOnKey')}
+            onAction={noop}
+            onClose={noop}
+            closeLabel={i18n.t('pageToast.close')}
+          />
+          <PageToast
+            chip={chordLabel('Y', platform)}
+            tone="switched"
+            message={i18n.t('pageToast.switched', ['YouTube'])}
+            actionLabel={i18n.t('pageToast.openNew')}
+            onAction={noop}
+          />
+          <PageToast
+            chip={chordLabel('Y', platform)}
+            tone="switched"
+            message={i18n.t('pageToast.switched', [LONG_NAME])}
+            actionLabel={i18n.t('pageToast.openNew')}
+            onAction={noop}
+          />
+        </div>
+      ))}
+      <Caption>ToastRegion (bottom centre of this window)</Caption>
+      <div className="flex flex-wrap gap-3">
+        <Button variant="outline" onClick={() => gallerySlot.show({ kind: 'free', key: 'K' })}>
+          free K
+        </Button>
+        <Button variant="outline" onClick={() => gallerySlot.show({ kind: 'free', key: 'J' })}>
+          free J
+        </Button>
+        <Button variant="outline" onClick={() => gallerySlot.show({ kind: 'switched', key: 'Y', name: 'YouTube' })}>
+          switched Y (3 s)
+        </Button>
+        <Button variant="outline" onClick={() => gallerySlot.show({ kind: 'switched', key: 'Y', name: LONG_NAME })}>
+          switched, long name
+        </Button>
+      </div>
+      <ToastRegion slot={gallerySlot} actions={{ openNew: noop, putPageOnKey: noop }} />
+    </div>
+  );
+}
+
 function App() {
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
@@ -170,6 +229,9 @@ function App() {
       </Section>
       <Section title="Monogram">
         <Monograms />
+      </Section>
+      <Section title="PageToast and ToastRegion">
+        <Toasts />
       </Section>
       <Section title="Button, Badge, Kbd, Alert">
         <Variants />

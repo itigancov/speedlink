@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" style="font-size: 10px">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Fixture: small root</title>
+    <style>
+      /* A hostile host: a 10px root, aggressive universal and div rules, and a sticky bar on a huge z-index. */
+      body { font: 1.4rem Georgia, serif; margin: 2rem; }
+      /* biome-ignore lint/complexity/noImportantStyles: the hostile host's point */
+      * { box-sizing: content-box !important; }
+      /* biome-ignore lint/complexity/noImportantStyles: the hostile host's point */
+      div { color: red; font-size: 8px !important; }
+      #sticky {
+        position: fixed; left: 0; right: 0; bottom: 0; height: 12rem;
+        background: rgb(0 0 128 / 0.5); z-index: 2147483000;
+      }
+    </style>
+    <script>
+      // What the page's own key listeners see: capture on window, bubbling on document.
+      window.seen = [];
+      for (const type of ['keydown', 'keyup', 'keypress']) {
+        window.addEventListener(type, (e) => window.seen.push(`capture ${type} ${e.code}`), true);
+        document.addEventListener(type, (e) => window.seen.push(`bubble ${type} ${e.code}`));
+      }
+      window.clicks = 0;
+    </script>
+  </head>
+  <body>
+    <h1>Host with html { font-size: 10px }</h1>
+    <button id="page-button" type="button" onclick="window.clicks++">Page button</button>
+    <div id="sticky">Sticky bar</div>
+  </body>
+</html>
