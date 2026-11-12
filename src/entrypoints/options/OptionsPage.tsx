@@ -5,7 +5,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { Kbd } from '@/components/ui/kbd';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { clear, type Keymap, type KeymapChange, move, swap } from '@/domain/keymap-ops';
+import { clear, dropChange, type Keymap } from '@/domain/keymap-ops';
 import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
 import { enterTarget, searchKeymap } from '@/domain/search';
 import { isOpenNow } from '@/domain/tab-match';
@@ -141,19 +141,11 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
   const onDrop = async (from: Key, to: Key) => {
     if (autosave.state === 'invalid') editor.reselect(key);
     await autosave.flush();
-    const stored = await readKeymap();
-    if (stored[from] === undefined) return;
-    let change: KeymapChange;
-    if (stored[to] === undefined) {
-      const moved = move(stored, from, to);
-      if (!moved.ok) return;
-      change = moved.value;
-    } else {
-      change = swap(stored, from, to);
-    }
+    const change = dropChange(await readKeymap(), from, to);
+    if (change === null) return;
     const result = await writeChange(change);
     if (!result.ok) {
-      console.error('SpeedLink: could not swap', from, to, result.error);
+      console.error('SpeedLink: could not drop', from, to, result.error);
       return;
     }
     editor.reselect(to);

@@ -59,6 +59,17 @@ export function move(keymap: Keymap, from: Key, to: Key): Result<KeymapChange, M
   return { ok: true, value: { [from]: null, [to]: shortcut } };
 }
 
+/**
+ * Drag-to-swap's drop: a swap onto a key that holds a shortcut, a move onto a free key. Null when there is nothing
+ * to carry (the source is free) or nowhere to go (the source itself).
+ */
+export function dropChange(keymap: Keymap, from: Key, to: Key): KeymapChange | null {
+  if (keymap[from] === undefined || from === to) return null;
+  if (keymap[to] !== undefined) return swap(keymap, from, to);
+  const moved = move(keymap, from, to);
+  return moved.ok ? moved.value : null;
+}
+
 /** Frees the key; an already free key gives an empty change. */
 export function clear(keymap: Keymap, key: Key): KeymapChange {
   return keymap[key] === undefined ? {} : { [key]: null };

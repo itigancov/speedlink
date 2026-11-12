@@ -3,6 +3,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
 import type { Browser } from 'wxt/browser';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
+import { ROW_STAGGER } from '@/domain/key-grid';
+import { KEYBOARD_ROWS, type Key, type KeyLabel } from '@/domain/keys';
 import { chordLabel, triggerWord } from '@/platform/platform-labels';
 import { installTabsOnReplaced } from '@/test/fake-replaced';
 import { OptionsPage } from './OptionsPage';
@@ -824,36 +826,34 @@ describe('↵ and Esc in the search field', () => {
 });
 
 describe('drag-to-swap', () => {
-  const ROWS = ['1234567890', 'QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
-  /** KeyboardGrid's lg stagger and a 56 px key plus an 8 px gap. */
-  const STAGGER_PX = [0, 22, 36, 58];
-
   /** happy-dom has no layout: gives every keycap, and the lifted copy, the box it has on the real page. */
   function layOutKeys() {
     const measure = HTMLElement.prototype.getBoundingClientRect;
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const label = this.dataset.slot === 'key-cap' ? (this.querySelector('span')?.textContent ?? '') : '';
-      const row = label === '' ? -1 : ROWS.findIndex((labels) => labels.includes(label));
+      // A keycap shows its label as its first span; anything else isn't laid out here.
+      const label = (this.dataset.slot === 'key-cap' ? this.querySelector('span')?.textContent : '') as KeyLabel;
+      const row = KEYBOARD_ROWS.findIndex((labels) => labels.includes(label));
       if (row === -1) return measure.call(this);
-      return new DOMRect((STAGGER_PX[row] ?? 0) + (ROWS[row] ?? '').indexOf(label) * 64, row * 64, 56, 56);
+      const column = KEYBOARD_ROWS[row]?.indexOf(label) ?? 0;
+      return new DOMRect(((ROW_STAGGER[row] ?? 0) + column) * 64, row * 64, 56, 56);
     });
   }
 
-  const KEYS: Record<string, string> = { Space: ' ', Enter: 'Enter', Escape: 'Escape' };
+  const KEY_OF_CODE: Record<string, string> = { Space: ' ', Enter: 'Enter', Escape: 'Escape' };
   /** Presses keys on the focused element, letting the drag and storage settle after each. */
-  async function keys(...codes: string[]) {
+  async function pressKeys(...codes: string[]) {
     for (const code of codes) {
-      fireEvent.keyDown(document.activeElement ?? document.body, { code, key: KEYS[code] ?? code });
+      fireEvent.keyDown(document.activeElement ?? document.body, { code, key: KEY_OF_CODE[code] ?? code });
       await advance();
     }
   }
   const pickUp = async (key: string) => {
     act(() => keyButton(key).focus());
-    await keys('Space');
+    await pressKeys('Space');
   };
 
   const announced = () => screen.getAllByRole('status').map((status) => status.textContent);
-  const chord = (key: string) => chordLabel(key as never);
+  const chord = (key: Key) => chordLabel(key);
 
   const youtube = {
     link: 'https://youtube.com/',
@@ -875,7 +875,7 @@ describe('drag-to-swap', () => {
     await renderPage('#key=G');
 
     await pickUp('Y');
-    await keys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
+    await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
     await advance();
 
     expect(await readItem('K')).toEqual(youtube);
@@ -890,7 +890,7 @@ describe('drag-to-swap', () => {
     await renderPage('#key=Y');
 
     await pickUp('Y');
-    await keys('ArrowLeft', 'Space');
+    await pressKeys('ArrowLeft', 'Space');
     await advance();
 
     expect(await readItem('T')).toEqual(youtube);
@@ -905,10 +905,10 @@ describe('drag-to-swap', () => {
     await renderPage('#key=A');
 
     await pickUp('A');
-    await keys('ArrowRight');
+    await pressKeys('ArrowRight');
     expect(keyButton('S').dataset.state).toBe('reserved');
     expect(keyButton('D').dataset.state).toBe('drop-target');
-    await keys('Space');
+    await pressKeys('Space');
     await advance();
 
     expect(await readItem('D')).toBeDefined();
@@ -922,7 +922,7 @@ describe('drag-to-swap', () => {
 
     await type(nameField(), 'Videos');
     await pickUp('Y');
-    await keys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
+    await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
     await advance(1000);
 
     expect(await readItem('K')).toEqual({ ...youtube, name: 'Videos' });
@@ -936,7 +936,7 @@ describe('drag-to-swap', () => {
 
     await type(nameField(), 'Search');
     await pickUp('Y');
-    await keys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
+    await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
     await advance(1000);
 
     expect(await readItem('Y')).toEqual({ ...kagi, name: 'Search' });
@@ -950,7 +950,7 @@ describe('drag-to-swap', () => {
 
     await type(linkField(), 'mailto:me@example.com');
     await pickUp('Y');
-    await keys('ArrowLeft', 'Space');
+    await pressKeys('ArrowLeft', 'Space');
     await advance(1000);
 
     expect(await readItem('T')).toEqual(youtube);
@@ -965,7 +965,7 @@ describe('drag-to-swap', () => {
     const set = vi.spyOn(browser.storage.sync, 'set');
 
     await pickUp('Y');
-    await keys('ArrowLeft', 'Escape');
+    await pressKeys('ArrowLeft', 'Escape');
     await advance(1000);
 
     expect(set).not.toHaveBeenCalled();
@@ -980,12 +980,12 @@ describe('drag-to-swap', () => {
     const set = vi.spyOn(browser.storage.sync, 'set');
 
     await pickUp('Y');
-    await keys('ArrowLeft', 'ArrowRight', 'Space');
+    await pressKeys('ArrowLeft', 'ArrowRight', 'Space');
     await advance(1000);
 
     expect(set).not.toHaveBeenCalled();
     expect(await readItem('Y')).toEqual(youtube);
-    expect(announced()).toContain('Dropped where it was. Nothing changed.');
+    expect(announced()).toContain('Dropped. Nothing changed.');
   });
 
   it('cannot pick up a free key', async () => {
@@ -994,7 +994,7 @@ describe('drag-to-swap', () => {
     const set = vi.spyOn(browser.storage.sync, 'set');
 
     await pickUp('T');
-    await keys('ArrowRight', 'Space');
+    await pressKeys('ArrowRight', 'Space');
     await advance(1000);
 
     expect(set).not.toHaveBeenCalled();
@@ -1010,13 +1010,13 @@ describe('drag-to-swap', () => {
     vi.spyOn(browser.storage.sync, 'set').mockRejectedValue(new Error('MAX_WRITE_OPERATIONS_PER_MINUTE'));
 
     await pickUp('Y');
-    await keys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
+    await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
     await advance();
 
     expect(await readItem('Y')).toEqual(youtube);
     expect(await readItem('K')).toEqual(kagi);
     expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
-    expect(error).toHaveBeenCalledWith('SpeedLink: could not swap', 'Y', 'K', 'quota-exceeded');
+    expect(error).toHaveBeenCalledWith('SpeedLink: could not drop', 'Y', 'K', 'quota-exceeded');
   });
 
   it('announces each step with the platform trigger', async () => {
@@ -1026,18 +1026,18 @@ describe('drag-to-swap', () => {
 
     await pickUp('Y');
     expect(announced()).toContain(`Picked up ${chord('Y')}, YouTube.`);
-    await keys('ArrowLeft');
+    await pressKeys('ArrowLeft');
     expect(announced()).toContain(`Over ${chord('T')}, free. Drop to move.`);
-    await keys('ArrowRight');
+    await pressKeys('ArrowRight');
     expect(announced()).toContain('Not over another key. Dropping changes nothing.');
-    await keys('ArrowDown', 'ArrowRight', 'ArrowRight');
+    await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight');
     expect(announced()).toContain(`Over ${chord('K')}, Kagi. Drop to swap.`);
-    await keys('Space');
+    await pressKeys('Space');
     expect(announced()).toContain(`Swapped ${chord('Y')} and ${chord('K')}.`);
     await advance();
 
     await pickUp('K');
-    await keys('ArrowLeft', 'Space');
+    await pressKeys('ArrowLeft', 'Space');
     expect(announced()).toContain(`Moved to ${chord('J')}.`);
   });
 
@@ -1057,13 +1057,13 @@ describe('drag-to-swap', () => {
     await renderPage('#key=Y');
 
     await pickUp('Y');
-    await keys('ArrowLeft');
+    await pressKeys('ArrowLeft');
     await act(() => browser.storage.sync.remove('key.Y'));
     await advance();
     expect(announced()).toContain('Cancelled. Nothing changed.');
     expect(keyButton('T').dataset.state).toBe('free');
 
-    await keys('Space');
+    await pressKeys('Space');
     await advance();
     expect(await readItem('T')).toBeUndefined();
   });
@@ -1075,7 +1075,7 @@ describe('drag-to-swap', () => {
     expect(keyButton('T').dataset.dimmed).toBe('true');
 
     await pickUp('Y');
-    await keys('ArrowLeft', 'Space');
+    await pressKeys('ArrowLeft', 'Space');
     await advance();
 
     expect(await readItem('T')).toEqual(youtube);

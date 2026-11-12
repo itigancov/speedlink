@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyChange, assign, clear, type Keymap, move, put, swap } from './keymap-ops';
+import { applyChange, assign, clear, dropChange, type Keymap, move, put, swap } from './keymap-ops';
 import { KEYBOARD_ORDER } from './keys';
 import { validShortcut } from './test-shortcut';
 
@@ -102,5 +102,20 @@ describe('clear', () => {
 
   it('changes nothing for a free key', () => {
     expect(clear({ Y: youtube }, 'G')).toEqual({});
+  });
+});
+
+describe('dropChange', () => {
+  it('swaps onto a key that holds a shortcut', () => {
+    expect(dropChange({ G: github, Y: youtube }, 'G', 'Y')).toEqual({ G: youtube, Y: github });
+  });
+
+  it('moves onto a free key, freeing the source', () => {
+    expect(dropChange({ G: github }, 'G', 'H')).toEqual({ G: null, H: github });
+  });
+
+  it('is nothing from a free key or onto the source itself', () => {
+    expect(dropChange({ Y: youtube }, 'G', 'Y')).toBeNull();
+    expect(dropChange({ G: github }, 'G', 'G')).toBeNull();
   });
 });

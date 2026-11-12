@@ -69,7 +69,7 @@ options:
     overNone: Not over another key. Dropping changes nothing.
     swapped: Swapped $1 and $2.
     moved: Moved to $1.
-    unchanged: Dropped where it was. Nothing changed.
+    unchanged: Dropped. Nothing changed.
     cancelled: Cancelled. Nothing changed.
   inspector:
     label: Key details
