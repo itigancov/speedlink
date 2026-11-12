@@ -1,12 +1,13 @@
-// ⌥+key becomes a tab (product spec §4.1): read fresh, plan, execute, flash the badge. A free key gets the free
-// signal instead (§4.3).
+// ⌥+key becomes a tab (product spec §4.1): read fresh, plan, execute, flash the badge, and toast a Smart switch.
+// A free key gets the free-key toast instead (§4.3, §6).
 import type { Browser } from 'wxt/browser';
 import type { Key } from '@/domain/keys';
 import { planOpen } from '@/domain/open-plan';
+import { displayName } from '@/domain/shortcut';
 import { createBadgeFlash } from './badge';
 import { sendToTab } from './injection';
 import { readKeymap } from './keymap-store';
-import type { OpenKeyReply } from './messaging';
+import type { OpenKeyReply, PageToastData } from './messaging';
 import { executeOpenPlan, readPlanTabs, watchLoads } from './tabs';
 
 /** A slow page gets no badge: one popping up much later would be stale. */
@@ -20,12 +21,12 @@ export interface OpenKeyRequest {
 export type OpenKey = (request: OpenKeyRequest, senderTab: Browser.tabs.Tab | undefined) => Promise<OpenKeyReply>;
 
 /**
- * Tells the tab the key was pressed on that the key is free; its top frame shows the toast (item 10). Not awaited:
- * the reply doesn't wait for the page. A failure is expected until the toast exists, so it is logged quietly.
+ * Sends a toast to a tab's top frame. Not awaited: the reply doesn't wait for the page. The toast is best-effort
+ * (a restricted page, a tab still loading), so a failure is logged quietly and never retried beyond `sendToTab`.
  */
-function sendFreeSignal(tabId: number, key: Key): void {
-  void sendToTab(tabId, 'toast', { kind: 'free', key }).then((result) => {
-    if (result.kind !== 'sent') console.debug('SpeedLink: no free-key toast', key, result);
+function sendToast(tabId: number, toast: PageToastData): void {
+  void sendToTab(tabId, 'toast', toast).then((result) => {
+    if (result.kind !== 'sent') console.debug('SpeedLink: no page toast', toast, result);
   });
 }
 
@@ -43,7 +44,7 @@ export function createOpenKey(): OpenKey {
       const [keymap, tabs] = await Promise.all([readKeymap(), readPlanTabs()]);
       const shortcut = keymap[key];
       if (shortcut === undefined) {
-        sendFreeSignal(senderTab.id, key);
+        sendToast(senderTab.id, { kind: 'free', key });
         return { kind: 'free' };
       }
       const currentTab = tabs.find((tab) => tab.id === senderTab.id);
@@ -58,6 +59,11 @@ export function createOpenKey(): OpenKey {
         loads?.stop();
         throw error;
       });
+
+      // Smart switch landed on an existing tab, maybe in another window: say so there, with a way out (Open new).
+      if (outcome.switched) {
+        sendToast(outcome.targetTabId, { kind: 'switched', key, name: displayName(shortcut) });
+      }
 
       const badgeTab = plan.badge === 'current' ? currentTab.id : outcome.targetTabId;
       void (loads?.loaded(badgeTab, LOAD_TIMEOUT_MS) ?? Promise.resolve(true)).then((ready) => {

@@ -24,6 +24,13 @@ export type OpenKeyReply =
  * - popup → bg: assignPage, openOptions
  * - bg → tab (frameId 0, via `sendToTab` in `injection.ts`): ping, overlay, toast, frameEvent
  */
+/**
+ * A page toast. `free`: ⌥ + a free key was pressed on the page. `switched`: Smart switch activated this tab;
+ * `name` is the shortcut's display name (its name, else its link's site).
+ */
+export type PageToastData = { kind: 'free'; key: Key } | { kind: 'switched'; key: Key; name: string };
+// TODO(item 14): add `{ kind: 'saved'; … }` with the undo handle.
+
 export interface ProtocolMap {
   // content → bg
 
@@ -56,15 +63,8 @@ export interface ProtocolMap {
   /** Overlay control from the `toggle-overlay` command and the background. */
   overlay(data: { action: 'toggle' | 'pin' | 'cancel-hold' }): void;
 
-  /** Show a page toast. `free`: ⌥ + a free key was pressed on the page. */
-  toast(
-    data:
-      | { kind: 'free'; key: Key }
-      | {
-          kind: 'saved' | 'switched';
-          // TODO(item 10/14): the rest of the payload and the remaining kinds
-        },
-  ): void;
+  /** Show a page toast in the top frame (product spec §6). */
+  toast(data: PageToastData): void;
 }
 
 export const { sendMessage, onMessage } = defineExtensionMessaging<ProtocolMap>();

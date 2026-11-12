@@ -209,7 +209,7 @@ describe('openKey', () => {
   });
 });
 
-describe('openKey: the free signal', () => {
+describe('openKey: page toasts', () => {
   /** Messages sent to tabs, as `<tabId>/<frameId> <type> <data>`; the tab's script answers every one. */
   let sent: string[];
 
@@ -234,11 +234,79 @@ describe('openKey: the free signal', () => {
     await vi.waitFor(() => expect(sent).toEqual(['1/0 ping null', '1/0 toast {"kind":"free","key":"D"}']));
   });
 
-  it('sends nothing for an assigned key', async () => {
-    openTabs([current]);
-    await store('D', { openMode: 'new' });
+  it('after a Smart switch, sends the switched toast with the shortcut name to the activated tab', async () => {
+    openTabs(
+      [current, tab(5, { url: LINK, windowId: 2 })],
+      [{ id: 1, type: 'normal' } as Browser.windows.Window, { id: 2, type: 'normal' } as Browser.windows.Window],
+    );
+    await store('D', { name: 'Docs' });
 
     await createOpenKey()({ key: 'D', force: false }, current);
+
+    await vi.waitFor(() =>
+      expect(sent).toEqual(['5/0 ping null', '5/0 toast {"kind":"switched","key":"D","name":"Docs"}']),
+    );
+  });
+
+  it("names a shortcut without a name by its link's site", async () => {
+    openTabs([current, tab(5, { url: LINK })]);
+    await store('D', {});
+
+    await createOpenKey()({ key: 'D', force: false }, current);
+
+    await vi.waitFor(() =>
+      expect(sent).toEqual(['5/0 ping null', '5/0 toast {"kind":"switched","key":"D","name":"docs.example.com"}']),
+    );
+  });
+
+  it('still replies opened when the switched toast cannot be delivered', async () => {
+    openTabs([current, tab(5, { url: LINK })]);
+    await store('D', {});
+    vi.spyOn(console, 'debug').mockImplementation(() => {});
+    vi.mocked(browser.tabs.sendMessage).mockImplementation(((
+      _tabId: number,
+      _message: unknown,
+      _options: unknown,
+      callback: (response: unknown) => void,
+    ) => {
+      // How Chrome refuses a restricted page: `lastError` set during the callback.
+      Object.defineProperty(browser.runtime, 'lastError', {
+        value: { message: 'Cannot access contents of url "chrome://newtab/".' },
+        configurable: true,
+      });
+      callback(undefined);
+      Object.defineProperty(browser.runtime, 'lastError', { value: undefined, configurable: true });
+    }) as never);
+
+    expect(await createOpenKey()({ key: 'D', force: false }, current)).toEqual({
+      kind: 'opened',
+      tabId: 5,
+      switched: true,
+    });
+    await vi.waitFor(() => expect(console.debug).toHaveBeenCalled());
+  });
+
+  it.each([
+    ['an assigned key that opens a new tab', { openMode: 'new' }, false, tab(1)],
+    ['an assigned key that updates the current tab', { openMode: 'this' }, false, tab(1)],
+    ['Force new tab past a matching tab', {}, true, tab(1)],
+    ['a Smart switch already on the tab (noop)', {}, false, tab(1, { url: LINK })],
+  ] as const)('sends nothing for %s', async (_, fields, force, from) => {
+    openTabs([from, tab(5, { url: LINK })]);
+    await store('D', fields);
+
+    await createOpenKey()({ key: 'D', force }, from);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(sent).toEqual([]);
+  });
+
+  it('sends nothing when the switch fails', async () => {
+    openTabs([current, tab(5, { url: LINK })]);
+    await store('D', {});
+    vi.mocked(browser.tabs.update).mockRejectedValue(new Error('No tab with id: 5.'));
+
+    expect(await createOpenKey()({ key: 'D', force: false }, current)).toEqual({ kind: 'failed' });
     await vi.advanceTimersByTimeAsync(0);
 
     expect(sent).toEqual([]);
