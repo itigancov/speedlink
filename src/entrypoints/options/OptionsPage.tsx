@@ -5,15 +5,15 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { Kbd } from '@/components/ui/kbd';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { clear, type Keymap } from '@/domain/keymap-ops';
-import { KEYBOARD_ORDER } from '@/domain/keys';
+import { clear, dropChange, type Keymap } from '@/domain/keymap-ops';
+import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
 import { enterTarget, searchKeymap } from '@/domain/search';
 import { isOpenNow } from '@/domain/tab-match';
 import { useAutosave } from '@/hooks/use-autosave';
 import { useKeymap } from '@/hooks/use-keymap';
 import { lastWebTab, useOpenTabs } from '@/hooks/use-open-tabs';
 import { isEditableTarget } from '@/platform/key-capture';
-import { writeChange } from '@/platform/keymap-store';
+import { readKeymap, writeChange } from '@/platform/keymap-store';
 import { sendMessage } from '@/platform/messaging';
 import { triggerLabel, triggerPlusKey } from '@/platform/platform-labels';
 import { Inspector } from './Inspector';
@@ -136,6 +136,21 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
     });
   };
 
+  // A drop (product spec §8.7): the selected key's draft is settled first, and the change is built from storage
+  // after that, since the rendered keymap may not have the flushed write yet.
+  const onDrop = async (from: Key, to: Key) => {
+    if (autosave.state === 'invalid') editor.reselect(key);
+    await autosave.flush();
+    const change = dropChange(await readKeymap(), from, to);
+    if (change === null) return;
+    const result = await writeChange(change);
+    if (!result.ok) {
+      console.error('SpeedLink: could not drop', from, to, result.error);
+      return;
+    }
+    editor.reselect(to);
+  };
+
   const onTry = async () => {
     await autosave.flush();
     try {
@@ -180,6 +195,7 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
               selected={key}
               matches={matches}
               onSelect={editor.select}
+              onDrop={(from, to) => void onDrop(from, to)}
             />
           ) : (
             <ListCard keymap={keymap} openKeys={openKeys} selected={key} matches={matches} onSelect={editor.select} />

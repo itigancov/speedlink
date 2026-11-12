@@ -17,7 +17,10 @@ export interface KeyboardGridProps {
   className?: string;
 }
 
-/** Row offsets from the canvas: lg 0/22/36/58 px, sm 0/10/16/26 px. */
+/**
+ * Row offsets from the canvas: lg 0/22/36/58 px, sm 0/10/16/26 px. The lg offsets are mirrored by `ROW_STAGGER` in
+ * domain/key-grid for arrow-key drag: change both together.
+ */
 const STAGGER: Record<KeyboardGridSize, readonly string[]> = {
   lg: ['pl-0', 'pl-5.5', 'pl-9', 'pl-14.5'],
   sm: ['pl-0', 'pl-2.5', 'pl-4', 'pl-6.5'],

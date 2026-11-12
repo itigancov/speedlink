@@ -3,7 +3,9 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
 import type { Browser } from 'wxt/browser';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { triggerWord } from '@/platform/platform-labels';
+import { ROW_STAGGER } from '@/domain/key-grid';
+import { KEYBOARD_ROWS, type Key, type KeyLabel } from '@/domain/keys';
+import { chordLabel, triggerWord } from '@/platform/platform-labels';
 import { installTabsOnReplaced } from '@/test/fake-replaced';
 import { OptionsPage } from './OptionsPage';
 
@@ -820,5 +822,262 @@ describe('↵ and Esc in the search field', () => {
     act(() => linkField().focus());
     press(linkField(), 'Escape');
     expect(searchField().value).toBe('git');
+  });
+});
+
+describe('drag-to-swap', () => {
+  /** happy-dom has no layout: gives every keycap, and the lifted copy, the box it has on the real page. */
+  function layOutKeys() {
+    const measure = HTMLElement.prototype.getBoundingClientRect;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      // A keycap shows its label as its first span; anything else isn't laid out here.
+      const label = (this.dataset.slot === 'key-cap' ? this.querySelector('span')?.textContent : '') as KeyLabel;
+      const row = KEYBOARD_ROWS.findIndex((labels) => labels.includes(label));
+      if (row === -1) return measure.call(this);
+      const column = KEYBOARD_ROWS[row]?.indexOf(label) ?? 0;
+      return new DOMRect(((ROW_STAGGER[row] ?? 0) + column) * 64, row * 64, 56, 56);
+    });
+  }
+
+  const KEY_OF_CODE: Record<string, string> = { Space: ' ', Enter: 'Enter', Escape: 'Escape' };
+  /** Presses keys on the focused element, letting the drag and storage settle after each. */
+  async function pressKeys(...codes: string[]) {
+    for (const code of codes) {
+      fireEvent.keyDown(document.activeElement ?? document.body, { code, key: KEY_OF_CODE[code] ?? code });
+      await advance();
+    }
+  }
+  const pickUp = async (key: string) => {
+    act(() => keyButton(key).focus());
+    await pressKeys('Space');
+  };
+
+  const announced = () => screen.getAllByRole('status').map((status) => status.textContent);
+  const chord = (key: Key) => chordLabel(key);
+
+  const youtube = {
+    link: 'https://youtube.com/',
+    name: 'YouTube',
+    openMode: 'new',
+    tabMatch: 'page',
+    closeCurrent: true,
+  };
+  const kagi = { link: 'https://kagi.com/', name: 'Kagi', openMode: 'bg', tabMatch: 'exact', closeCurrent: false };
+
+  beforeEach(() => {
+    layOutKeys();
+  });
+
+  it('swaps two shortcuts with every field intact; the selection and hash follow the dragged key', async () => {
+    await store('Y', youtube);
+    await store('K', kagi);
+    await store('G');
+    await renderPage('#key=G');
+
+    await pickUp('Y');
+    await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
+    await advance();
+
+    expect(await readItem('K')).toEqual(youtube);
+    expect(await readItem('Y')).toEqual(kagi);
+    expect(selectedKey()).toBe(`${T} K: YouTube`);
+    expect(window.location.hash).toBe('#key=K');
+    expect(saved()).not.toBeNull();
+  });
+
+  it('moves onto a free key and frees the old one', async () => {
+    await store('Y', youtube);
+    await renderPage('#key=Y');
+
+    await pickUp('Y');
+    await pressKeys('ArrowLeft', 'Space');
+    await advance();
+
+    expect(await readItem('T')).toEqual(youtube);
+    expect(await readItem('Y')).toBeUndefined();
+    expect(selectedKey()).toBe(`${T} T: YouTube`);
+    expect(window.location.hash).toBe('#key=T');
+    expect(keyButton('Y').getAttribute('aria-label')).toBe(`${T} Y: free`);
+  });
+
+  it('passes over S with the arrows', async () => {
+    await store('A');
+    await renderPage('#key=A');
+
+    await pickUp('A');
+    await pressKeys('ArrowRight');
+    expect(keyButton('S').dataset.state).toBe('reserved');
+    expect(keyButton('D').dataset.state).toBe('drop-target');
+    await pressKeys('Space');
+    await advance();
+
+    expect(await readItem('D')).toBeDefined();
+    expect(await readItem('A')).toBeUndefined();
+  });
+
+  it('saves a valid edit made within the debounce first, and moves it with the shortcut', async () => {
+    await store('Y', youtube);
+    await store('K', kagi);
+    await renderPage('#key=Y');
+
+    await type(nameField(), 'Videos');
+    await pickUp('Y');
+    await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
+    await advance(1000);
+
+    expect(await readItem('K')).toEqual({ ...youtube, name: 'Videos' });
+    expect(await readItem('Y')).toEqual(kagi);
+  });
+
+  it('keeps the swap when the drop target had a pending edit', async () => {
+    await store('Y', youtube);
+    await store('K', kagi);
+    await renderPage('#key=K');
+
+    await type(nameField(), 'Search');
+    await pickUp('Y');
+    await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
+    await advance(1000);
+
+    expect(await readItem('Y')).toEqual({ ...kagi, name: 'Search' });
+    expect(await readItem('K')).toEqual(youtube);
+    expect(nameField().value).toBe('YouTube');
+  });
+
+  it('discards an invalid draft and moves the stored shortcut', async () => {
+    await store('Y', youtube);
+    await renderPage('#key=Y');
+
+    await type(linkField(), 'mailto:me@example.com');
+    await pickUp('Y');
+    await pressKeys('ArrowLeft', 'Space');
+    await advance(1000);
+
+    expect(await readItem('T')).toEqual(youtube);
+    expect(screen.queryByRole('alert')).toBeNull();
+    act(() => keyButton('Y').click());
+    expect(linkField().value).toBe('');
+  });
+
+  it('Esc cancels without a write', async () => {
+    await store('Y', youtube);
+    await renderPage('#key=Y');
+    const set = vi.spyOn(browser.storage.sync, 'set');
+
+    await pickUp('Y');
+    await pressKeys('ArrowLeft', 'Escape');
+    await advance(1000);
+
+    expect(set).not.toHaveBeenCalled();
+    expect(announced()).toContain('Cancelled. Nothing changed.');
+    expect(keyButton('T').dataset.state).toBe('free');
+    expect(selectedKey()).toBe(`${T} Y: YouTube`);
+  });
+
+  it('dropping a key back on itself changes nothing', async () => {
+    await store('Y', youtube);
+    await renderPage('#key=Y');
+    const set = vi.spyOn(browser.storage.sync, 'set');
+
+    await pickUp('Y');
+    await pressKeys('ArrowLeft', 'ArrowRight', 'Space');
+    await advance(1000);
+
+    expect(set).not.toHaveBeenCalled();
+    expect(await readItem('Y')).toEqual(youtube);
+    expect(announced()).toContain('Dropped. Nothing changed.');
+  });
+
+  it('cannot pick up a free key', async () => {
+    await store('Y', youtube);
+    await renderPage('#key=Y');
+    const set = vi.spyOn(browser.storage.sync, 'set');
+
+    await pickUp('T');
+    await pressKeys('ArrowRight', 'Space');
+    await advance(1000);
+
+    expect(set).not.toHaveBeenCalled();
+    expect(keyButton('Y').dataset.state).not.toBe('drop-target');
+  });
+
+  it('a failed write leaves storage and the selection as they were', async () => {
+    await store('Y', youtube);
+    await store('K', kagi);
+    await store('G');
+    await renderPage('#key=G');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(browser.storage.sync, 'set').mockRejectedValue(new Error('MAX_WRITE_OPERATIONS_PER_MINUTE'));
+
+    await pickUp('Y');
+    await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
+    await advance();
+
+    expect(await readItem('Y')).toEqual(youtube);
+    expect(await readItem('K')).toEqual(kagi);
+    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+    expect(error).toHaveBeenCalledWith('SpeedLink: could not drop', 'Y', 'K', 'quota-exceeded');
+  });
+
+  it('announces each step with the platform trigger', async () => {
+    await store('Y', youtube);
+    await store('K', kagi);
+    await renderPage('#key=Y');
+
+    await pickUp('Y');
+    expect(announced()).toContain(`Picked up ${chord('Y')}, YouTube.`);
+    await pressKeys('ArrowLeft');
+    expect(announced()).toContain(`Over ${chord('T')}, free. Drop to move.`);
+    await pressKeys('ArrowRight');
+    expect(announced()).toContain('Not over another key. Dropping changes nothing.');
+    await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight');
+    expect(announced()).toContain(`Over ${chord('K')}, Kagi. Drop to swap.`);
+    await pressKeys('Space');
+    expect(announced()).toContain(`Swapped ${chord('Y')} and ${chord('K')}.`);
+    await advance();
+
+    await pickUp('K');
+    await pressKeys('ArrowLeft', 'Space');
+    expect(announced()).toContain(`Moved to ${chord('J')}.`);
+  });
+
+  it('tells each draggable key how to drag it', async () => {
+    await store('Y', youtube);
+    await renderPage('#key=Y');
+    expect(keyButton('Y').getAttribute('aria-describedby')).not.toBeNull();
+    const instructions = document.getElementById(keyButton('Y').getAttribute('aria-describedby') ?? '');
+    expect(instructions?.textContent).toBe(
+      'Press Space to pick up this key, the arrow keys to move it to another key, Space or Enter to drop it there, and Escape to cancel.',
+    );
+    expect(keyButton('T').getAttribute('aria-describedby')).toBeNull();
+  });
+
+  it('a remote change that frees the dragged key cancels the drag', async () => {
+    await store('Y', youtube);
+    await renderPage('#key=Y');
+
+    await pickUp('Y');
+    await pressKeys('ArrowLeft');
+    await act(() => browser.storage.sync.remove('key.Y'));
+    await advance();
+    expect(announced()).toContain('Cancelled. Nothing changed.');
+    expect(keyButton('T').dataset.state).toBe('free');
+
+    await pressKeys('Space');
+    await advance();
+    expect(await readItem('T')).toBeUndefined();
+  });
+
+  it('keys dimmed by a search still accept a drop', async () => {
+    await store('Y', youtube);
+    await renderPage('#key=Y');
+    await type(searchField(), 'youtube');
+    expect(keyButton('T').dataset.dimmed).toBe('true');
+
+    await pickUp('Y');
+    await pressKeys('ArrowLeft', 'Space');
+    await advance();
+
+    expect(await readItem('T')).toEqual(youtube);
   });
 });

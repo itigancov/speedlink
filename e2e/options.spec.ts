@@ -3,7 +3,7 @@ import { FIXTURE_PORT } from '../playwright.config';
 import { expect, test } from './extension';
 
 // The Options keymap in the built extension (product spec §8): editing, validation, Clear key, Try ⌥K through the
-// real `tryKey` message, the hash selection, v1-imported keys, live sync changes, the `/` search and the List view. Each combination is unit-tested
+// real `tryKey` message, the hash selection, v1-imported keys, live sync changes, the `/` search, the List view and drag-to-swap. Each combination is unit-tested
 // in src/entrypoints/options/OptionsPage.test.tsx; this covers real storage, real tabs and the background.
 
 interface Tab {
@@ -277,6 +277,106 @@ test.describe('/ search and the List view', () => {
 
     await page.keyboard.press('Escape');
     await expect(search(page)).not.toBeFocused();
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe('drag-to-swap', () => {
+  const youtube = { link: LINK, name: 'YouTube', openMode: 'new', tabMatch: 'page', closeCurrent: true };
+  const kagi = { link: `${LINK}&kagi`, name: 'Kagi', openMode: 'bg', tabMatch: 'exact', closeCurrent: false };
+
+  /** Drags one key onto another with the mouse, in steps, as a hand would. */
+  async function drag(page: Page, from: string, to: string) {
+    const start = await keyCap(page, from).boundingBox();
+    const end = await keyCap(page, to).boundingBox();
+    if (start === null || end === null) throw new Error('key not laid out');
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2, { steps: 10 });
+  }
+
+  /** Picks up a key with Space. dnd-kit listens for the next keys from a `setTimeout(0)`: wait for it to run. */
+  async function pickUp(page: Page, key: string) {
+    await keyCap(page, key).focus();
+    await page.keyboard.press('Space');
+    await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  }
+
+  test('a mouse drag swaps two shortcuts, every field intact; the selection follows', async ({
+    context,
+    extensionId,
+  }) => {
+    const worker = await serviceWorker(context, extensionId);
+    await store(worker, 'Y', youtube);
+    await store(worker, 'K', kagi);
+    await store(worker, 'G', {});
+    const { page, errors } = await openOptions(context, extensionId, 'G');
+
+    await drag(page, 'Y', 'K');
+    await expect(keyCap(page, 'K')).toHaveAttribute('data-state', 'drop-target');
+    await page.mouse.up();
+
+    await expect.poll(() => item(worker, 'K')).toEqual(youtube);
+    expect(await item(worker, 'Y')).toEqual(kagi);
+    await expect(keyCap(page, 'K')).toHaveAttribute('aria-pressed', 'true');
+    await expect(keyCap(page, 'K')).toHaveAccessibleName(/K: YouTube$/);
+    expect(new URL(page.url()).hash).toBe('#key=K');
+    await expect(page.getByText('Saved')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test('the keyboard moves a shortcut onto a free key and the selection follows', async ({ context, extensionId }) => {
+    const worker = await serviceWorker(context, extensionId);
+    await store(worker, 'Y', youtube);
+    const { page, errors } = await openOptions(context, extensionId, 'Y');
+
+    await pickUp(page, 'Y');
+    await page.keyboard.press('ArrowDown');
+    await expect(keyCap(page, 'H')).toHaveAttribute('data-state', 'drop-target');
+    await page.keyboard.press('Space');
+
+    await expect.poll(() => item(worker, 'H')).toEqual(youtube);
+    expect(await item(worker, 'Y')).toBeUndefined();
+    await expect(keyCap(page, 'H')).toHaveAttribute('aria-pressed', 'true');
+    await expect(keyCap(page, 'Y')).toHaveAccessibleName(/Y: free$/);
+    await page.waitForTimeout(300);
+    expect(new URL(page.url()).hash).toBe('#key=H');
+    expect(errors).toEqual([]);
+  });
+
+  test('S is never a target, by mouse or by arrows', async ({ context, extensionId }) => {
+    const worker = await serviceWorker(context, extensionId);
+    await store(worker, 'A', youtube);
+    const { page, errors } = await openOptions(context, extensionId, 'A');
+
+    await drag(page, 'A', 'S');
+    await expect(keyCap(page, 'S')).toHaveAttribute('data-state', 'reserved');
+    await page.mouse.up();
+    await expect(keyCap(page, 'A')).not.toHaveAttribute('data-dimmed', 'true');
+
+    await pickUp(page, 'A');
+    await page.keyboard.press('ArrowRight');
+    await expect(keyCap(page, 'D')).toHaveAttribute('data-state', 'drop-target');
+    await expect(keyCap(page, 'S')).toHaveAttribute('data-state', 'reserved');
+    await page.keyboard.press('Escape');
+
+    await page.waitForTimeout(800);
+    expect(await item(worker, 'A')).toEqual(youtube);
+    expect(await item(worker, 'D')).toBeUndefined();
+    await expect(keyCap(page, 'A')).toHaveAttribute('aria-pressed', 'true');
+    expect(errors).toEqual([]);
+  });
+
+  test('a click without movement still just selects', async ({ context, extensionId }) => {
+    const worker = await serviceWorker(context, extensionId);
+    await store(worker, 'Y', youtube);
+    const { page, errors } = await openOptions(context, extensionId, 'K');
+
+    await keyCap(page, 'Y').click();
+
+    await expect(keyCap(page, 'Y')).toHaveAttribute('aria-pressed', 'true');
+    expect(new URL(page.url()).hash).toBe('#key=Y');
+    expect(await item(worker, 'Y')).toEqual(youtube);
     expect(errors).toEqual([]);
   });
 });

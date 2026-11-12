@@ -41,6 +41,8 @@ export interface KeyEditor {
   /** The key's shortcut as the inspector shows it: undefined while a Clear key is on its way to storage. */
   stored: Shortcut | undefined;
   select(key: Key): void;
+  /** Selects the key with its draft reset to storage, even when it is already selected: after a drop writes it. */
+  reselect(key: Key): void;
   setDraft(draft: KeyDraft): void;
   /** Shows the key as free at once, ahead of the storage echo; `failed` undoes that when the write fails. */
   markCleared(): { failed(): void };
@@ -68,6 +70,8 @@ export function useKeyEditor(keymap: Keymap): KeyEditor {
     [keymap],
   );
 
+  const reselect = useCallback((key: Key) => setEditing(editingOf(key, keymap[key])), [keymap]);
+
   useEffect(() => {
     const onHashChange = () => {
       const key = keyFromHash(window.location.hash);
@@ -92,5 +96,5 @@ export function useKeyEditor(keymap: Keymap): KeyEditor {
     };
   };
 
-  return { key: current.key, draft: current.draft, stored, select, setDraft, markCleared };
+  return { key: current.key, draft: current.draft, stored, select, reselect, setDraft, markCleared };
 }

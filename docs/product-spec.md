@@ -343,6 +343,12 @@ There is no left nav: only Keymap is left.
 - Dropping onto an assigned key swaps; dropping onto a free key moves. `S` is never a target.
 - It also works with the keyboard (dnd-kit keyboard sensor).
 - The selection follows the dragged shortcut. No undo.
+- Only keys that hold a shortcut can be dragged. A pointer drag starts after a 5 px move, so a click still selects.
+- From the keyboard, Space picks up, the arrows jump key to key across the staggered rows (passing over `S`), Space or ↵ drops and Esc cancels. ↵ on a key that isn't being dragged still just selects it.
+- Dropping a key on itself, or outside any key, changes nothing. Dimmed (search) keys stay targets.
+- A valid pending draft is saved first and an invalid one is discarded, as on switching keys.
+- "Saved" shows after the drop, as after an autosave. There is no toast.
+- Screen-reader announcements (picked up, over a key with swap or move, dropped, cancelled) are localized and name keys with the platform trigger.
 
 ### 8.8 ⌥S hint
 The "Set ⌥S" line, per §5.3.

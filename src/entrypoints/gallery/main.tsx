@@ -243,6 +243,7 @@ function KeyboardCards() {
           openKeys={new Set<Key>(['Y', 'K'])}
           selected="K"
           onSelect={noop}
+          onDrop={noop}
           platform={platform}
         />
       ))}
@@ -266,6 +267,31 @@ function SearchedKeyboardCards() {
             selected="K"
             matches={matches}
             onSelect={noop}
+            onDrop={noop}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The keyboard card mid-drag: Y lifted over a free key (move) and over an assigned key (swap). */
+function DraggingKeyboardCards() {
+  return (
+    <div className="flex flex-col gap-4">
+      {[
+        { caption: 'Y over free H: drop to move', target: 'H' as const },
+        { caption: 'Y over assigned K: drop to swap', target: 'K' as const },
+      ].map(({ caption, target }) => (
+        <div key={caption} className="flex flex-col gap-2">
+          <Caption>{caption}</Caption>
+          <KeyboardCard
+            keymap={sampleKeymap}
+            openKeys={new Set<Key>(['Y', 'K'])}
+            selected="K"
+            onSelect={noop}
+            onDrop={noop}
+            frozenDrag={{ source: 'Y', target }}
           />
         </div>
       ))}
@@ -366,6 +392,9 @@ function App() {
       </Section>
       <Section title="Options: keyboard card under a search">
         <SearchedKeyboardCards />
+      </Section>
+      <Section title="Options: keyboard card mid-drag">
+        <DraggingKeyboardCards />
       </Section>
       <Section title="Options: list view">
         <ListCards />

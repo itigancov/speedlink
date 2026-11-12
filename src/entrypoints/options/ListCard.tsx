@@ -6,10 +6,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { KEYBOARD_ORDER } from '@/domain/keys';
 import { siteOf } from '@/domain/link';
 import { displayName, type Shortcut } from '@/domain/shortcut';
-import type { KeyboardCardProps } from './KeyboardCard';
+import type { KeymapViewProps } from './KeyboardCard';
 
 /** The same inputs as the Keyboard view; `matches` hides the rows outside a search instead of dimming them. */
-export type ListCardProps = KeyboardCardProps;
+export type ListCardProps = KeymapViewProps;
 
 function opensAs(shortcut: Shortcut): string {
   const mode = i18n.t(`options.openMode.${shortcut.openMode}.title`);
