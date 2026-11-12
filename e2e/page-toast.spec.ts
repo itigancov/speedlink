@@ -23,10 +23,9 @@ declare const chrome: {
 const ORIGIN = `http://127.0.0.1:${FIXTURE_PORT}`;
 const target = (name: string) => `${ORIGIN}/frame-child.html?${name}`;
 
-async function serviceWorker(context: BrowserContext, extensionId: string): Promise<Worker> {
-  return (
-    context.serviceWorkers().find((w) => w.url().includes(extensionId)) ?? (await context.waitForEvent('serviceworker'))
-  );
+/** The extension's service worker; it is the only extension loaded. */
+async function serviceWorker(context: BrowserContext): Promise<Worker> {
+  return context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
 }
 
 const store = (worker: Worker, key: string, fields: object) =>
@@ -44,7 +43,7 @@ const tabsOn = async (worker: Worker, url: string) =>
  * worker first avoids that race.
  */
 async function open(context: BrowserContext, path: string): Promise<Page> {
-  const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  const worker = await serviceWorker(context);
   await worker.evaluate(() => chrome.storage.sync.get(null));
   const page = await context.newPage();
   await page.goto(path, { waitUntil: 'load' });
@@ -109,11 +108,8 @@ test.describe('the free-key toast', () => {
 });
 
 test.describe('the switched toast', () => {
-  test('shows on the tab Smart switch activated, with the name, and goes after about 3 s', async ({
-    context,
-    extensionId,
-  }) => {
-    const worker = await serviceWorker(context, extensionId);
+  test('shows on the tab Smart switch activated, with the name, and goes after about 3 s', async ({ context }) => {
+    const worker = await serviceWorker(context);
     await store(worker, 'D', { link: target('docs'), name: 'Docs' });
     const docs = await open(context, target('docs'));
     const page = await open(context, '/keys.html');
@@ -128,8 +124,8 @@ test.describe('the switched toast', () => {
     await expect(toast(docs)).toHaveCount(0, { timeout: 5000 });
   });
 
-  test('Open new opens one new tab next to the switched-to tab, which stays', async ({ context, extensionId }) => {
-    const worker = await serviceWorker(context, extensionId);
+  test('Open new opens one new tab next to the switched-to tab, which stays', async ({ context }) => {
+    const worker = await serviceWorker(context);
     await store(worker, 'D', { link: target('docs') });
     const docs = await open(context, target('docs'));
     const page = await open(context, '/keys.html');

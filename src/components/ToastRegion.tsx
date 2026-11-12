@@ -81,8 +81,9 @@ function ShownToast({
   actions,
   platform,
   keydowns,
-}: Required<ToastRegionProps> & { shown: Shown }) {
-  const [hovered, setHovered] = useState(false);
+  hovered,
+  setHovered,
+}: Required<ToastRegionProps> & { shown: Shown; hovered: boolean; setHovered(hovered: boolean): void }) {
   const lifetime = LIFETIME_MS[toast.kind];
 
   useEffect(() => {
@@ -130,6 +131,10 @@ function ShownToast({
 
 export function ToastRegion({ slot, actions, platform = PLATFORM, keydowns = windowKeydowns }: ToastRegionProps) {
   const shown = useSyncExternalStore(slot.subscribe, slot.current);
+  // Here, not per toast: a toast that replaces one under the pointer is held too. An emptied slot gets no
+  // pointerleave (the pill is gone), so it resets.
+  const [hovered, setHovered] = useState(false);
+  if (shown === undefined && hovered) setHovered(false);
   return (
     // The live region is always there, so the first toast is announced too. Only the pill catches pointer events.
     <div
@@ -145,6 +150,8 @@ export function ToastRegion({ slot, actions, platform = PLATFORM, keydowns = win
           actions={actions}
           platform={platform}
           keydowns={keydowns}
+          hovered={hovered}
+          setHovered={setHovered}
         />
       )}
     </div>

@@ -132,6 +132,32 @@ describe('the switched toast', () => {
     expect(pill()).toBeNull();
   });
 
+  it('a toast that replaces one under the pointer is held too', () => {
+    renderRegion();
+    show({ kind: 'switched', key: 'Y', name: 'YouTube' });
+    fireEvent.pointerEnter(pill() as HTMLElement);
+
+    show({ kind: 'switched', key: 'G', name: 'GitHub' });
+    advance(10_000);
+    expect(screen.getByText('⌥G')).toBeDefined();
+
+    fireEvent.pointerLeave(pill() as HTMLElement);
+    advance(3000);
+    expect(pill()).toBeNull();
+  });
+
+  it('after a hovered toast is closed, the next one times out again', () => {
+    renderRegion();
+    show({ kind: 'free', key: 'K' });
+    fireEvent.pointerEnter(pill() as HTMLElement);
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    show({ kind: 'switched', key: 'Y', name: 'YouTube' });
+    advance(3000);
+
+    expect(pill()).toBeNull();
+  });
+
   it('is not closed by Esc', () => {
     renderRegion();
     show({ kind: 'switched', key: 'Y', name: 'YouTube' });
