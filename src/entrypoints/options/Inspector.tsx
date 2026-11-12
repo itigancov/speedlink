@@ -210,7 +210,11 @@ export function Inspector({
             className="w-full bg-card"
           >
             {TAB_MATCHES.map((match) => (
-              <ToggleGroupItem key={match} value={match} className="flex-1">
+              <ToggleGroupItem
+                key={match}
+                value={match}
+                className="h-auto min-h-9 flex-1 whitespace-normal px-2 py-1.5 text-ui leading-tight"
+              >
                 {i18n.t(`options.tabMatch.${match}.title`)}
               </ToggleGroupItem>
             ))}

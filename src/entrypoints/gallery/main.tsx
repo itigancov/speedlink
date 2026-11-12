@@ -13,9 +13,15 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
-import { isAssignable, type KeyLabel } from '@/domain/keys';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { draftOf, type KeyDraft } from '@/domain/key-draft';
+import { isAssignable, type Key, type KeyLabel } from '@/domain/keys';
+import type { Shortcut } from '@/domain/shortcut';
 import { validShortcut } from '@/domain/test-shortcut';
+import type { SaveState } from '@/hooks/use-autosave';
 import { chordLabel, type Platform, triggerLabel } from '@/platform/platform-labels';
+import { Inspector } from '../options/Inspector';
+import { KeyboardCard } from '../options/KeyboardCard';
 
 const SIZES: KeyCapSize[] = ['lg', 'xl', 'md', 'sm'];
 const STATES: KeyCapState[] = ['free', 'assigned', 'selected', 'drop-target', 'reserved', 'taken', 'picked'];
@@ -217,6 +223,78 @@ function Toasts() {
   );
 }
 
+/** The Options keyboard card: assigned keys, open ones, the selected key, free keys and the reserved S. */
+const sampleKeymap: Partial<Record<Key, Shortcut>> = {
+  Y: validShortcut({ link: 'https://youtube.com/', name: 'YouTube' }),
+  G: github,
+  K: validShortcut({ link: 'https://claude.ai/', name: 'Claude' }),
+  N: validShortcut({ link: 'https://notion.so/roadmap', name: 'Roadmap', tabMatch: 'exact' }),
+  '1': validShortcut({ link: 'http://localhost:3000/', name: 'Dev server', openMode: 'this' }),
+};
+
+function KeyboardCards() {
+  return (
+    <div className="flex flex-col gap-4">
+      {PLATFORMS.map((platform) => (
+        <KeyboardCard
+          key={platform}
+          keymap={sampleKeymap}
+          openKeys={new Set<Key>(['Y', 'K'])}
+          selected="K"
+          onSelect={noop}
+          platform={platform}
+        />
+      ))}
+    </div>
+  );
+}
+
+interface InspectorSample {
+  caption: string;
+  stored: Shortcut | undefined;
+  draft?: Partial<KeyDraft>;
+  saveState?: SaveState;
+  openNow?: boolean;
+  webPage?: boolean;
+}
+
+const INSPECTORS: InspectorSample[] = [
+  { caption: 'assigned, open now, saved', stored: github, openNow: true, webPage: true },
+  { caption: 'free', stored: undefined, webPage: true },
+  { caption: 'free, no web page open', stored: undefined },
+  { caption: 'invalid link', stored: github, draft: { link: 'mailto:me@example.com' }, saveState: 'invalid' },
+  { caption: "couldn't save", stored: github, draft: { name: 'Code' }, saveState: 'error' },
+  { caption: 'This tab', stored: validShortcut({ link: 'https://github.com/', openMode: 'this', closeCurrent: true }) },
+  { caption: 'Smart, exact', stored: validShortcut({ link: 'https://notion.so/roadmap', tabMatch: 'exact' }) },
+  { caption: 'Smart, page', stored: validShortcut({ link: 'https://linear.app/my-issues', tabMatch: 'page' }) },
+  { caption: 'Smart, site', stored: youtube },
+];
+
+function Inspectors() {
+  return (
+    <TooltipProvider>
+      <div className="flex flex-wrap items-start gap-6">
+        {INSPECTORS.map(({ caption, stored, draft, saveState = 'saved', openNow = false, webPage = false }) => (
+          <div key={caption} className="flex w-full max-w-md flex-col gap-2">
+            <Caption>{caption}</Caption>
+            <Inspector
+              keyLabel="G"
+              stored={stored}
+              draft={{ ...draftOf(stored), ...draft }}
+              onDraftChange={noop}
+              openNow={openNow}
+              webPage={webPage ? { url: 'https://docs.example.com/', title: 'Docs' } : undefined}
+              saveState={saveState}
+              onClear={noop}
+              onTry={noop}
+            />
+          </div>
+        ))}
+      </div>
+    </TooltipProvider>
+  );
+}
+
 function App() {
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
@@ -226,6 +304,12 @@ function App() {
       </Section>
       <Section title="KeyboardGrid: lg and sm, per platform">
         <Grids />
+      </Section>
+      <Section title="Options: keyboard card, per platform">
+        <KeyboardCards />
+      </Section>
+      <Section title="Options: inspector states">
+        <Inspectors />
       </Section>
       <Section title="Monogram">
         <Monograms />

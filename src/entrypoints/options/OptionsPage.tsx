@@ -92,7 +92,7 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
 
   return (
     <main className="flex flex-wrap items-start gap-8 p-8">
-      <section className="flex min-w-0 flex-1 flex-col gap-6">
+      <section className="flex min-w-0 flex-1 basis-3xl flex-col gap-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-col gap-1">
             <h1 className="font-bold text-3xl tracking-tight">{i18n.t('options.heading')}</h1>
