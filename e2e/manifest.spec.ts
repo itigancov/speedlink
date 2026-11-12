@@ -22,6 +22,7 @@ test('has exactly the spec §13 top-level keys (no `key`, nothing extra)', () =>
       'options_ui',
       'permissions',
       'version',
+      'web_accessible_resources',
     ].sort(),
   );
   expect(manifest).not.toHaveProperty('key');
@@ -67,4 +68,10 @@ test('the action popup is titled from i18n', () => {
 
 test('options open in a tab', () => {
   expect(manifest.options_ui).toEqual({ page: 'options.html', open_in_tab: true });
+});
+
+test('only the HUD font is web-accessible, on every URL, behind a dynamic URL', () => {
+  expect(manifest.web_accessible_resources).toEqual([
+    { resources: ['fonts/inter-latin-wght.woff2'], matches: ['<all_urls>'], use_dynamic_url: true },
+  ]);
 });

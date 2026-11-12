@@ -522,7 +522,7 @@ Key-state colors live inside `KeyCap`.
 - `cn` comes from the `cn` npm package (shadcn's registry imports it; there is no `lib/utils`). `shadcn init` fails on WXT, so `components.json` and tsconfig `paths` are hand-written.
 
 **Custom**
-- `KeyCap`: `size` lg 56 / xl 44 / md 40 / sm 28 × `state` free / assigned / open / selected / drop-target / reserved / taken / picked; includes the monogram chip and the open dot.
+- `KeyCap`: `size` lg 56 / xl 44 / md 40 / sm 28 × `state` free / assigned / selected / drop-target / reserved / taken / picked, plus an `open` flag; includes the monogram chip and the open dot.
 - `KeyboardGrid` (lg / sm, row stagger, platform modifier row).
 - `Monogram` (square `Avatar`; the favicon appears only on the popup page card).
 - The picked-key drop zone, the "Saved" indicator, drag-to-swap via dnd-kit.
