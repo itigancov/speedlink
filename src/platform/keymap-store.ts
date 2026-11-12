@@ -4,6 +4,7 @@ import type { Keymap, KeymapChange } from '@/domain/keymap-ops';
 import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
 import type { Result } from '@/domain/result';
 import { parseShortcut, type Shortcut } from '@/domain/shortcut';
+import { readMeta } from './meta';
 
 const itemName = (key: Key) => `key.${key}` as const;
 const storageKey = (key: Key) => `sync:${itemName(key)}` as const;
@@ -41,6 +42,15 @@ export function watchKeymap(callback: (keymap: Keymap) => void): () => void {
   };
 }
 
+/**
+ * Every key with a `key.<K>` item stored, readable or not. `readKeymap` hides unreadable items; an import must
+ * still treat their keys as in use, so it never destroys data a newer version could recover.
+ */
+export async function readTakenKeys(): Promise<Set<Key>> {
+  const items = await browser.storage.sync.get(KEYBOARD_ORDER.map(itemName));
+  return new Set(KEYBOARD_ORDER.filter((key) => items[itemName(key)] !== undefined));
+}
+
 export type WriteError = 'quota-exceeded' | 'write-failed';
 
 const OK: Result<void, WriteError> = { ok: true, value: undefined };
@@ -57,6 +67,21 @@ export async function writeChange(change: KeymapChange): Promise<Result<void, Wr
   try {
     await storage.setItems(sets);
     await storage.removeItems(removes);
+    return OK;
+  } catch (error) {
+    return { ok: false, error: toWriteError(error) };
+  }
+}
+
+/**
+ * Writes the v1 import's shortcuts and `meta.v1Imported` in one set, so a failure never leaves half an import
+ * marked done. `meta` is merged into the stored value, keeping `schemaVersion` and unknown fields.
+ */
+export async function writeImport(shortcuts: Partial<Record<Key, Shortcut>>): Promise<Result<void, WriteError>> {
+  try {
+    const items: Record<string, unknown> = { meta: { ...(await readMeta()), v1Imported: true } };
+    for (const [key, shortcut] of Object.entries(shortcuts) as [Key, Shortcut][]) items[itemName(key)] = shortcut;
+    await browser.storage.sync.set(items);
     return OK;
   } catch (error) {
     return { ok: false, error: toWriteError(error) };
