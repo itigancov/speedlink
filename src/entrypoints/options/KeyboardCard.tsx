@@ -12,6 +12,8 @@ export interface KeyboardCardProps {
   /** Keys whose shortcut is open in a tab right now. */
   openKeys: ReadonlySet<Key>;
   selected: Key;
+  /** The keys a search matches, or null with no search: every other key is dimmed. */
+  matches?: ReadonlySet<Key> | null;
   onSelect: (key: Key) => void;
   platform?: Platform;
 }
@@ -20,7 +22,7 @@ function Swatch({ className }: { className: string }) {
   return <span aria-hidden="true" className={cn('size-3 rounded-sm border', className)} />;
 }
 
-export function KeyboardCard({ keymap, openKeys, selected, onSelect, platform }: KeyboardCardProps) {
+export function KeyboardCard({ keymap, openKeys, selected, matches = null, onSelect, platform }: KeyboardCardProps) {
   const renderKey = (label: KeyLabel) => {
     if (!isAssignable(label)) return <KeyCap label={label} state="reserved" platform={platform} />;
     const shortcut = keymap[label];
@@ -31,6 +33,7 @@ export function KeyboardCard({ keymap, openKeys, selected, onSelect, platform }:
         open={openKeys.has(label)}
         monogram={shortcut === undefined ? undefined : monogram(shortcut)}
         name={shortcut === undefined ? undefined : displayName(shortcut)}
+        dimmed={matches !== null && !matches.has(label)}
         platform={platform}
         onClick={() => onSelect(label)}
       />

@@ -60,6 +60,8 @@ export interface KeyCapProps extends Omit<ComponentProps<'button'>, 'children'> 
   monogram?: string;
   /** The shortcut's name, for the accessible name. A `free` key is announced as free whatever it is given. */
   name?: string;
+  /** Faded, e.g. outside a search's matches. Visual only: the key keeps its state, name and click. */
+  dimmed?: boolean;
   /** Forces the trigger word in the accessible name; defaults to the running platform. */
   platform?: Platform;
 }
@@ -88,6 +90,7 @@ export function KeyCap({
   open = false,
   monogram,
   name,
+  dimmed = false,
   platform = PLATFORM,
   className,
   type = 'button',
@@ -101,10 +104,11 @@ export function KeyCap({
       type={type}
       data-slot="key-cap"
       data-state={state}
+      data-dimmed={dimmed || undefined}
       aria-label={accessibleName(label, state, open, name, platform)}
       aria-pressed={selected ? true : undefined}
       disabled={state === 'reserved' || disabled}
-      className={cn(keyCapVariants({ size, state }), className)}
+      className={cn(keyCapVariants({ size, state }), dimmed && 'opacity-40', className)}
       {...props}
     >
       <span aria-hidden="true">{label}</span>

@@ -22,6 +22,7 @@ import type { SaveState } from '@/hooks/use-autosave';
 import { chordLabel, type Platform, triggerLabel } from '@/platform/platform-labels';
 import { Inspector } from '../options/Inspector';
 import { KeyboardCard } from '../options/KeyboardCard';
+import { ListCard } from '../options/ListCard';
 
 const SIZES: KeyCapSize[] = ['lg', 'xl', 'md', 'sm'];
 const STATES: KeyCapState[] = ['free', 'assigned', 'selected', 'drop-target', 'reserved', 'taken', 'picked'];
@@ -249,6 +250,61 @@ function KeyboardCards() {
   );
 }
 
+/** The keyboard card under a search: "tube" matches Y only (K, selected, dims), and a query with no match. */
+function SearchedKeyboardCards() {
+  return (
+    <div className="flex flex-col gap-4">
+      {[
+        { caption: 'query matching Y, selected K dimmed', matches: new Set<Key>(['Y']) },
+        { caption: 'no match, all dimmed', matches: new Set<Key>() },
+      ].map(({ caption, matches }) => (
+        <div key={caption} className="flex flex-col gap-2">
+          <Caption>{caption}</Caption>
+          <KeyboardCard
+            keymap={sampleKeymap}
+            openKeys={new Set<Key>(['Y', 'K'])}
+            selected="K"
+            matches={matches}
+            onSelect={noop}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The List view: no name, closes current, This tab with close current (ignored), open now, selected, empty. */
+const listKeymap: Partial<Record<Key, Shortcut>> = {
+  '1': validShortcut({ link: 'http://localhost:3000/', name: 'Dev server', openMode: 'this', closeCurrent: true }),
+  Y: youtube,
+  G: validShortcut({ link: 'https://github.com/pulls', name: 'Pull requests', closeCurrent: true }),
+  N: validShortcut({
+    link: 'https://notion.so/workspace/roadmap-2026-q4-planning-and-everything-else-0123456789abcdef',
+    name: 'Roadmap',
+    openMode: 'bg',
+  }),
+  K: validShortcut({ link: 'https://claude.ai/', name: 'Claude', openMode: 'new' }),
+};
+
+function ListCards() {
+  return (
+    <TooltipProvider>
+      <div className="flex flex-col gap-4">
+        {[
+          { caption: 'filled, G selected, Y open', keymap: listKeymap, matches: null },
+          { caption: 'no match', keymap: listKeymap, matches: new Set<Key>() },
+          { caption: 'empty keymap', keymap: {}, matches: null },
+        ].map(({ caption, keymap, matches }) => (
+          <div key={caption} className="flex flex-col gap-2">
+            <Caption>{caption}</Caption>
+            <ListCard keymap={keymap} openKeys={new Set<Key>(['Y'])} selected="G" matches={matches} onSelect={noop} />
+          </div>
+        ))}
+      </div>
+    </TooltipProvider>
+  );
+}
+
 interface InspectorSample {
   caption: string;
   stored: Shortcut | undefined;
@@ -307,6 +363,12 @@ function App() {
       </Section>
       <Section title="Options: keyboard card, per platform">
         <KeyboardCards />
+      </Section>
+      <Section title="Options: keyboard card under a search">
+        <SearchedKeyboardCards />
+      </Section>
+      <Section title="Options: list view">
+        <ListCards />
       </Section>
       <Section title="Options: inspector states">
         <Inspectors />

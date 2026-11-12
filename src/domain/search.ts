@@ -15,3 +15,16 @@ export function searchKeymap(keymap: Keymap, query: string, scope: SearchScope):
     return (shortcut.name ?? '').toLowerCase().includes(needle) || shortcut.link.toLowerCase().includes(needle);
   });
 }
+
+/**
+ * The key ↵ picks in the Options search: the key named exactly by the query, otherwise the first match in keyboard
+ * order. With `assignedOnly` (List view), only assigned keys count. A blank query picks nothing.
+ */
+export function enterTarget(keymap: Keymap, query: string, { assignedOnly }: { assignedOnly: boolean }): Key | null {
+  const needle = query.trim().toLowerCase();
+  if (needle === '') return null;
+  const candidates = searchKeymap(keymap, needle, 'options').filter(
+    (key) => !assignedOnly || keymap[key] !== undefined,
+  );
+  return candidates.find((key) => key.toLowerCase() === needle) ?? candidates[0] ?? null;
+}

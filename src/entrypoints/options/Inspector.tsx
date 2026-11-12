@@ -1,7 +1,7 @@
 // "Key details" (product spec §8.3): the selected key's draft, edited in place. Presentational: the page owns the
 // draft, the autosave and the actions, so the gallery can show every state.
 import { AppWindowIcon, CheckIcon } from 'lucide-react';
-import { useId } from 'react';
+import { type Ref, useId } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -45,6 +45,8 @@ export interface InspectorProps {
   saveState: SaveState;
   onClear: () => void;
   onTry: () => void;
+  /** The Link field, for the page to move focus to it. */
+  linkRef?: Ref<HTMLInputElement>;
   platform?: Platform;
 }
 
@@ -84,6 +86,7 @@ export function Inspector({
   saveState,
   onClear,
   onTry,
+  linkRef,
   platform = PLATFORM,
 }: InspectorProps) {
   const id = useId();
@@ -127,6 +130,7 @@ export function Inspector({
         <FieldLabel htmlFor={`${id}-link`}>{i18n.t('options.inspector.link')}</FieldLabel>
         <InputGroup className="h-11">
           <InputGroupInput
+            ref={linkRef}
             id={`${id}-link`}
             value={draft.link}
             placeholder={i18n.t('options.inspector.linkPlaceholder')}
