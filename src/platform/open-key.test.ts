@@ -419,3 +419,55 @@ describe('openKey: badge flash', () => {
     expect(await badge(5)).toBe('');
   });
 });
+
+describe('openKey: Try ⌥K from Options', () => {
+  const options = tab(1, { index: 0, active: true, url: 'chrome-extension://abc/options.html#key=D' });
+  const tryKey = (openKey = createOpenKey()) => openKey({ key: 'D', force: false, trial: true }, options);
+
+  it('opens This tab in a new tab, never updating or closing Options', async () => {
+    openTabs([options]);
+    await store('D', { openMode: 'this', closeCurrent: true });
+
+    expect(await tryKey()).toEqual({ kind: 'opened', tabId: 9, switched: false });
+    expect(calls).toEqual([`tabs.create {"url":"${LINK}","windowId":1,"index":1,"openerTabId":1,"active":true}`]);
+  });
+
+  it('switches Smart to a matching tab, ignoring close current', async () => {
+    openTabs([options, tab(5, { url: LINK })]);
+    await store('D', { closeCurrent: true });
+
+    expect(await tryKey()).toEqual({ kind: 'opened', tabId: 5, switched: true });
+    expect(calls).toEqual(['tabs.update 5 {"active":true}', 'windows.update 1 {"focused":true}']);
+  });
+
+  it('flashes the badge on the tab it opened', async () => {
+    openTabs([options, tab(5, { url: LINK })]);
+    await store('D', {});
+
+    await tryKey();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(await badge(5)).toBe('D');
+  });
+
+  it('sends the switched toast to the tab it switched to', async () => {
+    const sent: string[] = [];
+    vi.spyOn(browser.tabs, 'sendMessage').mockImplementation(((
+      tabId: number,
+      message: { type: string; data: unknown },
+      _options: unknown,
+      callback: (response: unknown) => void,
+    ) => {
+      sent.push(`${tabId} ${message.type} ${JSON.stringify(message.data ?? null)}`);
+      callback({ res: message.type === 'ping' ? true : undefined });
+    }) as never);
+    openTabs([options, tab(5, { url: LINK })]);
+    await store('D', { name: 'Docs' });
+
+    await tryKey();
+
+    await vi.waitFor(() =>
+      expect(sent).toEqual(['5 ping null', '5 toast {"kind":"switched","key":"D","name":"Docs"}']),
+    );
+  });
+});

@@ -22,6 +22,7 @@ export type OpenKeyReply =
  * Directions:
  * - content → bg: openKey, assignPage, undo, openOptions, getOverlayModel, frameEvent
  * - popup → bg: assignPage, openOptions
+ * - options → bg: tryKey
  * - bg → tab (frameId 0, via `sendToTab` in `injection.ts`): ping, overlay, toast, frameEvent
  */
 /**
@@ -54,6 +55,11 @@ export interface ProtocolMap {
     kind: 'hold-start' | 'hold-cancel' | 'release' | 'key';
     // TODO(item 16): the rest of the payload, with the relay and its first consumer
   }): void;
+
+  // options → bg
+
+  /** Try ⌥K: open the key as if pressed on the Options tab (sender.tab), which is never replaced or closed. */
+  tryKey(data: { key: Key }): OpenKeyReply;
 
   // bg → tab
 
