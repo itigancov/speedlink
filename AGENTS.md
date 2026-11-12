@@ -17,12 +17,13 @@ Done means `check`, `test` and `e2e` all pass. A `pre-push` hook (`.githooks/`, 
 ## Layout and the boundary
 
 ```
-src/entrypoints/   background/, hud.content/ (the page content script), popup/, options/, welcome/ (unlisted page)
+src/entrypoints/   background/, hud.content/ (the page content script), popup/, options/, welcome/ (unlisted page),
+                   gallery/ (dev-only: every shared piece in every state; dropped from builds)
 src/domain/        pure TS: keys, shortcut, link, tab-match, keymap-ops, fitting-keys, open-plan, search, migrations
-src/platform/      everything touching chrome.*: stores, tabs, injection, commands, messaging, platform-labels, i18n
+src/platform/      everything touching chrome.*: stores, tabs, injection, commands, messaging, platform-labels, hud-font, i18n
 src/components/ui/ stock shadcn;  src/components/: shared custom (KeyCap, KeyboardGrid, Monogram)
 src/hooks/  src/assets/ (theme.css, fonts)  src/locales/en.yml
-public/icon/       extension icons
+public/icon/       extension icons;  public/fonts/  Inter woff2 + OFL.txt (see README)
 e2e/               Playwright specs, harness (extension.ts) and fixture-pages/
 ```
 
@@ -48,7 +49,7 @@ All extension messaging goes through the typed protocol in `src/platform/messagi
 
 ## Tests
 
-Work test-first from the behaviour list in the item's spec: a failing test per behaviour, then the code. Unit tests sit next to the code as `*.test.ts`. Domain tests use plain values and no fakes; `platform/` tests use WXT's `fakeBrowser` (`wxt/testing/fake-browser`). User flows get a Playwright spec in `e2e/`. `e2e/manifest.spec.ts` pins the built manifest to product spec §13: change it only together with a deliberate manifest change, and a new install warning over v1 is a release blocker.
+Work test-first from the behaviour list in the item's spec: a failing test per behaviour, then the code. Unit tests sit next to the code as `*.test.ts`; component tests are `*.test.tsx` with Testing Library and a `// @vitest-environment happy-dom` docblock. `i18n.t` returns the real `en.yml` text in tests (`src/test/setup-i18n.ts`). Domain tests use plain values and no fakes; `platform/` tests use WXT's `fakeBrowser` (`wxt/testing/fake-browser`). User flows get a Playwright spec in `e2e/`. `e2e/manifest.spec.ts` pins the built manifest to product spec §13: change it only together with a deliberate manifest change, and a new install warning over v1 is a release blocker.
 
 ## Commits
 

@@ -1,3 +1,24 @@
 extName: SpeedLink
 extDescription: Open any site with one keyboard shortcut.
 commandToggleOverlay: Show or pin the shortcut overlay
+platform:
+  mac:
+    trigger: ⌥ Option
+    triggerWord: Option
+    chord: ⌥$1
+    fn: fn
+    control: ⌃
+    option: ⌥ option
+    command: ⌘
+  other:
+    trigger: Alt
+    triggerWord: Alt
+    chord: Alt+$1
+    control: Ctrl
+    alt: Alt
+  space: space
+keyCap:
+  assigned: "$1 $2: $3"
+  free: "$1 $2: free"
+  reserved: "$1 $2: reserved for the overlay"
+  open: "$1, open in a tab"

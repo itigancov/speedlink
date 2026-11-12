@@ -3,7 +3,20 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "strict": true,
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    // Mirrors WXT's generated aliases. `paths` here replaces the extended one, and the shadcn CLI only reads
+    // aliases from this file and takes the first key, so `@/*` comes first.
+    "paths": {
+      "@/*": ["./src/*"],
+      "@": ["./src"],
+      "~/*": ["./src/*"],
+      "~": ["./src"],
+      "@@/*": ["./*"],
+      "@@": ["."],
+      "~~/*": ["./*"],
+      "~~": ["."],
+      "#i18n": ["./.wxt/i18n/index.ts"]
+    }
   },
   "exclude": ["node_modules", ".output", ".output-e2e-throw", "playwright-report", "test-results"]
 }
