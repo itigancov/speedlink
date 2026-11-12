@@ -60,6 +60,17 @@ options:
     selected: Selected
     free: Free
     open: Open in a tab right now
+    drag: Drag a key onto another to swap
+  drag:
+    instructions: Press Space to pick up this key, the arrow keys to move it to another key, Space or Enter to drop it there, and Escape to cancel.
+    pickedUp: Picked up $1, $2.
+    overAssigned: Over $1, $2. Drop to swap.
+    overFree: Over $1, free. Drop to move.
+    overNone: Not over another key. Dropping changes nothing.
+    swapped: Swapped $1 and $2.
+    moved: Moved to $1.
+    unchanged: Dropped where it was. Nothing changed.
+    cancelled: Cancelled. Nothing changed.
   inspector:
     label: Key details
     freeKey: Free key
