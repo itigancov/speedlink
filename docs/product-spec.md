@@ -132,10 +132,11 @@ Suppression = `preventDefault` + `stopImmediatePropagation`.
   - Linux: D, E, F, 1–9
   - ChromeOS: E, F, 1–9
   - macOS: none
+- **⌥⇧ + free key**: passes through silently on every OS, so Alt+Shift browser shortcuts (e.g. Alt+Shift+T) keep working.
 - Page `accesskey`s on intercepted keys are lost (accepted).
 
 ### 4.4 Frames
-UI (overlay, toasts) renders in the **top frame only**. A sub-frame relays its keys and hold events through the background to `frameId: 0`.
+UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openKey` itself (its `sender.tab` is the tab); its hold events and Peek keys are relayed through the background to `frameId: 0` (`frameEvent`).
 
 ### 4.5 Injection and lifecycle
 - On `onInstalled` (install and update), inject into every open http(s) tab, all frames, skipping discarded tabs.
@@ -145,7 +146,7 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame relays its k
 - The orphaned v1.6 script is left alone.
 
 ### 4.6 Where ⌥+key does not work
-⌥+key does nothing on restricted pages (chrome://, the NTP, the Web Store, the PDF viewer, view-source) and on extension pages (Options, welcome, popup). Only ⌥S has a fallback there (§5.3).
+⌥+key does nothing on restricted pages (chrome://, the NTP, the Web Store, the PDF viewer, view-source) and on extension pages (Options, welcome, popup). It also does nothing while focus is inside an `about:blank`, `srcdoc` or `data:` child frame (no `match_about_blank` / `match_origin_as_fallback`). Only ⌥S has a fallback there (§5.3).
 
 ### 4.7 Platform labels
 - One synchronous helper decides Mac vs non-Mac from `navigator.userAgent` and is used by every surface.
