@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Keymap } from './keymap-ops';
 import { KEYBOARD_ORDER } from './keys';
-import { searchKeymap } from './search';
+import { enterTarget, searchKeymap } from './search';
 import { validShortcut } from './test-shortcut';
 
 const keymap: Keymap = {
@@ -56,5 +56,40 @@ describe('searchKeymap in the overlay', () => {
     expect(searchKeymap(keymap, 'tube', 'overlay')).toEqual(['Y']);
     expect(searchKeymap(keymap, '3000', 'overlay')).toEqual(['1']);
     expect(searchKeymap(keymap, 'x', 'overlay')).toEqual([]);
+  });
+});
+
+describe('enterTarget', () => {
+  it('picks the key named exactly over an earlier link match', () => {
+    // '1' holds "localhost:3000", which contains no "m"; Y's "youtube.com" and G's "github.com/pulls" both do.
+    expect(searchKeymap(keymap, 'm', 'options')).toEqual(['Y', 'G', 'M']);
+    expect(enterTarget(keymap, 'm', { assignedOnly: false })).toBe('M');
+  });
+
+  it('trims and ignores case for the key label', () => {
+    expect(enterTarget(keymap, '  M ', { assignedOnly: false })).toBe('M');
+  });
+
+  it('picks the first match in keyboard order when no key label matches', () => {
+    expect(enterTarget(keymap, '.com', { assignedOnly: false })).toBe('Y');
+    expect(enterTarget(keymap, 'pull', { assignedOnly: true })).toBe('G');
+  });
+
+  it('counts a free key label only when free keys count', () => {
+    expect(enterTarget(keymap, 'w', { assignedOnly: false })).toBe('W');
+    expect(enterTarget(keymap, 'w', { assignedOnly: true })).toBeNull();
+    expect(enterTarget(keymap, 'q', { assignedOnly: false })).toBe('Q');
+    expect(enterTarget(keymap, 'q', { assignedOnly: true })).toBe('G');
+  });
+
+  it('gives nothing for a blank query or no match', () => {
+    expect(enterTarget(keymap, '', { assignedOnly: false })).toBeNull();
+    expect(enterTarget(keymap, '   ', { assignedOnly: true })).toBeNull();
+    expect(enterTarget(keymap, 'zzz', { assignedOnly: false })).toBeNull();
+  });
+
+  it('never picks S', () => {
+    expect(enterTarget({}, 's', { assignedOnly: false })).toBeNull();
+    expect(enterTarget(keymap, 's', { assignedOnly: false })).toBe('1');
   });
 });
