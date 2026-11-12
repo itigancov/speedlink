@@ -22,3 +22,9 @@ keyCap:
   free: "$1 $2: free"
   reserved: "$1 $2: reserved for the overlay"
   open: "$1, open in a tab"
+pageToast:
+  free: is free
+  putPageOnKey: Put this page on it
+  switched: Switched to your open $1 tab
+  openNew: Open new
+  close: Close
