@@ -1,4 +1,4 @@
-// The theme as the built extension renders it (product spec §12.1), on the Options placeholder page.
+// The theme as the built extension renders it (product spec §12.1), on the Options page.
 import { existsSync } from 'node:fs';
 import { EXTENSION_PATH, expect, test } from './extension';
 
