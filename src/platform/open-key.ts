@@ -5,9 +5,9 @@ import type { Key } from '@/domain/keys';
 import { planOpen, trialShortcut } from '@/domain/open-plan';
 import { displayName } from '@/domain/shortcut';
 import { createBadgeFlash } from './badge';
-import { sendToTab } from './injection';
+import { sendToast } from './injection';
 import { readKeymap } from './keymap-store';
-import type { OpenKeyReply, PageToastData } from './messaging';
+import type { OpenKeyReply } from './messaging';
 import { executeOpenPlan, readPlanTabs, watchLoads } from './tabs';
 
 /** A slow page gets no badge: one popping up much later would be stale. */
@@ -21,16 +21,6 @@ export interface OpenKeyRequest {
 }
 
 export type OpenKey = (request: OpenKeyRequest, senderTab: Browser.tabs.Tab | undefined) => Promise<OpenKeyReply>;
-
-/**
- * Sends a toast to a tab's top frame. Not awaited: the reply doesn't wait for the page. The toast is best-effort
- * (a restricted page, a tab still loading), so a failure is logged quietly and never retried beyond `sendToTab`.
- */
-function sendToast(tabId: number, toast: PageToastData): void {
-  void sendToTab(tabId, 'toast', toast).then((result) => {
-    if (result.kind !== 'sent') console.debug('SpeedLink: no page toast', toast, result);
-  });
-}
 
 /**
  * The function behind the `openKey` and `tryKey` messages (and the e2e hook). `senderTab` is the tab the key was pressed on,

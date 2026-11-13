@@ -1,7 +1,7 @@
 // Reaching a tab's content script from the background (product spec §4.5, §11.4).
 import type { GetDataType, GetReturnType } from '@webext-core/messaging';
 import { classifySendError, isRestrictedUrl } from '@/domain/restricted';
-import { type ProtocolMap, sendMessage } from './messaging';
+import { type PageToastData, type ProtocolMap, sendMessage } from './messaging';
 
 /** The built content script, run in every frame. */
 const CONTENT_SCRIPT = '/content-scripts/hud.js';
@@ -64,6 +64,16 @@ export async function sendToTab<T extends keyof ProtocolMap>(
   } catch (error) {
     return { kind: 'failed', error };
   }
+}
+
+/**
+ * Sends a toast to a tab's top frame. Not awaited: the reply doesn't wait for the page. The toast is best-effort
+ * (a restricted page, a tab still loading), so a failure is logged quietly and never retried beyond `sendToTab`.
+ */
+export function sendToast(tabId: number, toast: PageToastData): void {
+  void sendToTab(tabId, 'toast', toast).then((result) => {
+    if (result.kind !== 'sent') console.debug('SpeedLink: no page toast', toast, result);
+  });
 }
 
 /**
