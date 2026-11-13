@@ -1,26 +1,20 @@
 // The content script's keydown/keyup pipeline (product spec §4.2, §4.3): a thin DOM adapter around
 // `classifyKeydown`. The entrypoint registers it on `window` in the capture phase.
-import { type BrowserOs, classifyKeydown } from '@/domain/keydown';
+import type { HoldCancelReason } from '@/domain/hud-state';
+import { type BrowserOs, classifyKeydown, type KeydownInput } from '@/domain/keydown';
 import type { Key } from '@/domain/keys';
 import type { OpenKeyRequest } from './open-key';
 
-/** What stops a pending ⌥ hold besides a key (item 16 adds the listeners). */
-export type HoldCancelReason = 'mousedown' | 'wheel' | 'blur' | 'visibilitychange';
-
 /**
- * The sink for the overlay hold timer (item 16). It sees every keydown and keyup before anything else and may
- * return `consumed` to stop the pipeline there (the Windows Alt keyup after a Peek).
+ * The sink for the overlay hold (`hold-tracker.ts`). It sees every keydown and keyup before anything else and may
+ * return `consumed` to stop the pipeline there (Esc in a Peek, the Windows Alt keyup after one); it swallows such an
+ * event itself.
  */
 export interface HoldTracker {
   keydown(event: KeyboardEvent): 'consumed' | undefined;
   keyup(event: KeyboardEvent): 'consumed' | undefined;
   cancel(reason: HoldCancelReason): void;
   dispose(): void;
-}
-
-/** The hold tracker until item 16: it never holds and consumes nothing. */
-export function createNoopHoldTracker(): HoldTracker {
-  return { keydown: () => undefined, keyup: () => undefined, cancel: () => {}, dispose: () => {} };
 }
 
 export interface KeyCaptureOptions {
@@ -71,7 +65,22 @@ export function isEditableTarget(target: EventTarget | undefined): boolean {
   }
 }
 
-const swallow = (event: KeyboardEvent) => {
+/** A key event as the plain data the domain reads. */
+export function keyInput(event: KeyboardEvent): KeydownInput {
+  return {
+    code: event.code,
+    altKey: event.altKey,
+    shiftKey: event.shiftKey,
+    ctrlKey: event.ctrlKey,
+    metaKey: event.metaKey,
+    altGraph: event.getModifierState('AltGraph'),
+    repeat: event.repeat,
+    composing: event.isComposing || event.keyCode === 229,
+    editable: isEditableTarget(event.composedPath()[0]),
+  };
+}
+
+export const swallow = (event: Event) => {
   event.preventDefault();
   event.stopImmediatePropagation();
 };
@@ -90,21 +99,7 @@ export function createKeyCapture(options: KeyCaptureOptions): {
       if (isInvalid()) return;
       if (holdTracker.keydown(event) === 'consumed') return;
 
-      const decision = classifyKeydown(
-        {
-          code: event.code,
-          altKey: event.altKey,
-          shiftKey: event.shiftKey,
-          ctrlKey: event.ctrlKey,
-          metaKey: event.metaKey,
-          altGraph: event.getModifierState('AltGraph'),
-          repeat: event.repeat,
-          composing: event.isComposing || event.keyCode === 229,
-          editable: isEditableTarget(event.composedPath()[0]),
-        },
-        os,
-        isAssigned,
-      );
+      const decision = classifyKeydown(keyInput(event), os, isAssigned);
       if (decision.kind === 'ignore' || decision.kind === 'pass') return;
 
       swallow(event);

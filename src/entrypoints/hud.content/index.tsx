@@ -1,7 +1,11 @@
 import type { ContentScriptContext } from '#imports';
+import { createOverlaySlot, OverlayRegion } from '@/components/Overlay';
 import { createToastSlot, type OccupiedSource, ToastRegion } from '@/components/ToastRegion';
+import type { HoldCancelReason, HudEvent } from '@/domain/hud-state';
 import type { Key } from '@/domain/keys';
-import { createKeyCapture, createNoopHoldTracker } from '@/platform/key-capture';
+import type { OverlayModel } from '@/domain/overlay-model';
+import { createHoldTracker, type HoldEffects } from '@/platform/hold-tracker';
+import { createKeyCapture } from '@/platform/key-capture';
 import { onMessage, type PageToastData, type PageToastErrorReason, sendMessage } from '@/platform/messaging';
 import { createOccupiedKeys } from '@/platform/occupied-keys';
 import { browserOs } from '@/platform/platform-labels';
@@ -31,7 +35,13 @@ export default defineContentScript({
     // `ctx` makes the newest copy win: a starting copy invalidates older ones in the same frame, and a copy whose
     // extension was reloaded or updated invalidates itself on its next event. Either way its listeners go.
     const occupied = createOccupiedKeys();
-    const holdTracker = createNoopHoldTracker();
+    // The HUD lives in the top frame only (§4.4); `sendToTab` targets frame 0. A sub-frame relays its Peek there.
+    const hud = window === window.top ? createHud(ctx, occupied, (event) => holdTracker.dispatch(event)) : undefined;
+    const holdTracker = createHoldTracker({
+      os: browserOs(),
+      frame: hud === undefined ? 'sub' : 'top',
+      effects: hud?.overlay ?? RELAY_TO_TOP,
+    });
     const capture = createKeyCapture({
       os: browserOs(),
       isAssigned: occupied.isAssigned,
@@ -41,13 +51,22 @@ export default defineContentScript({
     });
     ctx.addEventListener(window, 'keydown', capture.keydown, { capture: true });
     ctx.addEventListener(window, 'keyup', capture.keyup, { capture: true });
+    // What else stops a hold. A press on the overlay itself is not one: its tiles and scrim act on their own.
+    const cancelOutside = (reason: HoldCancelReason) => (event: Event) => {
+      if (!hud?.contains(event)) holdTracker.cancel(reason);
+    };
+    ctx.addEventListener(window, 'mousedown', cancelOutside('mousedown'), { capture: true });
+    ctx.addEventListener(window, 'wheel', cancelOutside('wheel'), { capture: true, passive: true });
+    ctx.addEventListener(window, 'blur', (event) => {
+      if (event.target === window) holdTracker.cancel('blur');
+    });
+    ctx.addEventListener(document, 'visibilitychange', () => holdTracker.cancel('visibilitychange'));
     const removePing = onMessage('ping', () => true as const);
-    // The HUD lives in the top frame only (§4.4); `sendToTab` targets frame 0.
-    const removeToast = window === window.top ? registerHud(ctx, occupied) : () => {};
+    const removeHud = hud?.register() ?? (() => {});
 
     ctx.onInvalidated(() => {
       safely(removePing);
-      safely(removeToast);
+      safely(removeHud);
       safely(occupied.dispose);
       safely(holdTracker.dispose);
     });
@@ -55,11 +74,29 @@ export default defineContentScript({
 });
 
 /**
- * The top frame's HUD: the key guard now, synchronously after key capture; the shadow root on the first toast.
- * Returns the toast handler's remover.
+ * A sub-frame's hold effects: it never renders, and tells the top frame through the background. Each event waits
+ * for the one before, so a quick release can't close before the show arrives.
  */
-function registerHud(ctx: ContentScriptContext, occupied: OccupiedSource): () => void {
+let relayed = Promise.resolve();
+const RELAY_TO_TOP: HoldEffects = {
+  fetchModel: () => {},
+  show: () => {},
+  close: () => {},
+  relay: (kind) => {
+    relayed = relayed
+      .then(() => sendMessage('frameEvent', { kind }))
+      .catch((error: unknown) => console.debug('SpeedLink: could not relay', kind, error));
+  },
+};
+
+/**
+ * The top frame's HUD: toasts and the overlay in one shadow root, mounted the first time either is needed.
+ * `overlay` runs the hold tracker's effects; `dispatch` feeds the tracker the overlay's own events. `register`
+ * adds the key guard (call it synchronously, after key capture) and the message handlers, and returns their remover.
+ */
+function createHud(ctx: ContentScriptContext, occupied: OccupiedSource, dispatch: (event: HudEvent) => void) {
   const slot = createToastSlot();
+  const overlaySlot = createOverlaySlot();
   const show = (toast: PageToastData) => {
     slot.show(toast);
     return hud.mount();
@@ -78,39 +115,117 @@ function registerHud(ctx: ContentScriptContext, occupied: OccupiedSource): () =>
       .catch(() => {});
   };
   const hud = createHudMount(ctx, ({ keydowns }) => (
-    <ToastRegion
-      slot={slot}
-      keydowns={keydowns}
-      occupied={occupied}
-      actions={{
-        openNew: (key) => {
-          sendMessage('openKey', { key, force: true }).catch((error: unknown) =>
-            console.debug('SpeedLink: could not open new', key, error),
-          );
-        },
-        // On `saved` the background's saved toast replaces the free one; anything else saved nothing.
-        putPageOnKey: (key) => {
-          unlessDone(
-            key,
-            'save-failed',
-            sendMessage('assignPage', { key }).then((reply) => reply.kind === 'saved'),
-          );
-        },
-        // A successful Undo shows nothing more.
-        undo: (key, id) => {
-          unlessDone(
-            key,
-            'undo-stale',
-            sendMessage('undo', { id }).then((reply) => reply.kind === 'undone'),
-          );
-        },
-      }}
-    />
+    <>
+      <OverlayRegion
+        slot={overlaySlot}
+        actions={{
+          open: (key, force) => {
+            sendMessage('openKey', { key, force }).catch((error: unknown) =>
+              console.debug('SpeedLink: could not ask to open', key, error),
+            );
+            dispatch({ kind: 'opened' });
+          },
+          edit: (key) => {
+            sendMessage('openOptions', { key }).catch((error: unknown) =>
+              console.debug('SpeedLink: could not open Options', key, error),
+            );
+            dispatch({ kind: 'close' });
+          },
+          openKeymap: () => {
+            sendMessage('openOptions', undefined).catch((error: unknown) =>
+              console.debug('SpeedLink: could not open Options', error),
+            );
+            dispatch({ kind: 'close' });
+          },
+          close: () => dispatch({ kind: 'close' }),
+        }}
+      />
+      <ToastRegion
+        slot={slot}
+        keydowns={keydowns}
+        occupied={occupied}
+        actions={{
+          openNew: (key) => {
+            sendMessage('openKey', { key, force: true }).catch((error: unknown) =>
+              console.debug('SpeedLink: could not open new', key, error),
+            );
+          },
+          // On `saved` the background's saved toast replaces the free one; anything else saved nothing.
+          putPageOnKey: (key) => {
+            unlessDone(
+              key,
+              'save-failed',
+              sendMessage('assignPage', { key }).then((reply) => reply.kind === 'saved'),
+            );
+          },
+          // A successful Undo shows nothing more.
+          undo: (key, id) => {
+            unlessDone(
+              key,
+              'undo-stale',
+              sendMessage('undo', { id }).then((reply) => reply.kind === 'undone'),
+            );
+          },
+        }}
+      />
+    </>
   ));
-  for (const type of ['keydown', 'keyup', 'keypress'] as const) {
-    ctx.addEventListener(window, type, hud.guard, { capture: true });
-  }
-  return onMessage('toast', async ({ data }) => {
-    await show(data);
-  });
+
+  // The model asked for when a hold starts, and whether the Peek should show. The overlay appears once both are in;
+  // a later request (a newer hold, a keymap change) wins over an earlier one still on its way.
+  let request: Promise<OverlayModel | undefined> | undefined;
+  let showing = false;
+  const fetchModel = () => {
+    request = sendMessage('getOverlayModel', undefined).catch((error: unknown) => {
+      console.debug('SpeedLink: no overlay model', error);
+      return undefined;
+    });
+    hud.mount().catch((error: unknown) => console.debug('SpeedLink: could not mount the HUD', error));
+  };
+  const showLatest = () => {
+    const pending = request;
+    void pending?.then((model) => {
+      if (showing && request === pending && model !== undefined) overlaySlot.show(model);
+    });
+  };
+  const overlay: HoldEffects = {
+    fetchModel,
+    show: () => {
+      showing = true;
+      showLatest();
+    },
+    close: () => {
+      showing = false;
+      request = undefined;
+      overlaySlot.hide();
+    },
+    relay: () => {},
+  };
+
+  return {
+    overlay,
+    contains: hud.contains,
+    register: () => {
+      for (const type of ['keydown', 'keyup', 'keypress'] as const) {
+        ctx.addEventListener(window, type, hud.guard, { capture: true });
+      }
+      // A key that changes while the overlay is up, in another window say: never show one that's gone.
+      const unsubscribe = occupied.subscribe(() => {
+        if (!showing) return;
+        fetchModel();
+        showLatest();
+      });
+      const removeToast = onMessage('toast', async ({ data }) => {
+        await show(data);
+      });
+      const removeFrameEvent = onMessage('frameEvent', ({ data }) => {
+        dispatch({ kind: data.kind === 'show' ? 'remote-show' : 'remote-close' });
+      });
+      return () => {
+        unsubscribe();
+        removeToast();
+        removeFrameEvent();
+      };
+    },
+  };
 }

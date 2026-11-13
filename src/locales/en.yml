@@ -38,6 +38,32 @@ pageToast:
   undoStale: Couldn’t undo — your keys changed
   saveFailed: Couldn’t save $1
   close: Close
+overlay:
+  label: Your keys
+  held: $1 held
+  hint: Press a key — or keep typing to search
+  empty: No keys yet
+  openKeymap: Open keymap
+  tile: "$1, $2"
+  edit: Edit $1
+  subline:
+    tab: Open · tab $1
+    otherWindow: Open · other window
+    new: new tab
+    this: this tab
+    bg: background
+  legend:
+    key: key
+    go: go
+    shiftKey: ⇧ + key
+    forceNew: force new tab
+    type: type
+    search: search names & links
+    release: $1 release
+    or: or
+    esc: Esc
+    close: close
+    openNow: open now — will switch, not reopen
 popup:
   openKeymap: Open keymap
   alreadyOn: Already on $1

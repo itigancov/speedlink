@@ -64,6 +64,11 @@ export interface KeyCapProps extends Omit<ComponentProps<'button'>, 'children'> 
   dimmed?: boolean;
   /** Forces the trigger word in the accessible name; defaults to the running platform. */
   platform?: Platform;
+  /**
+   * Drawn inside another control (an overlay tile): a span hidden from assistive tech, which that control names.
+   * Button props are then ignored.
+   */
+  decorative?: boolean;
 }
 
 function accessibleName(
@@ -92,6 +97,7 @@ export function KeyCap({
   name,
   dimmed = false,
   platform = PLATFORM,
+  decorative = false,
   className,
   type = 'button',
   disabled,
@@ -99,18 +105,9 @@ export function KeyCap({
 }: KeyCapProps) {
   const selected = state === 'selected';
   const showChip = size === 'lg' && monogram !== undefined && (state === 'assigned' || selected);
-  return (
-    <button
-      type={type}
-      data-slot="key-cap"
-      data-state={state}
-      data-dimmed={dimmed || undefined}
-      aria-label={accessibleName(label, state, open, name, platform)}
-      aria-pressed={selected ? true : undefined}
-      disabled={state === 'reserved' || disabled}
-      className={cn(keyCapVariants({ size, state }), dimmed && 'opacity-40', className)}
-      {...props}
-    >
+  const classes = cn(keyCapVariants({ size, state }), dimmed && 'opacity-40', className);
+  const face = (
+    <>
       <span aria-hidden="true">{label}</span>
       {state === 'reserved' && <LockIcon aria-hidden="true" className={cn('absolute', LOCK_POSITION[size])} />}
       {state === 'drop-target' && size === 'lg' && (
@@ -133,6 +130,28 @@ export function KeyCap({
           )}
         />
       )}
+    </>
+  );
+  if (decorative) {
+    return (
+      <span data-slot="key-cap" data-state={state} aria-hidden="true" className={classes}>
+        {face}
+      </span>
+    );
+  }
+  return (
+    <button
+      type={type}
+      data-slot="key-cap"
+      data-state={state}
+      data-dimmed={dimmed || undefined}
+      aria-label={accessibleName(label, state, open, name, platform)}
+      aria-pressed={selected ? true : undefined}
+      disabled={state === 'reserved' || disabled}
+      className={classes}
+      {...props}
+    >
+      {face}
     </button>
   );
 }
