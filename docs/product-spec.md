@@ -137,7 +137,7 @@ Suppression = `preventDefault` + `stopImmediatePropagation`.
 - Page `accesskey`s on intercepted keys are lost (accepted).
 
 ### 4.4 Frames
-UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openKey` itself (its `sender.tab` is the tab); its hold events and Peek keys are relayed through the background to `frameId: 0` (`frameEvent`).
+UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openKey` itself (its `sender.tab` is the tab); its own Peek (it runs its own hold timer) is relayed through the background to `frameId: 0` as `frameEvent{kind: 'show'|'close'}`, and it consumes the Windows Alt keyup itself.
 
 ### 4.5 Injection and lifecycle
 - On `onInstalled` (install and update), inject into every open http(s) tab, all frames, skipping discarded tabs.
@@ -162,7 +162,10 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
 
 ### 5.1 Peek
 - **Opening**: the timer starts on keydown of `AltLeft`/`AltRight` with no other modifier and not repeat. Any other keydown, mousedown, wheel, `blur`, `visibilitychange`, or ⌥ keyup before **400 ms** (fixed) cancels it. A quick ⌥+key never flashes the overlay.
-- **In Peek**: key → open; ⇧+key → Force new tab; S → pin (§5.2); ⌥ release or Esc → close, and focus returns to the page. There is no search.
+- **In Peek**: key → open; ⇧+key → Force new tab; S → pin (§5.2); ⌥ release or Esc → close. There is no search.
+  - A key or a tile click that opens closes the Peek: one hold opens one thing. Shift alone doesn't close it.
+  - Ctrl, ⌘, and any key that isn't a SpeedLink key close it and pass through to the page; Esc is consumed.
+  - Focus never leaves the page in a Peek: the overlay takes no focus, so nothing needs restoring.
 - **Windows**: releasing Alt alone focuses Chrome's ⋮ menu. The Alt keyup is consumed **only after a Peek was shown**; a bare Alt tap keeps native behavior.
 
 ### 5.2 Pinned overlay
@@ -185,9 +188,9 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
 ### 5.4 Content
 - **Tiles**: one per assigned key, in keyboard order, 4 columns. Past 12 tiles the tile area scrolls inside the dialog (max ~70vh), up to 35. No profile label.
 - **Tile**: keycap (md) + name (or site) + subline:
-  - open in this window → "Open · tab N" (1-based position);
-  - open in another window → "Open · other window" (green);
-  - else Smart → site, New → "new tab", This → "this tab", Background → "background".
+  - Smart switch would switch to a tab in this window (the current tab included) → "Open · tab N" (1-based position);
+  - Smart switch would raise another window → "Open · other window" (green);
+  - else Smart → site, New → "new tab", This → "this tab", Background → "background". Both "Open" sublines follow Smart switch's winner (§4.1), so other open modes show their mode even when the page is open.
 - **Top row**: badge "⌥ held" + the search field "Press a key — or keep typing to search".
 - **Footer legend**: key go · ⇧ + key force new tab · type search names & links · ⌥ release or Esc close · green dot "open now — will switch, not reopen".
 - **Empty keymap**: "No keys yet" + an "Open keymap" link.
@@ -453,7 +456,7 @@ e2e/                   Playwright specs + fixture pages
 
 ### 11.4 Messaging
 One typed protocol in `platform/messaging.ts` on `@webext-core/messaging`. No ad-hoc `runtime.sendMessage`.
-- content → bg: `openKey{key, force}`, `assignPage`, `undo{id}`, `openOptions{key?}`, `getOverlayModel`, `frameEvent{kind: 'hold-start'|'hold-cancel'|'release'|'key', …}`
+- content → bg: `openKey{key, force}`, `assignPage`, `undo{id}`, `openOptions{key?}`, `getOverlayModel`, `frameEvent{kind: 'show'|'close'}`
 - popup → bg: `assignPage`, `openOptions`
 - bg → tab (`frameId: 0`): `ping`, `overlay{action: 'toggle'|'pin'|'cancel-hold'}`, `toast{kind: 'saved'|'free'|'switched'|'error', …}`, `frameEvent`
 - Every bg → tab send goes through one `sendToTab` helper: ping → inject → retry once.
