@@ -10,6 +10,7 @@ pnpm only, at the version in `packageManager`: `pnpm install`, `pnpm <script>`, 
 - `pnpm format`: apply formatting and sort imports. Fix style with this, by hand never.
 - `pnpm test`: Vitest once. Run a single file with `pnpm test src/path/file.test.ts`.
 - `pnpm e2e`: builds, then runs Playwright against the build (it also builds a negative-control variant into `.output-e2e-throw/` and a variant with service-worker test hooks into `.output-e2e-hooks/`). First run needs `pnpm exec playwright install chromium`.
+- `pnpm listing`: builds the e2e-hooks variant and redraws the Store listing images with its own Playwright config (`playwright.listing.config.ts`, `listing/`): the five screenshots and the promo tile into `store/`, the extension icons into `public/icon/`. It fails on a wrong size or an alpha channel. Not part of `pnpm e2e` or CI; the listing texts in `store/listing.md` are edited by hand.
 - `pnpm dev` / `pnpm build` / `pnpm zip`: WXT watch mode, unpacked build in `.output/`, Store zip.
 
 Done means `check`, `test` and `e2e` all pass. A `pre-push` hook (`.githooks/`, wired by `postinstall`) runs `check` and `test` before every push; fix the failure rather than skipping it.

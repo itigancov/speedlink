@@ -1,6 +1,7 @@
 // Guards the built manifest against drift from product spec §13. A change here is a deliberate manifest change:
 // a new permission that adds an install warning over v1 is a release blocker.
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { EXTENSION_PATH, expect, test } from './extension';
 
 const manifest = JSON.parse(readFileSync(`${EXTENSION_PATH}/manifest.json`, 'utf8'));
@@ -58,8 +59,26 @@ test('name and description come from i18n', () => {
   expect(manifest.default_locale).toBe('en');
 });
 
-test('icons are the v1 16/32/48/128 set', () => {
+test('icons are the 16/32/48/128 set', () => {
   expect(manifest.icons).toEqual({ 16: 'icon/16.png', 32: 'icon/32.png', 48: 'icon/48.png', 128: 'icon/128.png' });
+});
+
+test('every declared icon is a PNG as wide and as high as its key', () => {
+  const PNG_SIGNATURE = '89504e470d0a1a0a';
+  for (const [size, path] of Object.entries<string>(manifest.icons)) {
+    const png = readFileSync(join(EXTENSION_PATH, path));
+    expect(png.subarray(0, 8).toString('hex'), `${path} is a PNG`).toBe(PNG_SIGNATURE);
+    // The IHDR chunk follows the signature: length, type, then width and height as 32-bit big-endian integers.
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)], `${path} is ${size}×${size}`).toEqual([
+      Number(size),
+      Number(size),
+    ]);
+  }
+});
+
+test('the summary fits the Store’s 132-character limit', () => {
+  const messages = JSON.parse(readFileSync(join(EXTENSION_PATH, '_locales/en/messages.json'), 'utf8'));
+  expect(messages.extDescription.message.length).toBeLessThanOrEqual(132);
 });
 
 test('the action popup is titled from i18n', () => {

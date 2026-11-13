@@ -1,5 +1,5 @@
 extName: SpeedLink
-extDescription: Open any site with one keyboard shortcut.
+extDescription: Put your sites on keys. Hold ⌥ (Alt) and press a key to open a site or jump to its tab.
 commandToggleOverlay: Show or pin the shortcut overlay
 platform:
   mac:
