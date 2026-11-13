@@ -15,7 +15,8 @@
       "!**/playwright-report",
       "!**/test-results",
       "!**/*.md",
-      "!e2e/fixture-pages/tailwind-v3.css"
+      "!e2e/fixture-pages/tailwind-v3.css",
+      "!e2e/fixture-v1"
     ]
   },
   "formatter": {
