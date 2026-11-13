@@ -28,7 +28,7 @@ These are behaviour, not credentials, so they are set in the workflow, not the E
 
 - `CHROME_API_VERSION=v2`. Without it `wxt submit` silently uses the v1.1 API, which stopped working on 2026-10-15.
 - `CHROME_PUBLISH_TYPE=STAGED_PUBLISH`. This is deferred publish: the item is submitted for review and published by hand once approved. `CHROME_SKIP_SUBMIT_REVIEW` only uploads and is not what we want.
-- `CHROME_ZIP`: the `*-chrome.zip` from `wxt zip`.
+- `CHROME_ZIP`: the `*-chrome.zip` that `wxt zip` built, downloaded from the workflow artifact (so the file submitted is the one attached to the Release).
 
 Do not copy WXT's publishing docs or its GitHub Action example: they show only the CWS API v1 secrets (client ID, client secret, refresh token). `wxt submit` also accepts no whole JSON key, neither a file nor a string: the client email and private key are taken out of it.
 
@@ -41,7 +41,7 @@ A release is one `v*` tag. `release.yml` runs these jobs in order, and each need
 3. **release**: `pnpm zip`, uploads the `*-chrome.zip` as a workflow artifact, creates the GitHub Release with the zip and generated notes. Only this job can write to the repo.
 4. **submit**: in the `chrome-web-store` Environment, downloads the same zip and runs `wxt submit` with the settings from [What belongs in `release.yml`](#what-belongs-in-releaseyml). It never rebuilds, so the file submitted is the file attached to the Release.
 
-**Dry run.** Bump nothing: push `v<version>-rc.N` from `main`, for example `v4.0.0-rc.1` while `package.json` is at `4.0.0`. The run goes through every job, but the Release is a prerelease and submit runs `wxt submit --dry-run`, so nothing reaches the Store. A green run ends with "DRY RUN: Skipped upload and publishing". Then remove the prerelease and its tag:
+**Pre-release dry run.** Push `v<version>-rc.N` from `main`, for example `v4.0.0-rc.1` while `package.json` is at `4.0.0`. The run goes through every job, but the Release is a prerelease and submit runs `wxt submit --dry-run`, so nothing reaches the Store. A green run ends with "DRY RUN: Skipped upload and publishing". Then remove the prerelease and its tag:
 
 ```bash
 gh release delete v<version>-rc.N --cleanup-tag --yes
@@ -55,7 +55,7 @@ A tag runs the workflow file from its own commit, so a change to `release.yml` o
 
 ## Dry run
 
-`wxt submit --dry-run` checks the zip exists, exchanges a signed JWT for a token at Google, calls the read-only v2 `fetchStatus` on the Store item, and stops. It never uploads or publishes. One green run proves the key, the dashboard link, the publisher ID and the extension ID.
+The local form of the check that a pre-release tag runs in CI. `wxt submit --dry-run` checks the zip exists, exchanges a signed JWT for a token at Google, calls the read-only v2 `fetchStatus` on the Store item, and stops. It never uploads or publishes. One green run proves the key, the dashboard link, the publisher ID and the extension ID.
 
 Locally, with every value inline for that one command and no `.env.submit`:
 
