@@ -1,6 +1,8 @@
 import { resolve } from 'node:path';
 import { type BrowserContext, test as base, chromium, type Page, type Worker } from '@playwright/test';
 
+type ContextOptions = NonNullable<Parameters<typeof chromium.launchPersistentContext>[1]>;
+
 export const EXTENSION_PATH = resolve(import.meta.dirname, '../.output/chrome-mv3');
 export const THROW_EXTENSION_PATH = resolve(import.meta.dirname, '../.output-e2e-throw/chrome-mv3');
 /** The extension with test hooks on the service worker (`SPEEDLINK_E2E_HOOKS=1`). */
@@ -15,6 +17,10 @@ interface Fixtures {
   extensionPath: string;
   /** Leaves the welcome tab that opens on install alone. Only `welcome.spec.ts` wants it. */
   keepWelcomeTab: boolean;
+  /** Extra Chromium switches, e.g. the listing script's Windows user agent. */
+  launchArgs: string[];
+  /** Extra options for the browser context, e.g. the listing script's viewport. */
+  extraContextOptions: ContextOptions;
   context: BrowserContext;
   extensionId: string;
   /** Opens a page with CDP `Runtime.exceptionThrown` capture attached before any script runs. */
@@ -25,6 +31,11 @@ interface Fixtures {
    * service worker. (`chrome.runtime.reload()` would unload a command-line-loaded extension for good.)
    */
   updateExtension: () => Promise<Worker>;
+}
+
+/** The extension's service worker; it is the only extension loaded. */
+export async function serviceWorker(context: BrowserContext): Promise<Worker> {
+  return context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
 }
 
 /** The extension's welcome tab, if it is open. */
@@ -43,9 +54,12 @@ export async function closeWelcomeTab(context: BrowserContext): Promise<void> {
 export const test = base.extend<Fixtures>({
   extensionPath: [EXTENSION_PATH, { option: true }],
   keepWelcomeTab: [false, { option: true }],
+  launchArgs: [[], { option: true }],
+  extraContextOptions: [{}, { option: true }],
 
-  context: async ({ extensionPath, keepWelcomeTab }, use) => {
+  context: async ({ extensionPath, keepWelcomeTab, launchArgs, extraContextOptions }, use) => {
     const context = await chromium.launchPersistentContext('', {
+      ...extraContextOptions,
       channel: 'chromium',
       headless: true,
       // The unsafe-debugging flag opens CDP's Extensions domain, so a spec can update the extension in place.
@@ -53,6 +67,7 @@ export const test = base.extend<Fixtures>({
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
         '--enable-unsafe-extension-debugging',
+        ...launchArgs,
       ],
     });
     if (!keepWelcomeTab) await closeWelcomeTab(context);
@@ -61,8 +76,7 @@ export const test = base.extend<Fixtures>({
   },
 
   extensionId: async ({ context }, use) => {
-    const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
-    const id = new URL(worker.url()).host;
+    const id = new URL((await serviceWorker(context)).url()).host;
     await use(id);
   },
 
