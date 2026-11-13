@@ -2,8 +2,7 @@ import type { ContentScriptContext } from '#imports';
 import { createToastSlot, type OccupiedSource, ToastRegion } from '@/components/ToastRegion';
 import type { Key } from '@/domain/keys';
 import { createKeyCapture, createNoopHoldTracker } from '@/platform/key-capture';
-import type { PageToastData } from '@/platform/messaging';
-import { onMessage, sendMessage } from '@/platform/messaging';
+import { onMessage, type PageToastData, type PageToastErrorReason, sendMessage } from '@/platform/messaging';
 import { createOccupiedKeys } from '@/platform/occupied-keys';
 import { browserOs } from '@/platform/platform-labels';
 import { createHudMount } from './hud-mount';
@@ -65,10 +64,18 @@ function registerHud(ctx: ContentScriptContext, occupied: OccupiedSource): () =>
     slot.show(toast);
     return hud.mount();
   };
-  /** A refused or failed request: the error toast, from this page, since the background never shows errors. */
-  const showError = (key: Key, reason: 'undo-stale' | 'save-failed') => (error?: unknown) => {
-    if (error !== undefined) console.debug('SpeedLink:', reason, key, error);
-    void show({ kind: 'error', key, reason }).catch(() => {});
+  /**
+   * Shows the error toast unless the request did what was asked. From this page, since the background never shows
+   * errors; a request that never reached the background counts as failed.
+   */
+  const unlessDone = (key: Key, reason: PageToastErrorReason, request: Promise<boolean>) => {
+    request
+      .catch((error: unknown) => {
+        console.debug('SpeedLink:', reason, key, error);
+        return false;
+      })
+      .then((done) => (done ? undefined : show({ kind: 'error', key, reason })))
+      .catch(() => {});
   };
   const hud = createHudMount(ctx, ({ keydowns }) => (
     <ToastRegion
@@ -83,20 +90,18 @@ function registerHud(ctx: ContentScriptContext, occupied: OccupiedSource): () =>
         },
         // On `saved` the background's saved toast replaces the free one; anything else saved nothing.
         putPageOnKey: (key) => {
-          sendMessage('assignPage', { key }).then(
-            (reply) => {
-              if (reply.kind !== 'saved') showError(key, 'save-failed')();
-            },
-            showError(key, 'save-failed'),
+          unlessDone(
+            key,
+            'save-failed',
+            sendMessage('assignPage', { key }).then((reply) => reply.kind === 'saved'),
           );
         },
         // A successful Undo shows nothing more.
         undo: (key, id) => {
-          sendMessage('undo', { id }).then(
-            (reply) => {
-              if (reply.kind !== 'undone') showError(key, 'undo-stale')();
-            },
-            showError(key, 'undo-stale'),
+          unlessDone(
+            key,
+            'undo-stale',
+            sendMessage('undo', { id }).then((reply) => reply.kind === 'undone'),
           );
         },
       }}

@@ -45,11 +45,14 @@ export type UndoReply = { kind: 'undone' } | { kind: 'stale' } | { kind: 'failed
  * `saved`: a page was just put on the key; `undoId` is the assign's `undo` handle. `error`: an Undo was refused or a
  * save failed. `name` is the shortcut's display name (its name, else its link's site).
  */
+/** Why the error toast shows: an Undo refused (§3.3), or an assign that saved nothing. */
+export type PageToastErrorReason = 'undo-stale' | 'save-failed';
+
 export type PageToastData =
   | { kind: 'free'; key: Key }
   | { kind: 'switched'; key: Key; name: string }
   | { kind: 'saved'; key: Key; name: string; undoId: string }
-  | { kind: 'error'; key: Key; reason: 'undo-stale' | 'save-failed' };
+  | { kind: 'error'; key: Key; reason: PageToastErrorReason };
 
 export interface ProtocolMap {
   // content → bg
