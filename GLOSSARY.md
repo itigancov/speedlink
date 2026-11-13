@@ -83,5 +83,5 @@ The overlay opened with ⌥S (or pinned with S during a peek): it stays open aft
 _Avoid_: sticky mode, search mode
 
 **Page toast**:
-A short message at the bottom of the current page about the key just pressed: that it is free, or that Smart switch moved to an open tab. One shows at a time.
+A short message at the bottom of the current page about a key: that it is free, that a page was just saved on it (with Undo), that Smart switch moved to an open tab, or that a save or an Undo didn't happen. One shows at a time.
 _Avoid_: notification, snackbar

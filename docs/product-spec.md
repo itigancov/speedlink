@@ -78,7 +78,7 @@ Case-insensitive substring search.
 |---|---|---|
 | `sync` | `key.<K>` (e.g. `key.Y`, `key.1`), one per occupied key | `{ link, name?, openMode, tabMatch, closeCurrent }` |
 | `sync` | `meta` | `{ schemaVersion: 1, v1Imported?: true }` |
-| `session` | `undo` | `{ expiresAt, keys: { <K>: Shortcut \| null } }` |
+| `session` | `undo` | `{ id, expiresAt, keys: { <K>: Shortcut \| null }, written: { <K>: Shortcut \| null } }` |
 
 - A free key has no `key.<K>` item. There is no `settings` item; a future setting becomes its own item, defaulted on read.
 - Item names never collide with v1's (`speedlink`, legacy `shortcuts`), so v1 data stays alongside.
@@ -92,7 +92,8 @@ Case-insensitive substring search.
 - All surfaces see live keymap changes, including remote sync changes.
 
 ### 3.3 Undo record
-- Holds the previous contents of the touched keys and lives 5 s in `storage.session`.
+- Holds `{ id, expiresAt, keys, written }` in `storage.session` for up to 60 s. Undo is offered while the saved toast is visible and applies only when every touched key still holds what the assign wrote (all or nothing); otherwise nothing changes.
+- `keys` is the previous contents of every touched key (null = free), `written` what the assign put there. `id` is fresh per assign, and every assign replaces the record, so an older toast's Undo is refused.
 - It is created **only** by an assign from the popup or from the page toast, so an Undo after Replace or Move restores the old shortcut too.
 - Options edits (autosave, Clear key, swap, move) have no undo.
 ↳ rebuild map: issues/05-domain-model.md (domain model)
@@ -203,8 +204,9 @@ Toasts render on the page, top frame only. Each is a dark pill: key chip + messa
 
 | Toast | Shown when | Action | Lifetime |
 |---|---|---|---|
-| **"⌥K is free · Put this page on it"** | ⌥ + free key (§4.3) | assigns the current page to K at once (name = tab title, defaults), then shows the saved toast. No popup step | until dismissed or replaced |
-| **"⌥K → Name saved · Undo"** | after an assign from the popup or the free-key toast | Undo restores the undo record (§3.3) | 5 s |
+| **"⌥K is free · Put this page on it"** | ⌥ + free key (§4.3) | assigns the current page to K at once (name = tab title, defaults), then shows the saved toast. No popup step | until dismissed or replaced, or until its key is taken |
+| **"⌥K → Name saved · Undo"** | after an assign from the popup or the free-key toast | Undo restores the undo record (§3.3); the toast closes at once | 5 s, held while hovered |
+| **"Couldn't undo — your keys changed"** / **"Couldn't save ⌥K"** | an Undo was refused (§3.3), or an assign saved nothing (key taken, page unusable, write failed) | none, no × | 5 s, held while hovered |
 | **"Switched to your open Name tab · Open new"** | on the switched-to tab after Smart switch activated another tab | Open new = Force new tab | 3 s |
 
 - No toasts on restricted pages.
@@ -444,15 +446,15 @@ e2e/                   Playwright specs + fixture pages
 
 ### 11.3 Who writes the keymap
 - **Options** reads and writes through `platform/keymap-store` directly.
-- **Assign with undo** (popup and the free-key toast) goes **only through the background**: `assignPage{key, tabId, openMode?, resolve?: 'replace'|'move'}` and `undo`. The background writes the undo record to `storage.session`, which content scripts can't see.
+- **Assign with undo** (popup and the free-key toast) goes **only through the background**: `assignPage{key, tabId, openMode?, resolve?: 'replace'|'move'}` and `undo{id}`. The background writes the undo record to `storage.session`, which content scripts can't see.
 - The **content script** only reads `sync`.
 - The **overlay** gets its model from the background (`getOverlayModel`).
 
 ### 11.4 Messaging
 One typed protocol in `platform/messaging.ts` on `@webext-core/messaging`. No ad-hoc `runtime.sendMessage`.
-- content → bg: `openKey{key, force}`, `assignPage`, `undo`, `openOptions{key?}`, `getOverlayModel`, `frameEvent{kind: 'hold-start'|'hold-cancel'|'release'|'key', …}`
+- content → bg: `openKey{key, force}`, `assignPage`, `undo{id}`, `openOptions{key?}`, `getOverlayModel`, `frameEvent{kind: 'hold-start'|'hold-cancel'|'release'|'key', …}`
 - popup → bg: `assignPage`, `openOptions`
-- bg → tab (`frameId: 0`): `ping`, `overlay{action: 'toggle'|'pin'|'cancel-hold'}`, `toast{kind: 'saved'|'free'|'switched', …}`, `frameEvent`
+- bg → tab (`frameId: 0`): `ping`, `overlay{action: 'toggle'|'pin'|'cancel-hold'}`, `toast{kind: 'saved'|'free'|'switched'|'error', …}`, `frameEvent`
 - Every bg → tab send goes through one `sendToTab` helper: ping → inject → retry once.
 
 ### 11.5 UI state
