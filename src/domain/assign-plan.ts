@@ -1,5 +1,5 @@
 // Putting a tab's page on a key, and taking it back (product spec §2.5, §3.3): pure plans, executed by the background.
-import { assign, type Keymap, type KeymapChange } from './keymap-ops';
+import { assign, type Keymap, type KeymapChange, type Resolve } from './keymap-ops';
 import type { Key } from './keys';
 import { isRestrictedUrl } from './restricted';
 import { DEFAULT_OPEN_MODE, DEFAULT_TAB_MATCH, type OpenMode, type Shortcut, validateShortcut } from './shortcut';
@@ -13,7 +13,7 @@ export interface TabPage {
 
 export interface AssignOptions {
   openMode?: OpenMode;
-  resolve?: 'replace' | 'move';
+  resolve?: Resolve;
 }
 
 /** How to take an assign back: what every touched key held before (null = free), and what the assign wrote. */

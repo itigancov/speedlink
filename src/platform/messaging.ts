@@ -1,4 +1,5 @@
 import { defineExtensionMessaging } from '@webext-core/messaging';
+import type { Resolve } from '@/domain/keymap-ops';
 import type { Key } from '@/domain/keys';
 import type { OpenMode, Shortcut } from '@/domain/shortcut';
 
@@ -64,7 +65,7 @@ export interface ProtocolMap {
    * Put a tab's page on a key (popup, free-key toast) and write the undo record in `storage.session`. A content
    * script's own tab (sender.tab) always wins, and it sends no `tabId`: the page doesn't know it. The popup names it.
    */
-  assignPage(data: { key: Key; tabId?: number; openMode?: OpenMode; resolve?: 'replace' | 'move' }): AssignPageReply;
+  assignPage(data: { key: Key; tabId?: number; openMode?: OpenMode; resolve?: Resolve }): AssignPageReply;
 
   /** Undo the assign whose saved toast carried `id`. */
   undo(data: { id: string }): UndoReply;

@@ -14,6 +14,9 @@ export type AssignResult =
   | { readonly kind: 'written'; readonly change: KeymapChange }
   | { readonly kind: 'conflict'; readonly existing: Shortcut; readonly moveTarget: Key | null };
 
+/** How an assign onto an occupied key is resolved: drop the old shortcut, or move it to its Move target. */
+export type Resolve = 'replace' | 'move';
+
 export type MoveError = 'source-free' | 'target-occupied';
 
 export function applyChange(keymap: Keymap, change: KeymapChange): Keymap {
@@ -29,7 +32,7 @@ export function applyChange(keymap: Keymap, change: KeymapChange): Keymap {
  * Puts a shortcut on a key. A free key is written; an occupied key is a conflict unless resolved by Replace
  * (the old shortcut is dropped) or Move (the old shortcut goes to its Move target, if a key is free).
  */
-export function assign(keymap: Keymap, key: Key, shortcut: Shortcut, resolve?: 'replace' | 'move'): AssignResult {
+export function assign(keymap: Keymap, key: Key, shortcut: Shortcut, resolve?: Resolve): AssignResult {
   const existing = keymap[key];
   if (existing === undefined || resolve === 'replace') return { kind: 'written', change: { [key]: shortcut } };
 
