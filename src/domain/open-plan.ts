@@ -56,8 +56,14 @@ const NO_GROUP = -1;
 const mostRecent = (tabs: readonly PlanTab[]): PlanTab | undefined =>
   [...tabs].sort((a, b) => b.lastAccessed - a.lastAccessed || a.index - b.index || a.windowId - b.windowId)[0];
 
-/** Smart switch's winner: the current window first, then the others. Only normal windows, same incognito state. */
-function smartTarget(shortcut: Shortcut, { currentTab, tabs }: OpenContext): PlanTab | undefined {
+/**
+ * Smart switch's winner among the other tabs: the current window first, then the others. Only normal windows,
+ * same incognito state. The overlay names the same tab ("Open · tab N").
+ */
+export function smartTarget(
+  shortcut: Shortcut,
+  { currentTab, tabs }: Pick<OpenContext, 'currentTab' | 'tabs'>,
+): PlanTab | undefined {
   const matching = tabs.filter(
     (tab) =>
       tab.windowType === 'normal' &&
