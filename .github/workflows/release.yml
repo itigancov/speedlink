@@ -59,6 +59,8 @@ jobs:
         with:
           name: chrome-zip
           path: .output/*-chrome.zip
+          # `.output` is a hidden directory, which upload-artifact skips by default.
+          include-hidden-files: true
           if-no-files-found: error
 
       - name: Create the GitHub Release
