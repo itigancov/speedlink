@@ -1,6 +1,7 @@
 // The pages the listing script draws to take pictures of: the extension icons, the promo tile and the popup shot's
 // composite. They are written into an extension page (so the bundled stylesheet and font resolve), which means no
-// scripts: the extension pages' CSP allows none. The mark and the keycaps are the product's own components.
+// scripts: the extension pages' CSP allows none. The mark and the keycaps are the product's own components. The
+// tokens-only rule is for the extension's UI: these one-off layouts for images use plain CSS values.
 import { renderToStaticMarkup } from 'react-dom/server';
 import { BrandMark } from '@/components/Brand';
 import { KeyCap } from '@/components/KeyCap';

@@ -96,8 +96,6 @@ function write(path: string, png: Buffer, rules: { width: number; height: number
   if (problems.length > 0) throw new Error(`${path} ${problems.join(' and ')}`);
 }
 
-const opaque = (shot: Buffer) => flatten(shot);
-
 test('draws the icons, the promo tile and the five screenshots', async ({ context, extensionId }) => {
   const worker = await serviceWorker(context);
   const stylesheets = builtStylesheets();
@@ -135,7 +133,7 @@ test('draws the icons, the promo tile and the five screenshots', async ({ contex
     promoTilePage(stylesheets, 'Your sites, one key away.', 'G'),
     TILE,
   );
-  write(join(STORE, 'promo-tile.png'), opaque(await tile.screenshot({ animations: 'disabled' })), {
+  write(join(STORE, 'promo-tile.png'), flatten(await tile.screenshot({ animations: 'disabled' })), {
     ...TILE,
     alpha: false,
   });
@@ -152,7 +150,7 @@ test('draws the icons, the promo tile and the five screenshots', async ({ contex
   const [tab] = await worker.evaluate((url) => chrome.tabs.query({ url }), BACKDROP_URL);
   if (tab === undefined) throw new Error('no backdrop tab');
   const shoot = async (page: Page, name: string) =>
-    write(join(STORE, name), opaque(await page.screenshot({ animations: 'disabled' })), {
+    write(join(STORE, name), flatten(await page.screenshot({ animations: 'disabled' })), {
       ...SCREENSHOT,
       alpha: false,
     });
