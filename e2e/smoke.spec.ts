@@ -4,8 +4,12 @@ test('the service worker registers and exposes the extension ID', async ({ exten
   expect(extensionId).toMatch(/^[a-p]{32}$/);
 });
 
-/** Each page's top heading: Options shows the keymap (product spec §8.1), the popup its header (§7), welcome is still a placeholder. */
-const HEADINGS = { options: 'Keymap', popup: 'SpeedLink', welcome: 'SpeedLink' };
+/** Each page's top heading: Options shows the keymap (product spec §8.1), the popup its header (§7), welcome its one-line idea (§9). */
+const HEADINGS = {
+  options: 'Keymap',
+  popup: 'SpeedLink',
+  welcome: /^Hold (⌥|Alt) and press a key to jump to a site$/,
+};
 
 for (const [page, heading] of Object.entries(HEADINGS)) {
   test(`${page}.html opens with no page errors`, async ({ context, extensionId }) => {

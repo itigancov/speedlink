@@ -1,18 +1,15 @@
 import '@/assets/theme.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { WelcomePage } from './WelcomePage';
 
-function App() {
-  return <h1>{i18n.t('extName')}</h1>;
-}
-
-document.title = i18n.t('extName');
+document.title = i18n.t('welcome.title');
 
 const root = document.getElementById('root');
 if (root) {
   createRoot(root).render(
     <StrictMode>
-      <App />
+      <WelcomePage />
     </StrictMode>,
   );
 }
