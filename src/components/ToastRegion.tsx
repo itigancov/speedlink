@@ -1,9 +1,11 @@
 // The HUD's toast region (product spec §6): one slot, bottom centre. A new toast replaces the one showing and
 // restarts its lifetime, even for the same key. Timed toasts pause while hovered and restart in full on leave.
-// Untimed toasts close on × or Esc; Esc is only listened to, never taken from the page.
-import { useEffect, useState, useSyncExternalStore } from 'react';
+// Untimed toasts close on × or Esc; Esc is only listened to, never taken from the page. The free-key toast also
+// closes once its key is taken, so it never offers a key that is no longer free.
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Key } from '@/domain/keys';
 import type { PageToastData } from '@/platform/messaging';
+import type { OccupiedKeys } from '@/platform/occupied-keys';
 import { chordLabel, PLATFORM, type Platform } from '@/platform/platform-labels';
 import { PageToast } from './PageToast';
 
@@ -11,7 +13,8 @@ import { PageToast } from './PageToast';
 const LIFETIME_MS: Record<PageToastData['kind'], number | undefined> = {
   free: undefined,
   switched: 3000,
-  // TODO(item 14): saved, 5 s.
+  saved: 5000,
+  error: 5000,
 };
 
 interface Shown {
@@ -56,7 +59,15 @@ export interface ToastActions {
   openNew(key: Key): void;
   /** Free-key toast: put the current page on the key. */
   putPageOnKey(key: Key): void;
+  /** Saved toast: take back the assign `undoId` names. The toast is already gone. */
+  undo(key: Key, undoId: string): void;
 }
+
+/** Which keys hold a shortcut, and a call on every keymap change: the content script's `OccupiedKeys`. */
+export type OccupiedSource = Pick<OccupiedKeys, 'isAssigned' | 'subscribe'>;
+
+/** No keymap at all (the gallery): no key ever gets taken. */
+const NO_KEYMAP: OccupiedSource = { isAssigned: () => false, subscribe: () => () => {} };
 
 /** Subscribes to keydowns, without suppressing them; returns the unsubscribe. */
 export type KeydownSource = (listener: (event: KeyboardEvent) => void) => () => void;
@@ -70,6 +81,8 @@ const windowKeydowns: KeydownSource = (listener) => {
 export interface ToastRegionProps {
   slot: ToastSlot;
   actions: ToastActions;
+  /** Closes the free-key toast when its key gets taken; defaults to a keymap where none ever is. */
+  occupied?: OccupiedSource;
   /** Forces the chip's platform; defaults to the running platform. */
   platform?: Platform;
   keydowns?: KeydownSource;
@@ -79,6 +92,7 @@ function ShownToast({
   shown: { id, toast },
   slot,
   actions,
+  occupied,
   platform,
   keydowns,
   hovered,
@@ -99,6 +113,17 @@ function ShownToast({
     });
   }, [slot, id, lifetime, keydowns]);
 
+  // Only a change counts: before the content script's first read every key reads as assigned. Once its own action
+  // was clicked, the key getting taken is that assign: the saved or error toast replaces this one, with no gap.
+  const freeKey = toast.kind === 'free' ? toast.key : undefined;
+  const assigning = useRef(false);
+  useEffect(() => {
+    if (freeKey === undefined) return;
+    return occupied.subscribe(() => {
+      if (!assigning.current && occupied.isAssigned(freeKey)) slot.dismiss(id);
+    });
+  }, [slot, id, freeKey, occupied]);
+
   const chip = chordLabel(toast.key, platform);
   const hover = { onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) };
   switch (toast.kind) {
@@ -110,7 +135,10 @@ function ShownToast({
           tone="free"
           message={i18n.t('pageToast.free')}
           actionLabel={i18n.t('pageToast.putPageOnKey')}
-          onAction={() => actions.putPageOnKey(toast.key)}
+          onAction={() => {
+            assigning.current = true;
+            actions.putPageOnKey(toast.key);
+          }}
           onClose={() => slot.dismiss(id)}
           closeLabel={i18n.t('pageToast.close')}
         />
@@ -126,10 +154,42 @@ function ShownToast({
           onAction={() => actions.openNew(toast.key)}
         />
       );
+    case 'saved':
+      return (
+        <PageToast
+          {...hover}
+          chip={chip}
+          tone="saved"
+          message={i18n.t('pageToast.saved', [toast.name])}
+          actionLabel={i18n.t('pageToast.undo')}
+          onAction={() => {
+            // Gone first, so Undo can't be pressed twice.
+            slot.dismiss(id);
+            actions.undo(toast.key, toast.undoId);
+          }}
+        />
+      );
+    case 'error':
+      return (
+        <PageToast
+          {...hover}
+          chip={chip}
+          tone="error"
+          message={
+            toast.reason === 'undo-stale' ? i18n.t('pageToast.undoStale') : i18n.t('pageToast.saveFailed', [chip])
+          }
+        />
+      );
   }
 }
 
-export function ToastRegion({ slot, actions, platform = PLATFORM, keydowns = windowKeydowns }: ToastRegionProps) {
+export function ToastRegion({
+  slot,
+  actions,
+  occupied = NO_KEYMAP,
+  platform = PLATFORM,
+  keydowns = windowKeydowns,
+}: ToastRegionProps) {
   const shown = useSyncExternalStore(slot.subscribe, slot.current);
   // Here, not per toast: a toast that replaces one under the pointer is held too. An emptied slot gets no
   // pointerleave (the pill is gone), so it resets.
@@ -148,6 +208,7 @@ export function ToastRegion({ slot, actions, platform = PLATFORM, keydowns = win
           shown={shown}
           slot={slot}
           actions={actions}
+          occupied={occupied}
           platform={platform}
           keydowns={keydowns}
           hovered={hovered}

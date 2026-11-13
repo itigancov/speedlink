@@ -1,3 +1,4 @@
+import { createAssignPage, createUndo } from '@/platform/assign-page';
 import { registerInjectionOnInstall } from '@/platform/injection';
 import { onMessage } from '@/platform/messaging';
 import { createOpenKey } from '@/platform/open-key';
@@ -11,6 +12,10 @@ export default defineBackground(() => {
   const openKey = createOpenKey();
   onMessage('openKey', ({ data, sender }) => openKey(data, sender.tab));
   onMessage('tryKey', ({ data, sender }) => openKey({ key: data.key, force: false, trial: true }, sender.tab));
+  const assignPage = createAssignPage();
+  const undo = createUndo();
+  onMessage('assignPage', ({ data, sender }) => assignPage(data, sender.tab));
+  onMessage('undo', ({ data }) => undo(data));
   onMessage('openOptions', ({ data, sender }) => openOptions(data?.key, sender.tab));
 
   // e2e only: drive the same openKey from Playwright with a real sender tab. Compiled away in every other build.

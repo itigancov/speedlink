@@ -29,6 +29,10 @@ pageToast:
   putPageOnKey: Put this page on it
   switched: Switched to your open $1 tab
   openNew: Open new
+  saved: → $1 saved
+  undo: Undo
+  undoStale: Couldn’t undo — your keys changed
+  saveFailed: Couldn’t save $1
   close: Close
 options:
   loading: Loading your keys…

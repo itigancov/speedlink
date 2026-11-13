@@ -2,8 +2,8 @@ import type { BrowserContext, Locator, Page, Worker } from '@playwright/test';
 import { FIXTURE_PORT } from '../playwright.config';
 import { expect, fromExtension, test } from './extension';
 
-// The HUD's page toasts in real Chrome (product spec §6, §12.3): the free-key and switched toasts, the top frame
-// only, and the spike's hostile hosts. The toast rules themselves (one slot, lifetimes, hover, Esc) are pinned in
+// The HUD's page toasts in real Chrome (product spec §6, §12.3): the free-key, saved and switched toasts, assign
+// with undo (§3.3), the top frame only, and the spike's hostile hosts. The toast rules themselves (one slot, lifetimes, hover, Esc) are pinned in
 // src/components/ToastRegion.test.tsx. Playwright locators pierce the HUD's open shadow root.
 
 interface Tab {
@@ -16,7 +16,9 @@ interface Tab {
 
 /** The part of `chrome` these service-worker evaluations use; e2e does not load the extension's types. */
 declare const chrome: {
-  storage: { sync: { set(items: object): Promise<void>; get(keys: null): Promise<object> } };
+  storage: {
+    sync: { set(items: object): Promise<void>; get(keys: string | null): Promise<Record<string, unknown>> };
+  };
   tabs: { query(info: object): Promise<Tab[]> };
 };
 
@@ -33,6 +35,9 @@ const store = (worker: Worker, key: string, fields: object) =>
     `key.${key}`,
     { openMode: 'smart', tabMatch: 'exact', closeCurrent: false, ...fields },
   ] as const);
+
+const storedOn = async (worker: Worker, key: string) =>
+  (await worker.evaluate((item) => chrome.storage.sync.get(item), `key.${key}`))[`key.${key}`];
 
 const tabsOn = async (worker: Worker, url: string) =>
   (await worker.evaluate(() => chrome.tabs.query({}))).filter((tab) => tab.url === url);
@@ -77,13 +82,22 @@ test.describe('the free-key toast', () => {
     expect(await seen(page)).toContain('capture Escape');
   });
 
-  test('× closes it, and the action leaves it up', async ({ context }) => {
+  test('× closes it', async ({ context }) => {
     const page = await open(context, '/keys.html');
     await page.keyboard.press('Alt+KeyJ');
 
-    await toast(page).getByRole('button', { name: 'Put this page on it' }).click();
-    await expect(toast(page)).toBeVisible();
     await toast(page).getByRole('button', { name: 'Close' }).click();
+
+    await expect(toast(page)).toHaveCount(0);
+  });
+
+  test('closes when its key is taken meanwhile', async ({ context }) => {
+    const worker = await serviceWorker(context);
+    const page = await open(context, '/keys.html');
+    await page.keyboard.press('Alt+KeyJ');
+    await expect(toast(page)).toBeVisible();
+
+    await store(worker, 'J', { link: target('elsewhere') });
 
     await expect(toast(page)).toHaveCount(0);
   });
@@ -104,6 +118,50 @@ test.describe('the free-key toast', () => {
     const page = await open(context, '/keys.html');
     await page.waitForTimeout(300);
     await expect(page.locator('speedlink-hud')).toHaveCount(0);
+  });
+});
+
+test.describe('assign with undo', () => {
+  test('Put this page on it saves the page under its title; Undo frees the key again', async ({ context }) => {
+    const worker = await serviceWorker(context);
+    const page = await open(context, '/keys.html');
+    await page.keyboard.press('Alt+KeyK');
+
+    await toast(page).getByRole('button', { name: 'Put this page on it' }).click();
+
+    await expect(toast(page)).toContainText(await chord(page, 'K'));
+    await expect(toast(page)).toContainText('→ Fixture: keys saved');
+    expect(await storedOn(worker, 'K')).toEqual({
+      link: `${ORIGIN}/keys.html`,
+      name: 'Fixture: keys',
+      openMode: 'smart',
+      tabMatch: 'site',
+      closeCurrent: false,
+    });
+
+    await toast(page).getByRole('button', { name: 'Undo' }).click();
+
+    await expect(toast(page)).toHaveCount(0);
+    await expect.poll(() => storedOn(worker, 'K')).toBeUndefined();
+    // No toast after a successful Undo.
+    await page.waitForTimeout(300);
+    await expect(toast(page)).toHaveCount(0);
+  });
+
+  test('Undo refuses when the key changed after the assign, and keeps the change', async ({ context }) => {
+    const worker = await serviceWorker(context);
+    const page = await open(context, '/keys.html');
+    await page.keyboard.press('Alt+KeyK');
+    await toast(page).getByRole('button', { name: 'Put this page on it' }).click();
+    await expect(toast(page)).toContainText('saved');
+    const edited = { link: `${ORIGIN}/keys.html`, name: 'Edited elsewhere', openMode: 'smart', tabMatch: 'exact' };
+    await store(worker, 'K', edited);
+
+    await toast(page).getByRole('button', { name: 'Undo' }).click();
+
+    await expect(toast(page)).toContainText('Couldn’t undo — your keys changed');
+    await expect(toast(page).getByRole('button')).toHaveCount(0);
+    expect(await storedOn(worker, 'K')).toEqual({ ...edited, closeCurrent: false });
   });
 });
 

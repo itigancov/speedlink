@@ -1,7 +1,8 @@
 import type { ContentScriptContext } from '#imports';
-import { createToastSlot, ToastRegion } from '@/components/ToastRegion';
+import { createToastSlot, type OccupiedSource, ToastRegion } from '@/components/ToastRegion';
+import type { Key } from '@/domain/keys';
 import { createKeyCapture, createNoopHoldTracker } from '@/platform/key-capture';
-import { onMessage, sendMessage } from '@/platform/messaging';
+import { onMessage, type PageToastData, type PageToastErrorReason, sendMessage } from '@/platform/messaging';
 import { createOccupiedKeys } from '@/platform/occupied-keys';
 import { browserOs } from '@/platform/platform-labels';
 import { createHudMount } from './hud-mount';
@@ -42,7 +43,7 @@ export default defineContentScript({
     ctx.addEventListener(window, 'keyup', capture.keyup, { capture: true });
     const removePing = onMessage('ping', () => true as const);
     // The HUD lives in the top frame only (§4.4); `sendToTab` targets frame 0.
-    const removeToast = window === window.top ? registerHud(ctx) : () => {};
+    const removeToast = window === window.top ? registerHud(ctx, occupied) : () => {};
 
     ctx.onInvalidated(() => {
       safely(removePing);
@@ -57,20 +58,51 @@ export default defineContentScript({
  * The top frame's HUD: the key guard now, synchronously after key capture; the shadow root on the first toast.
  * Returns the toast handler's remover.
  */
-function registerHud(ctx: ContentScriptContext): () => void {
+function registerHud(ctx: ContentScriptContext, occupied: OccupiedSource): () => void {
   const slot = createToastSlot();
+  const show = (toast: PageToastData) => {
+    slot.show(toast);
+    return hud.mount();
+  };
+  /**
+   * Shows the error toast unless the request did what was asked. From this page, since the background never shows
+   * errors; a request that never reached the background counts as failed.
+   */
+  const unlessDone = (key: Key, reason: PageToastErrorReason, request: Promise<boolean>) => {
+    request
+      .catch((error: unknown) => {
+        console.debug('SpeedLink:', reason, key, error);
+        return false;
+      })
+      .then((done) => (done ? undefined : show({ kind: 'error', key, reason })))
+      .catch(() => {});
+  };
   const hud = createHudMount(ctx, ({ keydowns }) => (
     <ToastRegion
       slot={slot}
       keydowns={keydowns}
+      occupied={occupied}
       actions={{
         openNew: (key) => {
           sendMessage('openKey', { key, force: true }).catch((error: unknown) =>
             console.debug('SpeedLink: could not open new', key, error),
           );
         },
-        putPageOnKey: () => {
-          // TODO(item 14): assign this page to the key, then show the saved toast.
+        // On `saved` the background's saved toast replaces the free one; anything else saved nothing.
+        putPageOnKey: (key) => {
+          unlessDone(
+            key,
+            'save-failed',
+            sendMessage('assignPage', { key }).then((reply) => reply.kind === 'saved'),
+          );
+        },
+        // A successful Undo shows nothing more.
+        undo: (key, id) => {
+          unlessDone(
+            key,
+            'undo-stale',
+            sendMessage('undo', { id }).then((reply) => reply.kind === 'undone'),
+          );
         },
       }}
     />
@@ -79,7 +111,6 @@ function registerHud(ctx: ContentScriptContext): () => void {
     ctx.addEventListener(window, type, hud.guard, { capture: true });
   }
   return onMessage('toast', async ({ data }) => {
-    slot.show(data);
-    await hud.mount();
+    await show(data);
   });
 }

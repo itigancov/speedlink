@@ -40,6 +40,23 @@ describe('createOccupiedKeys', () => {
     occupied.dispose();
   });
 
+  it('tells subscribers about every keymap change, after the cache has it, but not about the first read', async () => {
+    const occupied = createOccupiedKeys();
+    const seen: boolean[] = [];
+    const unsubscribe = occupied.subscribe(() => seen.push(occupied.isAssigned('Y')));
+    await occupied.ready;
+    expect(seen).toEqual([]);
+
+    await browser.storage.sync.set({ 'key.Y': { link: 'https://youtube.com/' } });
+    await vi.waitFor(() => expect(seen).toEqual([true]));
+
+    unsubscribe();
+    await browser.storage.sync.remove('key.Y');
+    await vi.waitFor(() => expect(occupied.isAssigned('Y')).toBe(false));
+    expect(seen).toEqual([true]);
+    occupied.dispose();
+  });
+
   it('stops updating after dispose', async () => {
     const occupied = createOccupiedKeys();
     await occupied.ready;
