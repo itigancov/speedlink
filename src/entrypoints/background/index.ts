@@ -1,4 +1,5 @@
 import { contentScriptTab, createAssignPage, createUndo } from '@/platform/assign-page';
+import { registerCommands, toggleOverlay } from '@/platform/commands';
 import { registerInjectionOnInstall } from '@/platform/injection';
 import { onMessage } from '@/platform/messaging';
 import { createOpenKey } from '@/platform/open-key';
@@ -9,6 +10,7 @@ import { registerStoragePreparation } from '@/platform/storage-preparation';
 export default defineBackground(() => {
   registerStoragePreparation();
   registerInjectionOnInstall();
+  registerCommands();
 
   const openKey = createOpenKey();
   onMessage('openKey', ({ data, sender }) => openKey(data, sender.tab));
@@ -21,8 +23,9 @@ export default defineBackground(() => {
   onMessage('getOverlayModel', ({ sender }) => readOverlayModel(sender.tab));
   onMessage('frameEvent', ({ data, sender }) => relayFrameEvent(sender.tab, data));
 
-  // e2e only: drive the same openKey from Playwright with a real sender tab. Compiled away in every other build.
+  // e2e only: drive the same openKey and the toggle-overlay command from Playwright with a real tab (CDP can't fire
+  // Chrome's command accelerators). Compiled away in every other build.
   if (__SPEEDLINK_E2E_HOOKS__) {
-    Object.assign(globalThis, { speedlinkE2E: { openKey } });
+    Object.assign(globalThis, { speedlinkE2E: { openKey, toggleOverlay } });
   }
 });

@@ -12,10 +12,12 @@ import { isOpenNow } from '@/domain/tab-match';
 import { useAutosave } from '@/hooks/use-autosave';
 import { useKeymap } from '@/hooks/use-keymap';
 import { lastWebTab, useOpenTabs } from '@/hooks/use-open-tabs';
+import { useOverlayCommandBound } from '@/hooks/use-overlay-command-bound';
+import { openShortcutSettings } from '@/platform/commands';
 import { isEditableTarget } from '@/platform/key-capture';
 import { readKeymap, writeChange } from '@/platform/keymap-store';
 import { sendMessage } from '@/platform/messaging';
-import { triggerLabel, triggerPlusKey } from '@/platform/platform-labels';
+import { chordLabel, triggerLabel, triggerPlusKey } from '@/platform/platform-labels';
 import { Inspector } from './Inspector';
 import { KeyboardCard } from './KeyboardCard';
 import { ListCard } from './ListCard';
@@ -82,6 +84,28 @@ function useSlashFocus(input: RefObject<HTMLInputElement | null>) {
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [input]);
+}
+
+/** The quiet line while `toggle-overlay` has no key (an update from v1): where to set ⌥S (§5.3). */
+function CommandHint() {
+  const bound = useOverlayCommandBound();
+  if (bound !== false) return null;
+  return (
+    <p className="text-muted-foreground text-ui">
+      <a
+        href="chrome://extensions/shortcuts"
+        onClick={(event) => {
+          event.preventDefault();
+          openShortcutSettings().catch((error: unknown) =>
+            console.error('SpeedLink: could not open the shortcut settings', error),
+          );
+        }}
+        className="rounded-sm text-link outline-none hover:text-link-hover hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+      >
+        {i18n.t('options.commandHint', [chordLabel('S')])}
+      </a>
+    </p>
+  );
 }
 
 function KeymapView({ keymap }: { keymap: Keymap }) {
@@ -200,6 +224,7 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
           ) : (
             <ListCard keymap={keymap} openKeys={openKeys} selected={key} matches={matches} onSelect={editor.select} />
           )}
+          <CommandHint />
         </section>
         <Inspector
           keyLabel={key}

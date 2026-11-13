@@ -27,6 +27,8 @@ export interface HudMount {
   keydowns: KeydownSource;
   /** Whether the event happened inside the HUD (a press on the overlay, which must not cancel it). */
   contains(event: Event): boolean;
+  /** Whether a key event's real target is in the HUD's shadow root: the pinned search, where ⌥ + key is ours. */
+  isHudField(target: EventTarget): boolean;
   /** Creates the shadow root and renders the HUD into it, once; later calls return the same promise. */
   mount(): Promise<void>;
 }
@@ -42,6 +44,7 @@ export function createHudMount(
   render: (hud: { keydowns: KeydownSource }) => ReactNode,
 ): HudMount {
   let host: HTMLElement | undefined;
+  let shadow: ShadowRoot | undefined;
   let mounting: Promise<void> | undefined;
   const keydownListeners = new Set<(event: KeyboardEvent) => void>();
 
@@ -51,6 +54,8 @@ export function createHudMount(
   };
 
   const contains = (event: Event) => host !== undefined && event.composedPath().includes(host);
+  const isHudField = (target: EventTarget) =>
+    shadow !== undefined && target instanceof Node && target.getRootNode() === shadow;
 
   const guard = (event: KeyboardEvent) => {
     if (contains(event)) event.stopImmediatePropagation();
@@ -88,8 +93,10 @@ export function createHudMount(
     });
     ui.mount();
     host = ui.shadowHost;
+    shadow = ui.shadow;
     ctx.onInvalidated(() => {
       host = undefined;
+      shadow = undefined;
       keydownListeners.clear();
     });
   };
@@ -98,6 +105,7 @@ export function createHudMount(
     guard,
     keydowns,
     contains,
+    isHudField,
     mount() {
       // A failed mount (an exotic page) is tried again on the next toast.
       mounting ??= mountOnce().catch((error: unknown) => {

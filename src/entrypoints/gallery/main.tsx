@@ -413,16 +413,32 @@ function Inspectors() {
 
 /** One overlay tile per subline: open in this window, in another window, and each open mode. */
 const OVERLAY_TILES: OverlayTileData[] = [
-  { key: '1', name: 'Docs', subline: { kind: 'tab', index: 3 } },
-  { key: 'G', name: 'GitHub', subline: { kind: 'other-window' } },
-  { key: 'K', name: 'Calendar', subline: { kind: 'mode', mode: 'smart', site: 'calendar.example.com' } },
-  { key: 'Y', name: 'youtube.com', subline: { kind: 'mode', mode: 'new', site: 'youtube.com' } },
+  { key: '1', name: 'Docs', link: 'https://docs.example.com/', subline: { kind: 'tab', index: 3 } },
+  { key: 'G', name: 'GitHub', link: 'https://github.com/', subline: { kind: 'other-window' } },
+  {
+    key: 'K',
+    name: 'Calendar',
+    link: 'https://calendar.example.com/',
+    subline: { kind: 'mode', mode: 'smart', site: 'calendar.example.com' },
+  },
+  {
+    key: 'Y',
+    name: 'youtube.com',
+    link: 'https://youtube.com/',
+    subline: { kind: 'mode', mode: 'new', site: 'youtube.com' },
+  },
   {
     key: 'T',
     name: 'A shortcut with a very long name indeed',
+    link: 'https://t.example/',
     subline: { kind: 'mode', mode: 'this', site: 't.example' },
   },
-  { key: 'B', name: 'Board', subline: { kind: 'mode', mode: 'bg', site: 'board.example' } },
+  {
+    key: 'B',
+    name: 'Board',
+    link: 'https://board.example/',
+    subline: { kind: 'mode', mode: 'bg', site: 'board.example' },
+  },
 ];
 
 function OverlayTiles() {
@@ -430,10 +446,19 @@ function OverlayTiles() {
     <div className="flex flex-col gap-4">
       {PLATFORMS.map((platform) => (
         <div key={platform} className="flex flex-col gap-2">
-          <Caption>{platform} (hover a tile for its pencil)</Caption>
+          <Caption>
+            {platform} (hover a tile for its pencil; the first is highlighted, as the pinned top result)
+          </Caption>
           <div className="grid max-w-3xl grid-cols-4 gap-2">
-            {OVERLAY_TILES.map((tile) => (
-              <OverlayTile key={tile.key} tile={tile} platform={platform} onOpen={() => {}} onEdit={() => {}} />
+            {OVERLAY_TILES.map((tile, index) => (
+              <OverlayTile
+                key={tile.key}
+                tile={tile}
+                highlighted={index === 0}
+                platform={platform}
+                onOpen={() => {}}
+                onEdit={() => {}}
+              />
             ))}
           </div>
         </div>

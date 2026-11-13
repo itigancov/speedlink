@@ -27,6 +27,8 @@ const tab = (id: number, fields: Partial<Tab> = {}): Tab =>
 
 const OPTIONS_URL = 'chrome-extension://abc/options.html';
 let openTabs: Tab[];
+/** The key Chrome has on `toggle-overlay`: '' when the user (or an update from v1) left it unbound. */
+let overlayShortcut: string;
 
 const store = (key: string, fields: object = {}) =>
   browser.storage.sync.set({
@@ -74,6 +76,13 @@ beforeEach(() => {
   (
     vi.spyOn(browser.windows, 'getAll') as unknown as MockInstance<() => Promise<Browser.windows.Window[]>>
   ).mockImplementation(async () => [{ id: 1, type: 'normal' } as Browser.windows.Window]);
+  overlayShortcut = 'Alt+S';
+  (
+    vi.spyOn(browser.commands, 'getAll') as unknown as MockInstance<() => Promise<Browser.commands.Command[]>>
+  ).mockImplementation(async () => [
+    { name: '_execute_action', shortcut: '' },
+    { name: 'toggle-overlay', shortcut: overlayShortcut },
+  ]);
 });
 
 afterEach(() => {
@@ -1079,5 +1088,40 @@ describe('drag-to-swap', () => {
     await advance();
 
     expect(await readItem('T')).toEqual(youtube);
+  });
+});
+
+describe('the ⌥S hint', () => {
+  const hint = () => screen.queryByRole('link', { name: `Set ${chordLabel('S')} for pages where SpeedLink can’t run` });
+
+  it('shows a link to Chrome’s shortcut settings while toggle-overlay has no key', async () => {
+    overlayShortcut = '';
+    const create = vi.spyOn(browser.tabs, 'create').mockImplementation(async () => tab(9));
+    await renderPage();
+
+    act(() => hint()?.click());
+
+    expect(create).toHaveBeenCalledWith({ url: 'chrome://extensions/shortcuts' });
+  });
+
+  it.each(['Alt+S', 'Ctrl+Shift+K'])('stays away while toggle-overlay is on %s', async (shortcut) => {
+    overlayShortcut = shortcut;
+    await renderPage();
+
+    expect(hint()).toBeNull();
+  });
+
+  it.each(['visibilitychange', 'focus'] as const)('goes once a key is set and the page gets a %s', async (type) => {
+    overlayShortcut = '';
+    await renderPage();
+    expect(hint()).not.toBeNull();
+
+    overlayShortcut = 'Alt+S';
+    act(() => {
+      (type === 'focus' ? window : document).dispatchEvent(new Event(type));
+    });
+    await advance();
+
+    expect(hint()).toBeNull();
   });
 });

@@ -3,14 +3,19 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
 import type { OverlayModel, OverlayTile } from '@/domain/overlay-model';
-import { Overlay } from './Overlay';
+import { Overlay, type OverlayMode } from './Overlay';
 
 let open: Mock<(key: Key, force: boolean) => void>;
 let edit: Mock<(key: Key) => void>;
 let openKeymap: Mock<() => void>;
 let close: Mock<() => void>;
 
-const tile = (key: Key, name: string, subline: OverlayTile['subline']): OverlayTile => ({ key, name, subline });
+const tile = (key: Key, name: string, subline: OverlayTile['subline']): OverlayTile => ({
+  key,
+  name,
+  link: `https://${name.toLowerCase()}.example/`,
+  subline,
+});
 
 const FOUR: OverlayModel = {
   tiles: [
@@ -21,8 +26,8 @@ const FOUR: OverlayModel = {
   ],
 };
 
-function renderOverlay(model: OverlayModel = FOUR, platform: 'mac' | 'other' = 'mac') {
-  return render(<Overlay model={model} actions={{ open, edit, openKeymap, close }} platform={platform} />);
+function renderOverlay(model: OverlayModel = FOUR, platform: 'mac' | 'other' = 'mac', mode: OverlayMode = 'peek') {
+  return render(<Overlay model={model} mode={mode} actions={{ open, edit, openKeymap, close }} platform={platform} />);
 }
 
 const dialog = () => screen.getByRole('dialog');
@@ -156,5 +161,139 @@ describe('the overlay: the mouse', () => {
     }
     expect(document.activeElement).toBe(field);
     field.remove();
+  });
+});
+
+describe('the pinned overlay', () => {
+  const pinned = (model: OverlayModel = FOUR, platform: 'mac' | 'other' = 'mac') =>
+    renderOverlay(model, platform, 'pinned');
+  const search = () => screen.getByRole('searchbox', { name: 'Search your keys' }) as HTMLInputElement;
+  const typeIn = (query: string) => fireEvent.change(search(), { target: { value: query } });
+  const press = (key: string, init: KeyboardEventInit = {}) => fireEvent.keyDown(search(), { key, ...init });
+  const visible = () => screen.queryAllByTestId('overlay-tile').map((element) => element.textContent?.slice(1, 4));
+  const highlighted = () =>
+    screen
+      .queryAllByTestId('overlay-tile')
+      .filter((element) => element.dataset.highlighted === 'true')
+      .map((element) => element.textContent?.slice(0, 1));
+
+  it('stays a labelled dialog, with a labelled search field that has focus', () => {
+    pinned();
+    expect(dialog().getAttribute('aria-label')).toBe('Your keys');
+    expect(document.activeElement).toBe(search());
+  });
+
+  it('shows the Pinned badge and "Esc close" in the legend', () => {
+    pinned();
+    expect(screen.getByText('Pinned')).toBeDefined();
+    expect(screen.queryByText('⌥ held')).toBeNull();
+    expect(screen.getByTestId('overlay-legend').textContent).toBe(
+      'keygo⇧ + keyforce new tabtypesearch names & linksEscclose' + 'open now — will switch, not reopen',
+    );
+  });
+
+  it('hides the tiles that do not match, by name or link', () => {
+    pinned();
+    typeIn('git');
+    expect(visible()).toEqual(['Git']);
+    typeIn('CAL');
+    expect(visible()).toEqual(['Cal']);
+    typeIn('example');
+    expect(visible()).toEqual(['Doc', 'Git', 'Cal', 'You']);
+  });
+
+  it('highlights the first visible tile as the top result', () => {
+    pinned();
+    expect(highlighted()).toEqual(['1']);
+    typeIn('u');
+    expect(highlighted()).toEqual(['G']);
+  });
+
+  it('moves the highlight with the arrows over the 4-column grid', () => {
+    const tiles = (['1', '2', '3', '4', 'Q', 'W'] as const).map((key) =>
+      tile(key, `Name ${key}`, { kind: 'mode', mode: 'new', site: 'a.example' }),
+    );
+    pinned({ tiles });
+    press('ArrowRight');
+    expect(highlighted()).toEqual(['2']);
+    press('ArrowDown');
+    expect(highlighted()).toEqual(['W']);
+    press('ArrowLeft');
+    expect(highlighted()).toEqual(['Q']);
+    press('ArrowUp');
+    expect(highlighted()).toEqual(['1']);
+  });
+
+  it('puts the highlight back on the top result when the query changes', () => {
+    pinned();
+    press('ArrowRight');
+    press('ArrowRight');
+    typeIn('e');
+    expect(highlighted()).toEqual(['1']);
+  });
+
+  it('opens the highlighted tile on ↵, and in a new tab on ⇧↵', () => {
+    pinned();
+    press('ArrowRight');
+    press('Enter');
+    expect(open).toHaveBeenLastCalledWith('G', false);
+    press('Enter', { shiftKey: true });
+    expect(open).toHaveBeenLastCalledWith('G', true);
+  });
+
+  it('opens nothing on ↵ while an IME composes', () => {
+    pinned();
+    press('Enter', { isComposing: true });
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('says nothing matches, and ↵ opens nothing', () => {
+    pinned();
+    typeIn('zzz');
+    expect(screen.getByText('No keys match "zzz"')).toBeDefined();
+    expect(highlighted()).toEqual([]);
+    press('Enter');
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('clears the query on Esc first, then closes', () => {
+    pinned();
+    typeIn('git');
+    press('Escape');
+    expect(search().value).toBe('');
+    expect(visible()).toHaveLength(4);
+    expect(close).not.toHaveBeenCalled();
+    press('Escape');
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('leaves keys typed outside the search to the page', () => {
+    pinned();
+    const field = document.createElement('input');
+    document.body.append(field);
+    fireEvent.keyDown(field, { key: 'Escape' });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(close).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    field.remove();
+  });
+
+  it('keeps the search focused through a press on a tile, and still opens it on click', () => {
+    pinned();
+    expect(fireEvent.mouseDown(tileButton(/^Option G:/))).toBe(false);
+    fireEvent.click(tileButton(/^Option G:/), { shiftKey: true });
+    expect(open).toHaveBeenCalledWith('G', true);
+    expect(document.activeElement).toBe(search());
+  });
+
+  it('says "No keys yet" for an empty keymap', () => {
+    pinned({ tiles: [] });
+    expect(screen.getByText('No keys yet')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Open keymap' })).toBeDefined();
+  });
+
+  it('reads Alt elsewhere', () => {
+    pinned(FOUR, 'other');
+    expect(tileButton(/^Alt 1: Docs/)).toBeDefined();
   });
 });
