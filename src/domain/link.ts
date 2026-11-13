@@ -68,6 +68,11 @@ export function siteOf(link: string): string {
   return url.port === '' ? host : `${host}:${url.port}`;
 }
 
+/** An http(s) link as the popup shows it, without `https://` or `http://`; any other URL is shown whole. */
+export function withoutScheme(link: string): string {
+  return link.replace(/^https?:\/\//i, '');
+}
+
 /** Second-level labels that, under a two-letter country TLD, act as part of the suffix (`co.uk`, `com.au`). */
 const COUNTRY_SECOND_LEVELS: ReadonlySet<string> = new Set([
   'co',

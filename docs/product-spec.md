@@ -206,7 +206,7 @@ Toasts render on the page, top frame only. Each is a dark pill: key chip + messa
 |---|---|---|---|
 | **"⌥K is free · Put this page on it"** | ⌥ + free key (§4.3) | assigns the current page to K at once (name = tab title, defaults), then shows the saved toast. No popup step | until dismissed or replaced, or until its key is taken |
 | **"⌥K → Name saved · Undo"** | after an assign from the popup or the free-key toast | Undo restores the undo record (§3.3); the toast closes at once | 5 s, held while hovered |
-| **"Couldn't undo — your keys changed"** / **"Couldn't save ⌥K"** | an Undo was refused (§3.3), or an assign saved nothing (key taken, page unusable, write failed) | none, no × | 5 s, held while hovered |
+| **"Couldn't undo — your keys changed"** / **"Couldn't save ⌥K"** | an Undo was refused (§3.3), or an assign from the free-key toast saved nothing (key taken, page unusable, write failed); the popup shows its own failures (§7) | none, no × | 5 s, held while hovered |
 | **"Switched to your open Name tab · Open new"** | on the switched-to tab after Smart switch activated another tab | Open new = Force new tab | 3 s |
 
 - No toasts on restricted pages.
@@ -252,6 +252,7 @@ Toasts render on the page, top frame only. Each is a dark pill: key chip + messa
 - The popup closes, and the saved toast appears on the page (ping/inject fallback).
 - The stored name = the tab title.
 - The assign itself runs in the background, which reads url and title from `chrome.tabs`, never from the page.
+- A failed save (tab gone, write failed, page turned unusable) keeps the popup open with "Couldn't save ⌥K" under the primary button, and no page toast. A key taken elsewhere between picking and saving keeps it open with the conflict alert, from the fresh keymap.
 ↳ rebuild map: issues/06-behavior-audit.md (behavior audit)
 
 ---
@@ -446,7 +447,7 @@ e2e/                   Playwright specs + fixture pages
 
 ### 11.3 Who writes the keymap
 - **Options** reads and writes through `platform/keymap-store` directly.
-- **Assign with undo** (popup and the free-key toast) goes **only through the background**: `assignPage{key, tabId?, openMode?, resolve?: 'replace'|'move'}` and `undo{id}`. A content script's own tab (sender.tab) is always the one assigned and it sends no `tabId`; the popup names its tab. The background writes the undo record to `storage.session`, which content scripts can't see.
+- **Assign with undo** (popup and the free-key toast) goes **only through the background**: `assignPage{key, tabId?, openMode?, resolve?: 'replace'|'move'}` and `undo{id}`. A content script's own tab (sender.tab) is always the one assigned and it sends no `tabId`; the popup names its tab, and an extension page's own tab (the popup opened in a tab) never counts. The background writes the undo record to `storage.session`, which content scripts can't see.
 - The **content script** only reads `sync`.
 - The **overlay** gets its model from the background (`getOverlayModel`).
 

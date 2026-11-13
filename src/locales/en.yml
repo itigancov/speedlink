@@ -7,6 +7,7 @@ platform:
     triggerWord: Option
     chord: ⌥$1
     plusKey: ⌥ + key
+    plus: ⌥ +
     fn: fn
     control: ⌃
     option: ⌥ option
@@ -16,6 +17,7 @@ platform:
     triggerWord: Alt
     chord: Alt+$1
     plusKey: Alt + key
+    plus: Alt +
     control: Ctrl
     alt: Alt
   space: space
@@ -34,6 +36,21 @@ pageToast:
   undoStale: Couldn’t undo — your keys changed
   saveFailed: Couldn’t save $1
   close: Close
+popup:
+  openKeymap: Open keymap
+  alreadyOn: Already on $1
+  unusable: This page can’t be put on a key
+  prompt: Press a key to put this page on it
+  promptFull: All 35 keys are in use — press one to replace it
+  fitting: "Free & fitting:"
+  opensAs: Opens as
+  save: Save
+  saveTo: Save to $1
+  replaceKey: Replace $1
+  replace: Replace
+  moveTo: Move it to $1
+  conflict: $1 already opens $2.
+  tip: "Tip: hold $1 on any page to see all keys"
 options:
   loading: Loading your keys…
   search:

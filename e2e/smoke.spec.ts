@@ -4,7 +4,7 @@ test('the service worker registers and exposes the extension ID', async ({ exten
   expect(extensionId).toMatch(/^[a-p]{32}$/);
 });
 
-/** Each page's top heading: Options shows the keymap (product spec §8.1), the others are still placeholders. */
+/** Each page's top heading: Options shows the keymap (product spec §8.1), the popup its header (§7), welcome is still a placeholder. */
 const HEADINGS = { options: 'Keymap', popup: 'SpeedLink', welcome: 'SpeedLink' };
 
 for (const [page, heading] of Object.entries(HEADINGS)) {
