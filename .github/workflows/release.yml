@@ -74,10 +74,6 @@ jobs:
     env:
       CHROME_API_VERSION: v2
       CHROME_PUBLISH_TYPE: STAGED_PUBLISH
-      CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CHROME_SERVICE_ACCOUNT_PRIVATE_KEY }}
-      CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ vars.CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL }}
-      CHROME_PUBLISHER_ID: ${{ vars.CHROME_PUBLISHER_ID }}
-      CHROME_EXTENSION_ID: ${{ vars.CHROME_EXTENSION_ID }}
     steps:
       - uses: actions/checkout@v7
 
@@ -97,8 +93,13 @@ jobs:
           path: release-zip
 
       # Pre-release tags prove the key, the Environment and the Store link without uploading.
+      # The credentials are set on this step only: checkout and install never see the key.
       - name: Submit to the Chrome Web Store
         env:
+          CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CHROME_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ vars.CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL }}
+          CHROME_PUBLISHER_ID: ${{ vars.CHROME_PUBLISHER_ID }}
+          CHROME_EXTENSION_ID: ${{ vars.CHROME_EXTENSION_ID }}
           DRY_RUN: ${{ contains(github.ref_name, '-') && '--dry-run' || '' }}
         run: |
           zips=(release-zip/*-chrome.zip)
