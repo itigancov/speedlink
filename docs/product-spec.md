@@ -137,7 +137,7 @@ Suppression = `preventDefault` + `stopImmediatePropagation`.
 - Page `accesskey`s on intercepted keys are lost (accepted).
 
 ### 4.4 Frames
-UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openKey` itself (its `sender.tab` is the tab); its own Peek (it runs its own hold timer) is relayed through the background to `frameId: 0` as `frameEvent{kind: 'show'|'close'}`, and it consumes the Windows Alt keyup itself.
+UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openKey` itself (its `sender.tab` is the tab); its own Peek (it runs its own hold timer) and its ⌥S are relayed through the background to `frameId: 0` as `frameEvent{kind: 'show'|'close'|'pin'}`, and it consumes the Windows Alt keyup itself.
 
 ### 4.5 Injection and lifecycle
 - On `onInstalled` (install and update), inject into every open http(s) tab, all frames, skipping discarded tabs.
@@ -169,19 +169,22 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
 - **Windows**: releasing Alt alone focuses Chrome's ⋮ menu. The Alt keyup is consumed **only after a Peek was shown**; a bare Alt tap keeps native behavior.
 
 ### 5.2 Pinned overlay
-- **Opening**: ⌥S, or S during a Peek.
+- **Opening**: ⌥S, or S during a Peek. ⌥S on the pinned overlay closes it.
+- **Focus**: the search takes focus; on close, focus returns to the element that had it (through shadow roots) if it is still there.
 - **Behavior**:
-  - It stays open after ⌥ is released.
+  - It stays open after ⌥ is released, and through a `blur` or `visibilitychange`. On Windows the Alt keyup after ⌥S is consumed, so the ⋮ menu doesn't take focus from the search.
   - Bare letters type into the search (§2.7); non-matching tiles are hidden, and the first visible tile is the top result.
-  - ↵ opens the top result, using the real target via `composedPath`. Arrow keys move the highlight.
-  - ⌥+key still opens.
-  - Esc (one level) or a click outside closes it.
+  - The highlight sits on the top result and goes back to it on every query change. Arrow keys move it over the 4-column grid of visible tiles (↑↓ by row, ←→ by tile, clamped at the edges).
+  - ↵ opens the highlighted tile, ⇧↵ in a new tab (Force new tab); ↵ with no matches does nothing. Keys are read from the real target via `composedPath`.
+  - ⌥+key still opens, with focus in the search too (⇧ = Force new tab); ⌥+free key closes it and shows the free toast. Any open closes it.
+  - Esc clears a non-empty query first, then closes. A click outside closes it.
 - No results → `No keys match "…"`.
 
 ### 5.3 ⌥S and commands
 - `S` is reserved regardless of command bindings. The content script handles ⌥S itself wherever it runs.
-- Command `toggle-overlay` (suggested `Alt+S`) covers the omnibox and restricted pages. Chrome swallows the S keydown, so the handler tells the tab to cancel the hold timer or pin the overlay.
-- On a page that can't host the overlay, the command **opens Options on the keymap**, focusing an existing Options tab.
+- Command `toggle-overlay` (suggested `Alt+S`) covers the omnibox and restricted pages. Chrome swallows the S keydown, so the handler sends the tab `overlay{action: 'toggle'}`, which pins (clearing a pending hold timer) or closes.
+- The handler checks the tab's URL first: a URL restricted by §4.6 (non-http(s), the NTP, the Web Store) **opens Options on the keymap** at once, focusing an existing Options tab. Otherwise it sends the toggle through `sendToTab` (§4.5, injecting into a tab from before install or update); `restricted` (the PDF viewer) → Options, `failed` (e.g. mid-navigation) → nothing.
+- With focus in the omnibox the overlay still shows on the page, and the search takes focus as soon as the page does.
 - `_execute_action` (popup) has **no suggested key**.
 - An update from v1 leaves both commands unbound. Mitigation: Options shows the quiet line "Set ⌥S for pages where SpeedLink can't run", linking to `chrome://extensions/shortcuts`, while `commands.getAll()` reports no binding. A no-op 4.0.1 then assigns Alt+S (§14).
 
@@ -191,8 +194,8 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
   - Smart switch would switch to a tab in this window (the current tab included) → "Open · tab N" (1-based position);
   - Smart switch would raise another window → "Open · other window" (green);
   - else Smart → site, New → "new tab", This → "this tab", Background → "background". Both "Open" sublines follow Smart switch's winner (§4.1), so other open modes show their mode even when the page is open.
-- **Top row**: badge "⌥ held" + the search field "Press a key — or keep typing to search".
-- **Footer legend**: key go · ⇧ + key force new tab · type search names & links · ⌥ release or Esc close · green dot "open now — will switch, not reopen".
+- **Top row**: badge "⌥ held" + the hint "Press a key — or keep typing to search". In the pinned overlay the badge reads "Pinned" and the hint is the search field's placeholder.
+- **Footer legend**: key go · ⇧ + key force new tab · type search names & links · ⌥ release or Esc close (pinned: Esc close) · green dot "open now — will switch, not reopen".
 - **Empty keymap**: "No keys yet" + an "Open keymap" link.
 - **Mouse**: tile click opens, ⇧+click = Force new tab; both work in Peek too. A pencil on tile hover/focus opens Options `#key=K` (focusing an existing tab without reloading it) and closes the overlay.
 - ⌥+free key while the overlay is open: the overlay closes and the "⌥K is free" toast appears.
@@ -456,9 +459,9 @@ e2e/                   Playwright specs + fixture pages
 
 ### 11.4 Messaging
 One typed protocol in `platform/messaging.ts` on `@webext-core/messaging`. No ad-hoc `runtime.sendMessage`.
-- content → bg: `openKey{key, force}`, `assignPage`, `undo{id}`, `openOptions{key?}`, `getOverlayModel`, `frameEvent{kind: 'show'|'close'}`
+- content → bg: `openKey{key, force}`, `assignPage`, `undo{id}`, `openOptions{key?}`, `getOverlayModel`, `frameEvent{kind: 'show'|'close'|'pin'}`
 - popup → bg: `assignPage`, `openOptions`
-- bg → tab (`frameId: 0`): `ping`, `overlay{action: 'toggle'|'pin'|'cancel-hold'}`, `toast{kind: 'saved'|'free'|'switched'|'error', …}`, `frameEvent`
+- bg → tab (`frameId: 0`): `ping`, `overlay{action: 'toggle'}`, `toast{kind: 'saved'|'free'|'switched'|'error', …}`, `frameEvent`
 - Every bg → tab send goes through one `sendToTab` helper: ping → inject → retry once.
 
 ### 11.5 UI state
