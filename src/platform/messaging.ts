@@ -1,6 +1,7 @@
 import { defineExtensionMessaging } from '@webext-core/messaging';
 import type { Resolve } from '@/domain/keymap-ops';
 import type { Key } from '@/domain/keys';
+import type { OverlayModel } from '@/domain/overlay-model';
 import type { OpenMode, Shortcut } from '@/domain/shortcut';
 
 /**
@@ -25,6 +26,11 @@ export type AssignPageReply =
   | { kind: 'unusable' }
   | { kind: 'failed' };
 
+/** A sub-frame's Peek, for the top frame (§4.4). */
+export interface FrameEvent {
+  kind: 'show' | 'close';
+}
+
 /** What `undo` did. `stale`: the record is gone, expired, someone else's, or a touched key changed; nothing written. */
 export type UndoReply = { kind: 'undone' } | { kind: 'stale' } | { kind: 'failed' };
 
@@ -32,8 +38,7 @@ export type UndoReply = { kind: 'undone' } | { kind: 'stale' } | { kind: 'failed
  * The one message protocol (product spec §11.4). Every message between the background, content scripts and
  * extension pages goes through here; never call `runtime.sendMessage` / `tabs.sendMessage` directly.
  *
- * Shapes the spec has settled are typed literally. Anything still undecided is `unknown`, with a TODO naming the
- * backlog item that defines it. No handlers live here.
+ * Shapes the spec has settled are typed literally. No handlers live here.
  *
  * Directions:
  * - content → bg: openKey, assignPage, undo, openOptions, getOverlayModel, frameEvent
@@ -73,14 +78,14 @@ export interface ProtocolMap {
   /** Focus an open Options tab, or open one next to the sender, optionally with a key selected (`#key=K`). */
   openOptions(data?: { key?: Key }): void;
 
-  /** The overlay's model, built by the background. */
-  getOverlayModel(): unknown; // TODO(item 16): overlay model type
+  /** The overlay's model for the sender's tab, built by the background from the fresh keymap and tabs. */
+  getOverlayModel(): OverlayModel;
 
-  /** Hold/release state shared between frames; relayed through the background to the top frame. */
-  frameEvent(data: {
-    kind: 'hold-start' | 'hold-cancel' | 'release' | 'key';
-    // TODO(item 16): the rest of the payload, with the relay and its first consumer
-  }): void;
+  /**
+   * A sub-frame's Peek: `show` once ⌥ was held 400 ms there, `close` when it ends. The background relays it to the
+   * same tab's top frame, which renders the overlay.
+   */
+  frameEvent(data: FrameEvent): void;
 
   // options → bg
 

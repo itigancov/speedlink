@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { KeyboardGrid } from '@/components/KeyboardGrid';
 import { KeyCap, type KeyCapSize, type KeyCapState } from '@/components/KeyCap';
 import { Monogram } from '@/components/Monogram';
+import { OverlayTile } from '@/components/OverlayTile';
 import { PageToast } from '@/components/PageToast';
 import { createToastSlot, ToastRegion } from '@/components/ToastRegion';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -16,6 +17,7 @@ import { Kbd } from '@/components/ui/kbd';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { draftOf, type KeyDraft } from '@/domain/key-draft';
 import { isAssignable, type Key, type KeyLabel } from '@/domain/keys';
+import type { OverlayTile as OverlayTileData } from '@/domain/overlay-model';
 import type { Shortcut } from '@/domain/shortcut';
 import { validShortcut } from '@/domain/test-shortcut';
 import type { SaveState } from '@/hooks/use-autosave';
@@ -409,6 +411,37 @@ function Inspectors() {
   );
 }
 
+/** One overlay tile per subline: open in this window, in another window, and each open mode. */
+const OVERLAY_TILES: OverlayTileData[] = [
+  { key: '1', name: 'Docs', subline: { kind: 'tab', index: 3 } },
+  { key: 'G', name: 'GitHub', subline: { kind: 'other-window' } },
+  { key: 'K', name: 'Calendar', subline: { kind: 'mode', mode: 'smart', site: 'calendar.example.com' } },
+  { key: 'Y', name: 'youtube.com', subline: { kind: 'mode', mode: 'new', site: 'youtube.com' } },
+  {
+    key: 'T',
+    name: 'A shortcut with a very long name indeed',
+    subline: { kind: 'mode', mode: 'this', site: 't.example' },
+  },
+  { key: 'B', name: 'Board', subline: { kind: 'mode', mode: 'bg', site: 'board.example' } },
+];
+
+function OverlayTiles() {
+  return (
+    <div className="flex flex-col gap-4">
+      {PLATFORMS.map((platform) => (
+        <div key={platform} className="flex flex-col gap-2">
+          <Caption>{platform} (hover a tile for its pencil)</Caption>
+          <div className="grid max-w-3xl grid-cols-4 gap-2">
+            {OVERLAY_TILES.map((tile) => (
+              <OverlayTile key={tile.key} tile={tile} platform={platform} onOpen={() => {}} onEdit={() => {}} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function App() {
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-6 p-8">
@@ -436,6 +469,9 @@ function App() {
       </Section>
       <Section title="Monogram">
         <Monograms />
+      </Section>
+      <Section title="OverlayTile: every subline, per platform">
+        <OverlayTiles />
       </Section>
       <Section title="PageToast and ToastRegion">
         <Toasts />

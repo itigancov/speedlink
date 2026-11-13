@@ -83,3 +83,13 @@ describe('KeyCap dimmed', () => {
     expect(screen.getByRole('button').dataset.dimmed).toBeUndefined();
   });
 });
+
+describe('KeyCap decorative', () => {
+  it('draws the keycap inside another control as no button of its own, hidden from assistive tech', () => {
+    const { container } = render(<KeyCap decorative label="K" size="md" state="assigned" open />);
+    expect(screen.queryByRole('button')).toBeNull();
+    const cap = container.querySelector('[data-slot="key-cap"]');
+    expect(cap?.getAttribute('aria-hidden')).toBe('true');
+    expect(cap?.textContent).toBe('K');
+  });
+});

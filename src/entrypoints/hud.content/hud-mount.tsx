@@ -1,6 +1,6 @@
 // The HUD's shadow-root mount (product spec §12.3, the HUD spike's config). One per top frame, created lazily the
-// first time something shows: a page nobody presses a key on gets no extra DOM. The toasts use it now; the overlay
-// (items 16, 17) renders into the same root.
+// first time something shows: a page nobody presses a key on gets no extra DOM. The toasts and the overlay render
+// into the same root.
 
 import type { ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -25,6 +25,8 @@ export interface HudMount {
    * suppresses: the page still gets keys typed outside the HUD.
    */
   keydowns: KeydownSource;
+  /** Whether the event happened inside the HUD (a press on the overlay, which must not cancel it). */
+  contains(event: Event): boolean;
   /** Creates the shadow root and renders the HUD into it, once; later calls return the same promise. */
   mount(): Promise<void>;
 }
@@ -48,8 +50,10 @@ export function createHudMount(
     return () => keydownListeners.delete(listener);
   };
 
+  const contains = (event: Event) => host !== undefined && event.composedPath().includes(host);
+
   const guard = (event: KeyboardEvent) => {
-    if (host !== undefined && event.composedPath().includes(host)) event.stopImmediatePropagation();
+    if (contains(event)) event.stopImmediatePropagation();
     if (event.type === 'keydown') for (const listener of keydownListeners) listener(event);
   };
 
@@ -68,7 +72,7 @@ export function createHudMount(
       css: hudCss.replaceAll(':root', ':host'),
       onMount(container) {
         // WXT's `:host{all:initial}` wipes a z-index on the host, so the fixed container carries it. The container
-        // covers the viewport: it lets clicks through, and only the toast pill (and later the overlay) takes them.
+        // covers the viewport: it lets clicks through, and only the toast pill and the overlay take them.
         container.style.zIndex = TOP_Z_INDEX;
         container.style.pointerEvents = 'none';
         const app = document.createElement('div');
@@ -93,6 +97,7 @@ export function createHudMount(
   return {
     guard,
     keydowns,
+    contains,
     mount() {
       // A failed mount (an exotic page) is tried again on the next toast.
       mounting ??= mountOnce().catch((error: unknown) => {
