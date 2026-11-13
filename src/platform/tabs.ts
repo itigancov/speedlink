@@ -1,4 +1,5 @@
-// The thin executor for `planOpen` (product spec §4.1, §11.2): reads tabs as plain data, runs an OpenPlan.
+// The thin executor for `planOpen` (product spec §4.1, §11.2): reads tabs as plain data, runs an OpenPlan. Also reads
+// the popup's tab (§7).
 import type { Browser } from 'wxt/browser';
 import type { OpenPlan, PlanTab } from '@/domain/open-plan';
 
@@ -24,6 +25,28 @@ export async function readPlanTabs(): Promise<PlanTab[]> {
           },
         ],
   );
+}
+
+/** The tab the popup assigns, as the tabs API reports it. */
+export interface PopupTab {
+  /** Undefined when there is no such tab; the page is then unusable. */
+  id: number | undefined;
+  url: string;
+  /** The tab title, '' when Chrome gives none. */
+  title: string;
+  favIconUrl: string;
+}
+
+export const NO_TAB: PopupTab = { id: undefined, url: '', title: '', favIconUrl: '' };
+
+/** The named tab, else the active tab of the current window; a missing one reads as `NO_TAB`. */
+export async function readPopupTab(tabId: number | undefined): Promise<PopupTab> {
+  const tab =
+    tabId === undefined
+      ? (await browser.tabs.query({ active: true, currentWindow: true }))[0]
+      : await browser.tabs.get(tabId);
+  if (tab === undefined) return NO_TAB;
+  return { id: tab.id, url: tab.url ?? '', title: tab.title ?? '', favIconUrl: tab.favIconUrl ?? '' };
 }
 
 /** Events closer together than this give one re-read. */

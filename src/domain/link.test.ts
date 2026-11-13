@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mainLabel, normalizeLink, siteOf } from './link';
+import { mainLabel, normalizeLink, siteOf, withoutScheme } from './link';
 
 describe('normalizeLink', () => {
   it.each([
@@ -81,5 +81,15 @@ describe('mainLabel', () => {
     ['https://9gag.com/', '9gag'],
   ])('gives the main label of %s as %s', (link, label) => {
     expect(mainLabel(link)).toBe(label);
+  });
+});
+
+describe('withoutScheme', () => {
+  it.each([
+    ['https://github.com/acme/speedlink/pulls', 'github.com/acme/speedlink/pulls'],
+    ['http://localhost:3000/', 'localhost:3000/'],
+    ['chrome://extensions/', 'chrome://extensions/'],
+  ])('shows %s as %s', (link, shown) => {
+    expect(withoutScheme(link)).toBe(shown);
   });
 });

@@ -1,5 +1,5 @@
 // Putting a tab's page on a key, and taking it back (product spec §2.5, §3.3): pure plans, executed by the background.
-import { assign, type Keymap, type KeymapChange } from './keymap-ops';
+import { assign, type Keymap, type KeymapChange, type Resolve } from './keymap-ops';
 import type { Key } from './keys';
 import { isRestrictedUrl } from './restricted';
 import { DEFAULT_OPEN_MODE, DEFAULT_TAB_MATCH, type OpenMode, type Shortcut, validateShortcut } from './shortcut';
@@ -13,7 +13,7 @@ export interface TabPage {
 
 export interface AssignOptions {
   openMode?: OpenMode;
-  resolve?: 'replace' | 'move';
+  resolve?: Resolve;
 }
 
 /** How to take an assign back: what every touched key held before (null = free), and what the assign wrote. */
@@ -34,26 +34,32 @@ export type AssignPlan =
     };
 
 /**
- * The new shortcut is the page with the default settings (plus the open mode, when given), named after the trimmed
- * tab title; it never inherits a replaced shortcut's settings. A page that isn't a usable http(s) link, or that
- * SpeedLink can't run on (§4.6), is `unusable`. A conflict is `assign`'s, passed through.
+ * The shortcut a page becomes on a key: the page with the default settings (plus the open mode, when given), named
+ * after the trimmed tab title; it never inherits a replaced shortcut's settings. Null for a page that isn't a usable
+ * http(s) link, or that SpeedLink can't run on (§4.6).
  */
-export function planAssign(keymap: Keymap, key: Key, page: TabPage, options: AssignOptions = {}): AssignPlan {
-  if (isRestrictedUrl(page.url)) return { kind: 'unusable' };
+export function pageShortcut(page: TabPage, openMode: OpenMode = DEFAULT_OPEN_MODE): Shortcut | null {
+  if (isRestrictedUrl(page.url)) return null;
   const shortcut = validateShortcut({
     link: page.url,
     name: page.title,
-    openMode: options.openMode ?? DEFAULT_OPEN_MODE,
+    openMode,
     tabMatch: DEFAULT_TAB_MATCH,
     closeCurrent: false,
   });
-  if (!shortcut.ok) return { kind: 'unusable' };
+  return shortcut.ok ? shortcut.value : null;
+}
 
-  const result = assign(keymap, key, shortcut.value, options.resolve);
+/** Puts `pageShortcut` on the key; a page that can't go on one is `unusable`. A conflict is `assign`'s, passed through. */
+export function planAssign(keymap: Keymap, key: Key, page: TabPage, options: AssignOptions = {}): AssignPlan {
+  const shortcut = pageShortcut(page, options.openMode);
+  if (shortcut === null) return { kind: 'unusable' };
+
+  const result = assign(keymap, key, shortcut, options.resolve);
   if (result.kind === 'conflict') return result;
   const keys: KeymapChange = {};
   for (const touched of Object.keys(result.change) as Key[]) keys[touched] = keymap[touched] ?? null;
-  return { kind: 'written', shortcut: shortcut.value, change: result.change, undo: { keys, written: result.change } };
+  return { kind: 'written', shortcut, change: result.change, undo: { keys, written: result.change } };
 }
 
 /**

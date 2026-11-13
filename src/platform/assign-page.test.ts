@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import type { Browser } from 'wxt/browser';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import type { UndoRecord } from '@/domain/assign-plan';
-import { createAssignPage, createUndo } from './assign-page';
+import { contentScriptTab, createAssignPage, createUndo } from './assign-page';
 
 type Tab = Browser.tabs.Tab;
 
@@ -204,6 +204,20 @@ describe('assignPage: the saved toast', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(sent).toEqual([]);
+  });
+});
+
+describe('contentScriptTab', () => {
+  it("is a content script's own tab", () => {
+    expect(contentScriptTab({ tab: tab(3), url: URL })).toEqual(tab(3));
+  });
+
+  it('is none for an extension page, even one shown in a tab, so the page names its tab', () => {
+    expect(contentScriptTab({ tab: tab(3), url: browser.runtime.getURL('/popup.html?tabId=4') })).toBeUndefined();
+  });
+
+  it('is none for the toolbar popup, which has no tab', () => {
+    expect(contentScriptTab({ url: browser.runtime.getURL('/popup.html') })).toBeUndefined();
   });
 });
 
