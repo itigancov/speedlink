@@ -102,8 +102,9 @@ jobs:
           CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ vars.CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL }}
           CHROME_PUBLISHER_ID: ${{ vars.CHROME_PUBLISHER_ID }}
           CHROME_EXTENSION_ID: ${{ vars.CHROME_EXTENSION_ID }}
-          DRY_RUN: ${{ contains(github.ref_name, '-') && '--dry-run' || '' }}
+          # Not DRY_RUN: wxt submit reads that variable itself as its dryRun setting, and an empty one fails its config.
+          SUBMIT_FLAGS: ${{ contains(github.ref_name, '-') && '--dry-run' || '' }}
         run: |
           zips=(release-zip/*-chrome.zip)
           [ "${#zips[@]}" -eq 1 ] || { echo "::error::Expected one chrome zip, found ${#zips[@]}"; exit 1; }
-          CHROME_ZIP="${zips[0]}" pnpm exec wxt submit $DRY_RUN
+          CHROME_ZIP="${zips[0]}" pnpm exec wxt submit $SUBMIT_FLAGS
