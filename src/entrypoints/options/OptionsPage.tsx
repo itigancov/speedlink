@@ -13,7 +13,7 @@ import { useAutosave } from '@/hooks/use-autosave';
 import { useKeymap } from '@/hooks/use-keymap';
 import { lastWebTab, useOpenTabs } from '@/hooks/use-open-tabs';
 import { useOverlayCommandBound } from '@/hooks/use-overlay-command-bound';
-import { openShortcutSettings } from '@/platform/commands';
+import { openShortcutSettings, SHORTCUT_SETTINGS } from '@/platform/commands';
 import { isEditableTarget } from '@/platform/key-capture';
 import { readKeymap, writeChange } from '@/platform/keymap-store';
 import { sendMessage } from '@/platform/messaging';
@@ -93,7 +93,7 @@ function CommandHint() {
   return (
     <p className="text-muted-foreground text-ui">
       <a
-        href="chrome://extensions/shortcuts"
+        href={SHORTCUT_SETTINGS}
         onClick={(event) => {
           event.preventDefault();
           openShortcutSettings().catch((error: unknown) =>

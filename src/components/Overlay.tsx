@@ -3,7 +3,7 @@
 // (§12.3). The Peek never takes focus; the pinned overlay focuses its search, and a press on it keeps that focus.
 // Only the scrim and the dialog catch pointer events. What shows comes from the content script through the slot.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { GridDirection } from '@/domain/key-grid';
+import { ARROWS } from '@/domain/key-grid';
 import type { Key } from '@/domain/keys';
 import type { OverlayModel } from '@/domain/overlay-model';
 import { searchTiles } from '@/domain/search';
@@ -42,13 +42,6 @@ export interface OverlayProps {
    */
   keydowns?: KeydownSource;
 }
-
-const ARROWS: Readonly<Record<string, GridDirection>> = {
-  ArrowLeft: 'left',
-  ArrowRight: 'right',
-  ArrowUp: 'up',
-  ArrowDown: 'down',
-};
 
 /** Focuses the field now, or once the page gets focus back (⌥S from the omnibox); returns the cancel. */
 function focusWhenPossible(field: HTMLInputElement): () => void {

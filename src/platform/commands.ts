@@ -32,7 +32,7 @@ export function registerCommands(): void {
 }
 
 /** Chrome's own shortcut page. A plain `href` to chrome:// doesn't navigate, so it opens through `tabs.create`. */
-const SHORTCUT_SETTINGS = 'chrome://extensions/shortcuts';
+export const SHORTCUT_SETTINGS = 'chrome://extensions/shortcuts';
 
 /** Whether Chrome has a key on `toggle-overlay`, any key. An update from v1 leaves it unbound (§5.3). */
 export async function isOverlayCommandBound(): Promise<boolean> {
