@@ -138,6 +138,16 @@ describe('the free-key toast, when its key is taken meanwhile', () => {
     expect(pill()).not.toBeNull();
   });
 
+  it('stays once its own action was clicked, until the saved or error toast replaces it', () => {
+    renderRegion();
+    show({ kind: 'free', key: 'K' });
+    fireEvent.click(screen.getByRole('button', { name: 'Put this page on it' }));
+
+    occupied.assign('K');
+
+    expect(pill()).not.toBeNull();
+  });
+
   it('leaves other toasts alone', () => {
     renderRegion();
     show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });

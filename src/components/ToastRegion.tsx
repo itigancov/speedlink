@@ -2,7 +2,7 @@
 // restarts its lifetime, even for the same key. Timed toasts pause while hovered and restart in full on leave.
 // Untimed toasts close on × or Esc; Esc is only listened to, never taken from the page. The free-key toast also
 // closes once its key is taken, so it never offers a key that is no longer free.
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Key } from '@/domain/keys';
 import type { PageToastData } from '@/platform/messaging';
 import type { OccupiedKeys } from '@/platform/occupied-keys';
@@ -113,12 +113,14 @@ function ShownToast({
     });
   }, [slot, id, lifetime, keydowns]);
 
-  // Only a change counts: before the content script's first read every key reads as assigned.
+  // Only a change counts: before the content script's first read every key reads as assigned. Once its own action
+  // was clicked, the key getting taken is that assign: the saved or error toast replaces this one, with no gap.
   const freeKey = toast.kind === 'free' ? toast.key : undefined;
+  const assigning = useRef(false);
   useEffect(() => {
     if (freeKey === undefined) return;
     return occupied.subscribe(() => {
-      if (occupied.isAssigned(freeKey)) slot.dismiss(id);
+      if (!assigning.current && occupied.isAssigned(freeKey)) slot.dismiss(id);
     });
   }, [slot, id, freeKey, occupied]);
 
@@ -133,7 +135,10 @@ function ShownToast({
           tone="free"
           message={i18n.t('pageToast.free')}
           actionLabel={i18n.t('pageToast.putPageOnKey')}
-          onAction={() => actions.putPageOnKey(toast.key)}
+          onAction={() => {
+            assigning.current = true;
+            actions.putPageOnKey(toast.key);
+          }}
           onClose={() => slot.dismiss(id)}
           closeLabel={i18n.t('pageToast.close')}
         />
