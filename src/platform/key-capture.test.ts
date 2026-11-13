@@ -4,6 +4,7 @@ import type { Key } from '@/domain/keys';
 import { createKeyCapture, type HoldTracker, type KeyCaptureOptions } from './key-capture';
 
 let opened: { key: Key; force: boolean }[];
+let toggles: number;
 /** What the page's own listeners saw: a capture listener on window registered after ours, and a bubble one. */
 let pageSaw: string[];
 let controller: AbortController;
@@ -19,6 +20,9 @@ function install(overrides: Partial<KeyCaptureOptions> = {}) {
     isInvalid: () => false,
     openKey: async (request) => {
       opened.push(request);
+    },
+    toggle: () => {
+      toggles += 1;
     },
     ...overrides,
   };
@@ -51,6 +55,7 @@ const mount = (html: string) => {
 
 beforeEach(() => {
   opened = [];
+  toggles = 0;
   pageSaw = [];
   controller = new AbortController();
   vi.spyOn(console, 'debug').mockImplementation(() => {});
@@ -110,12 +115,22 @@ describe('key capture: what reaches the page', () => {
     expect(opened).toEqual([]);
   });
 
-  it('swallows ⌥S and sends nothing', () => {
+  it('swallows ⌥S and toggles the pinned overlay, opening nothing', () => {
     install();
 
     expect(press(document.body, { code: 'KeyS' })).toBe(true);
     expect(pageSaw).toEqual([]);
     expect(opened).toEqual([]);
+    expect(toggles).toBe(1);
+  });
+
+  it('toggles once for a held ⌥S', () => {
+    install();
+
+    press(document.body, { code: 'KeyS' });
+    press(document.body, { code: 'KeyS', repeat: true });
+
+    expect(toggles).toBe(1);
   });
 
   it('leaves a key without ⌥ alone', () => {
@@ -206,6 +221,19 @@ describe('key capture: editable targets', () => {
 
     expect(press(input)).toBe(false);
     expect(opened).toEqual([]);
+  });
+
+  it('captures ⌥ + key and ⌥S in the HUD’s own search field', () => {
+    const host = mount('<div></div>');
+    const search = document.createElement('input');
+    search.type = 'search';
+    host.attachShadow({ mode: 'open' }).append(search);
+    install({ isHudField: (target) => target === search });
+
+    expect(press(search)).toBe(true);
+    expect(press(search, { code: 'KeyS' })).toBe(true);
+    expect(opened).toEqual([{ key: 'K', force: false }]);
+    expect(toggles).toBe(1);
   });
 
   it('captures ⌥ + key on a plain element inside a shadow root', () => {

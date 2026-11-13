@@ -1,5 +1,5 @@
 import type { ContentScriptContext } from '#imports';
-import { createOverlaySlot, OverlayRegion } from '@/components/Overlay';
+import { createOverlaySlot, type OverlayMode, OverlayRegion } from '@/components/Overlay';
 import { createToastSlot, type OccupiedSource, ToastRegion } from '@/components/ToastRegion';
 import type { HoldCancelReason, HudEvent } from '@/domain/hud-state';
 import type { Key } from '@/domain/keys';
@@ -41,13 +41,20 @@ export default defineContentScript({
       os: browserOs(),
       frame: hud === undefined ? 'sub' : 'top',
       effects: hud?.overlay ?? RELAY_TO_TOP,
+      isHudField: hud?.isHudField,
     });
     const capture = createKeyCapture({
       os: browserOs(),
       isAssigned: occupied.isAssigned,
       holdTracker,
       isInvalid: () => ctx.isInvalid,
-      openKey: (request) => sendMessage('openKey', request),
+      // An open closes the pinned overlay; a free key's toast then shows on the page.
+      openKey: (request) => {
+        holdTracker.dispatch({ kind: 'opened' });
+        return sendMessage('openKey', request);
+      },
+      toggle: () => holdTracker.dispatch({ kind: 'toggle' }),
+      isHudField: hud?.isHudField,
     });
     ctx.addEventListener(window, 'keydown', capture.keydown, { capture: true });
     ctx.addEventListener(window, 'keyup', capture.keyup, { capture: true });
@@ -81,6 +88,7 @@ let relayed = Promise.resolve();
 const RELAY_TO_TOP: HoldEffects = {
   fetchModel: () => {},
   show: () => {},
+  pin: () => {},
   close: () => {},
   relay: (kind) => {
     relayed = relayed
@@ -88,6 +96,13 @@ const RELAY_TO_TOP: HoldEffects = {
       .catch((error: unknown) => console.debug('SpeedLink: could not relay', kind, error));
   },
 };
+
+/** The focused element, through open shadow roots: what the pinned overlay gives focus back to. */
+function deepActiveElement(): HTMLElement | undefined {
+  let active = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return active instanceof HTMLElement && active !== document.body ? active : undefined;
+}
 
 /**
  * The top frame's HUD: toasts and the overlay in one shadow root, mounted the first time either is needed.
@@ -118,6 +133,7 @@ function createHud(ctx: ContentScriptContext, occupied: OccupiedSource, dispatch
     <>
       <OverlayRegion
         slot={overlaySlot}
+        keydowns={keydowns}
         actions={{
           open: (key, force) => {
             sendMessage('openKey', { key, force }).catch((error: unknown) =>
@@ -171,10 +187,12 @@ function createHud(ctx: ContentScriptContext, occupied: OccupiedSource, dispatch
     </>
   ));
 
-  // The model asked for when a hold starts, and whether the Peek should show. The overlay appears once both are in;
+  // The model asked for when a hold starts, and how the overlay should show, if at all. It appears once both are in;
   // a later request (a newer hold, a keymap change) wins over an earlier one still on its way.
   let request: Promise<OverlayModel | undefined> | undefined;
-  let showing = false;
+  let showing: OverlayMode | undefined;
+  // Where focus was when the overlay pinned and its search took it.
+  let returnFocus: HTMLElement | undefined;
   const fetchModel = () => {
     request = sendMessage('getOverlayModel', undefined).catch((error: unknown) => {
       console.debug('SpeedLink: no overlay model', error);
@@ -185,19 +203,27 @@ function createHud(ctx: ContentScriptContext, occupied: OccupiedSource, dispatch
   const showLatest = () => {
     const pending = request;
     void pending?.then((model) => {
-      if (showing && request === pending && model !== undefined) overlaySlot.show(model);
+      if (showing !== undefined && request === pending && model !== undefined) overlaySlot.show(model, showing);
     });
   };
   const overlay: HoldEffects = {
     fetchModel,
     show: () => {
-      showing = true;
+      showing = 'peek';
+      showLatest();
+    },
+    pin: () => {
+      showing = 'pinned';
+      returnFocus = deepActiveElement();
       showLatest();
     },
     close: () => {
-      showing = false;
+      const pinned = showing === 'pinned';
+      showing = undefined;
       request = undefined;
       overlaySlot.hide();
+      if (pinned && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+      returnFocus = undefined;
     },
     relay: () => {},
   };
@@ -205,13 +231,14 @@ function createHud(ctx: ContentScriptContext, occupied: OccupiedSource, dispatch
   return {
     overlay,
     contains: hud.contains,
+    isHudField: hud.isHudField,
     register: () => {
       for (const type of ['keydown', 'keyup', 'keypress'] as const) {
         ctx.addEventListener(window, type, hud.guard, { capture: true });
       }
       // A key that changes while the overlay is up, in another window say: never show one that's gone.
       const unsubscribe = occupied.subscribe(() => {
-        if (!showing) return;
+        if (showing === undefined) return;
         fetchModel();
         showLatest();
       });
@@ -219,12 +246,14 @@ function createHud(ctx: ContentScriptContext, occupied: OccupiedSource, dispatch
         await show(data);
       });
       const removeFrameEvent = onMessage('frameEvent', ({ data }) => {
-        dispatch({ kind: data.kind === 'show' ? 'remote-show' : 'remote-close' });
+        dispatch({ kind: data.kind === 'show' ? 'remote-show' : data.kind === 'close' ? 'remote-close' : 'toggle' });
       });
+      const removeOverlay = onMessage('overlay', () => dispatch({ kind: 'toggle' }));
       return () => {
         unsubscribe();
         removeToast();
         removeFrameEvent();
+        removeOverlay();
       };
     },
   };

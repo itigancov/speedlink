@@ -73,7 +73,7 @@ const NO_KEYMAP: OccupiedSource = { isAssigned: () => false, subscribe: () => ()
 export type KeydownSource = (listener: (event: KeyboardEvent) => void) => () => void;
 
 /** Every keydown that reaches `window`. The HUD passes its own source, which also sees keys inside the HUD. */
-const windowKeydowns: KeydownSource = (listener) => {
+export const windowKeydowns: KeydownSource = (listener) => {
   window.addEventListener('keydown', listener, true);
   return () => window.removeEventListener('keydown', listener, true);
 };

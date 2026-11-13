@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Keymap } from './keymap-ops';
 import { KEYBOARD_ORDER } from './keys';
-import { enterTarget, searchKeymap } from './search';
+import { enterTarget, searchKeymap, searchTiles } from './search';
 import { validShortcut } from './test-shortcut';
 
 const keymap: Keymap = {
@@ -91,5 +91,31 @@ describe('enterTarget', () => {
   it('never picks S', () => {
     expect(enterTarget({}, 's', { assignedOnly: false })).toBeNull();
     expect(enterTarget(keymap, 's', { assignedOnly: false })).toBe('1');
+  });
+});
+
+describe('searchTiles', () => {
+  const tiles = [
+    { key: '1', name: 'Dev server', link: 'localhost:3000' },
+    { key: 'Y', name: 'YouTube', link: 'youtube.com' },
+    { key: 'G', name: 'Pull requests', link: 'github.com/pulls' },
+  ];
+  const keys = (query: string) => searchTiles(tiles, query).map((tile) => tile.key);
+
+  it('keeps every tile, in order, for an empty or blank query', () => {
+    expect(keys('')).toEqual(['1', 'Y', 'G']);
+    expect(keys('  ')).toEqual(['1', 'Y', 'G']);
+  });
+
+  it('matches names and links case-insensitively, as the overlay search of the keymap does', () => {
+    expect(keys('GIT')).toEqual(['G']);
+    expect(keys('pull')).toEqual(['G']);
+    expect(keys('3000')).toEqual(['1']);
+    expect(keys('u')).toEqual(['Y', 'G']);
+  });
+
+  it('never matches a key letter alone', () => {
+    expect(keys('1')).toEqual([]);
+    expect(keys('x')).toEqual([]);
   });
 });

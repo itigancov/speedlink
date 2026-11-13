@@ -3,7 +3,7 @@
 // focus, so the page keeps its own.
 import { cn } from 'cn';
 import { PencilIcon } from 'lucide-react';
-import type { MouseEvent } from 'react';
+import { type MouseEvent, useEffect, useRef } from 'react';
 import type { OverlaySubline, OverlayTile as TileData } from '@/domain/overlay-model';
 import { chordLabel, PLATFORM, type Platform, triggerWord } from '@/platform/platform-labels';
 import { KeyCap } from './KeyCap';
@@ -30,18 +30,31 @@ export function sublineText(subline: OverlaySubline): string {
 
 export interface OverlayTileProps {
   tile: TileData;
+  /** The pinned overlay's top result, or where the arrows moved to: what ↵ opens. */
+  highlighted?: boolean;
   /** `force`: ⇧ was held (Force new tab). */
   onOpen(force: boolean): void;
   onEdit(): void;
   platform?: Platform;
 }
 
-export function OverlayTile({ tile: { key, name, subline }, onOpen, onEdit, platform = PLATFORM }: OverlayTileProps) {
+export function OverlayTile({
+  tile: { key, name, subline },
+  highlighted = false,
+  onOpen,
+  onEdit,
+  platform = PLATFORM,
+}: OverlayTileProps) {
   const open = subline.kind !== 'mode';
   const text = sublineText(subline);
+  const button = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (highlighted) button.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [highlighted]);
   return (
-    <div data-testid="overlay-tile" className="group relative">
+    <div data-testid="overlay-tile" data-highlighted={highlighted} className="group relative">
       <button
+        ref={button}
         type="button"
         onMouseDown={keepFocus}
         onClick={(event) => onOpen(event.shiftKey)}
@@ -49,6 +62,7 @@ export function OverlayTile({ tile: { key, name, subline }, onOpen, onEdit, plat
         className={cn(
           'flex w-full cursor-pointer items-center gap-3 rounded-xl border p-2 pr-8 text-left outline-none transition hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-ring',
           open ? 'border-success-border bg-success-tile' : 'border-border bg-card',
+          highlighted && 'border-primary ring-1 ring-primary',
         )}
       >
         <KeyCap decorative label={key} size="md" state="assigned" open={open} />

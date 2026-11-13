@@ -3,6 +3,14 @@ import { isAssignable, KEYBOARD_ROWS, type Key, type KeyLabel } from './keys';
 
 export type GridDirection = 'left' | 'right' | 'up' | 'down';
 
+/** The arrow keys' directions, by `KeyboardEvent.code` (its `key` names them the same). */
+export const ARROWS: Readonly<Record<string, GridDirection>> = {
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+};
+
 /**
  * Each row's offset in key pitches (a key plus its gap). Mirrors KeyboardGrid's lg stagger of 0/22/36/58 px over a
  * 56 px key and an 8 px gap: change both together.

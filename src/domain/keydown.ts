@@ -25,7 +25,7 @@ export interface KeydownInput {
  * - `ignore`: not ours; the event is left alone.
  * - `pass`: a trigger on a free key that the browser keeps for itself; left alone.
  * - `suppress`: swallowed, nothing sent (the repeats of a held key).
- * - `reserved`: ⌥S, swallowed, nothing sent until the pinned overlay (item 17).
+ * - `reserved`: ⌥S, swallowed; it toggles the pinned overlay (§5.3).
  * - `open`: swallowed, and the background is asked to open the key; it replies `free` for a free key.
  */
 export type KeydownDecision =

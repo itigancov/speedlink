@@ -41,8 +41,11 @@ pageToast:
 overlay:
   label: Your keys
   held: $1 held
+  pinned: Pinned
   hint: Press a key — or keep typing to search
+  search: Search your keys
   empty: No keys yet
+  noMatch: No keys match "$1"
   openKeymap: Open keymap
   tile: "$1, $2"
   edit: Edit $1
@@ -81,6 +84,7 @@ popup:
   tip: "Tip: hold $1 on any page to see all keys"
 options:
   loading: Loading your keys…
+  commandHint: Set $1 for pages where SpeedLink can’t run
   search:
     label: Find a link, site or key
     placeholder: Find a link, site or key…

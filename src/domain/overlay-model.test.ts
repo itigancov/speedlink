@@ -46,6 +46,11 @@ describe('buildOverlayModel: tiles', () => {
       'Guide',
     ]);
   });
+
+  it('carries each link, for the pinned overlay’s search', () => {
+    const keymap: Keymap = { G: docs() };
+    expect(buildOverlayModel(keymap, [current], current).tiles[0]?.link).toBe('https://docs.example.com/guide');
+  });
 });
 
 describe('buildOverlayModel: sublines', () => {

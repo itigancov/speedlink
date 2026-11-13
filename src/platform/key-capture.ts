@@ -26,7 +26,16 @@ export interface KeyCaptureOptions {
   isInvalid(): boolean;
   /** Sends `openKey`. Whatever the background replies, the page does nothing. */
   openKey(request: OpenKeyRequest): Promise<unknown>;
+  /** ⌥S: pins the overlay, or closes the pinned one (§5.3). */
+  toggle(): void;
+  /** The HUD's own search field, where ⌥ + key is still ours; see `keyInput`. */
+  isHudField?: HudField;
 }
+
+/** Whether a key event's real target is one of the HUD's own fields. */
+export type HudField = (target: EventTarget) => boolean;
+
+const NO_HUD_FIELD: HudField = () => false;
 
 /** Input types that don't take text: ⌥ + key on them is still ours. */
 const NON_TEXT_INPUTS: ReadonlySet<string> = new Set([
@@ -65,8 +74,9 @@ export function isEditableTarget(target: EventTarget | undefined): boolean {
   }
 }
 
-/** A key event as the plain data the domain reads. */
-export function keyInput(event: KeyboardEvent): KeydownInput {
+/** A key event as the plain data the domain reads. A HUD field is not `editable`: the pinned search keeps ⌥ + key. */
+export function keyInput(event: KeyboardEvent, isHudField: HudField = NO_HUD_FIELD): KeydownInput {
+  const target = event.composedPath()[0];
   return {
     code: event.code,
     altKey: event.altKey,
@@ -76,7 +86,7 @@ export function keyInput(event: KeyboardEvent): KeydownInput {
     altGraph: event.getModifierState('AltGraph'),
     repeat: event.repeat,
     composing: event.isComposing || event.keyCode === 229,
-    editable: isEditableTarget(event.composedPath()[0]),
+    editable: isEditableTarget(target) && !(target !== undefined && isHudField(target)),
   };
 }
 
@@ -93,16 +103,17 @@ export function createKeyCapture(options: KeyCaptureOptions): {
   keydown(event: KeyboardEvent): void;
   keyup(event: KeyboardEvent): void;
 } {
-  const { os, isAssigned, holdTracker, isInvalid, openKey } = options;
+  const { os, isAssigned, holdTracker, isInvalid, openKey, toggle, isHudField } = options;
   return {
     keydown(event) {
       if (isInvalid()) return;
       if (holdTracker.keydown(event) === 'consumed') return;
 
-      const decision = classifyKeydown(keyInput(event), os, isAssigned);
+      const decision = classifyKeydown(keyInput(event, isHudField), os, isAssigned);
       if (decision.kind === 'ignore' || decision.kind === 'pass') return;
 
       swallow(event);
+      if (decision.kind === 'reserved') toggle();
       if (decision.kind !== 'open') return;
       openKey({ key: decision.key, force: decision.force }).catch((error: unknown) =>
         console.debug('SpeedLink: could not ask to open', decision.key, error),

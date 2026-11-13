@@ -17,7 +17,7 @@ import { cn } from 'cn';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { KeyboardGrid } from '@/components/KeyboardGrid';
 import { KeyCap, type KeyCapState } from '@/components/KeyCap';
-import { type GridDirection, neighbourKey } from '@/domain/key-grid';
+import { ARROWS, neighbourKey } from '@/domain/key-grid';
 import type { Keymap } from '@/domain/keymap-ops';
 import { isAssignable, type Key, type KeyLabel } from '@/domain/keys';
 import { displayName, monogram } from '@/domain/shortcut';
@@ -53,13 +53,6 @@ function Swatch({ className }: { className: string }) {
 }
 
 const KEYBOARD_CODES = { start: ['Space'], cancel: ['Escape'], end: ['Space', 'Enter'] };
-
-const ARROWS: Readonly<Record<string, GridDirection>> = {
-  ArrowLeft: 'left',
-  ArrowRight: 'right',
-  ArrowUp: 'up',
-  ArrowDown: 'down',
-};
 
 interface Point {
   x: number;

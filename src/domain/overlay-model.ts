@@ -21,6 +21,8 @@ export interface OverlayTile {
   key: Key;
   /** The shortcut's name, else its link's site. */
   name: string;
+  /** What the pinned overlay's search matches besides the name. */
+  link: string;
   subline: OverlaySubline;
 }
 
@@ -46,7 +48,7 @@ export function buildOverlayModel(keymap: Keymap, tabs: readonly PlanTab[], curr
       const shortcut = keymap[key];
       return shortcut === undefined
         ? []
-        : [{ key, name: displayName(shortcut), subline: sublineOf(shortcut, tabs, currentTab) }];
+        : [{ key, name: displayName(shortcut), link: shortcut.link, subline: sublineOf(shortcut, tabs, currentTab) }];
     }),
   };
 }

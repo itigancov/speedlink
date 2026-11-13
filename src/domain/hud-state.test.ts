@@ -245,3 +245,136 @@ describe('stepHud: frames', () => {
     expect(run([{ kind: 'remote-show' }, { kind: 'close' }]).effects).toEqual(['fetchModel', 'show', 'close']);
   });
 });
+
+const toggle: HudEvent = { kind: 'toggle' };
+
+describe('stepHud: pinning', () => {
+  it('pins from closed on ⌥S or the command, fetching the model first', () => {
+    expect(run([toggle]).effects).toEqual(['fetchModel', 'pin']);
+  });
+
+  it('pins a hold before 400 ms with the command, clearing the timer and never showing a Peek', () => {
+    const result = run([altDown(), toggle, fired]);
+    expect(result.effects).toEqual(['startTimer', 'fetchModel', 'clearTimer', 'pin']);
+    expect(result.shown).toBe(false);
+  });
+
+  it('turns a Peek into the pinned overlay on the command', () => {
+    expect(run([...PEEK, toggle]).effects).toEqual([...PEEK_EFFECTS, 'pin']);
+  });
+
+  it.each([
+    ['Ctrl', { ctrlKey: true }],
+    ['⌘', { metaKey: true }],
+    ['AltGr', { altGraph: true }],
+  ])('closes a Peek on ⌥%s + S instead of pinning it', (_, fields) => {
+    expect(run([...PEEK, withAlt('KeyS', fields)]).effects).toEqual([...PEEK_EFFECTS, 'close']);
+  });
+
+  it('pins a Peek on S and consumes it, so neither key capture nor the page sees it', () => {
+    const result = run([...PEEK, withAlt('KeyS')]);
+    expect(result.effects).toEqual([...PEEK_EFFECTS, 'pin']);
+    expect(result.consumed).toBe(true);
+  });
+});
+
+/** ⌥S pressed and released: the pinned overlay is up. */
+const PINNED = [toggle, altUp()];
+const PINNED_EFFECTS = ['fetchModel', 'pin'];
+
+describe('stepHud: the pinned overlay', () => {
+  it('stays open after the ⌥ release', () => {
+    expect(run(PINNED).effects).toEqual(PINNED_EFFECTS);
+  });
+
+  it('closes on ⌥S or the command again', () => {
+    expect(run([...PINNED, toggle]).effects).toEqual([...PINNED_EFFECTS, 'close']);
+  });
+
+  it.each([
+    ['a tile or ↵ that opened', { kind: 'opened' } as HudEvent],
+    ['a scrim click, the pencil or Esc on an empty search', { kind: 'close' } as HudEvent],
+  ])('closes on %s', (_, event) => {
+    expect(run([...PINNED, event]).effects).toEqual([...PINNED_EFFECTS, 'close']);
+  });
+
+  it.each([
+    ['an assigned key', withAlt('KeyK')],
+    ['⇧ + key', withAlt('KeyK', { shiftKey: true })],
+    ['a free key', withAlt('KeyQ')],
+    ['a key the browser keeps', withAlt('KeyD')],
+  ])('leaves ⌥ + %s to key capture, and closes only once it opens a key', (_, press) => {
+    const result = run([...PINNED, altDown(), press]);
+    expect(result.effects).toEqual(PINNED_EFFECTS);
+    expect(result.consumed).toBe(false);
+  });
+
+  it.each([
+    ['a letter', down('KeyG')],
+    ['↵', down('Enter')],
+    ['⇧↵', down('Enter', { shiftKey: true })],
+    ['Esc', down('Escape')],
+    ['an arrow', down('ArrowDown')],
+    ['a bare ⌥', altDown()],
+    ['a sub-frame’s show', { kind: 'remote-show' } as HudEvent],
+    ['a sub-frame’s close', { kind: 'remote-close' } as HudEvent],
+    ['the hold timer', fired],
+    ['a mousedown on the page', { kind: 'cancel', reason: 'mousedown' } as HudEvent],
+    ['a wheel on the page', { kind: 'cancel', reason: 'wheel' } as HudEvent],
+    ['a blur', { kind: 'cancel', reason: 'blur' } as HudEvent],
+    ['a visibilitychange', { kind: 'cancel', reason: 'visibilitychange' } as HudEvent],
+  ])('stays open on %s, and leaves it to the overlay', (_, event) => {
+    const result = run([...PINNED, event]);
+    expect(result.effects).toEqual(PINNED_EFFECTS);
+    expect(result.consumed).toBe(false);
+  });
+
+  it('stays open on the ⌥ release after a pinned Peek', () => {
+    expect(run([...PEEK, withAlt('KeyS'), altUp()]).effects).toEqual([...PEEK_EFFECTS, 'pin']);
+  });
+
+  it('consumes the ⌥ release after ⌥S on Windows, so the ⋮ menu never takes focus from the search', () => {
+    expect(run([toggle, altUp()], TOP_WINDOWS).consumed).toBe(true);
+    expect(run([toggle, altUp()]).consumed).toBe(false);
+  });
+
+  it('consumes the ⌥ release after ⌥S closed it on Windows', () => {
+    expect(run([...PINNED, altDown(), toggle, altUp()], TOP_WINDOWS).consumed).toBe(true);
+  });
+
+  it('leaves a later bare ⌥ tap alone on Windows', () => {
+    expect(run([...PINNED, altDown(), altUp()], TOP_WINDOWS).consumed).toBe(false);
+  });
+
+  it('arms a Peek again once closed', () => {
+    expect(run([...PINNED, { kind: 'close' }, altDown(), fired]).effects).toEqual([
+      ...PINNED_EFFECTS,
+      'close',
+      'startTimer',
+      'fetchModel',
+      'show',
+    ]);
+  });
+});
+
+describe('stepHud: pinning in a sub-frame', () => {
+  const SUB_WINDOWS: HudContext = { os: 'windows', frame: 'sub' };
+
+  it('relays the pin to the top frame and has nothing left to close', () => {
+    expect(run([toggle, altUp(), altDown(), withAlt('KeyK')], SUB_WINDOWS).effects).toEqual([
+      'relay:pin',
+      'startTimer',
+      'clearTimer',
+    ]);
+  });
+
+  it('relays the pin of a Peek, and consumes the Windows ⌥ keyup itself', () => {
+    const result = run([...PEEK, withAlt('KeyS'), altUp()], SUB_WINDOWS);
+    expect(result.effects).toEqual(['startTimer', 'relay:show', 'relay:pin']);
+    expect(result.consumed).toBe(true);
+  });
+
+  it('pins in the top frame on a sub-frame’s pin, which arrives as a toggle', () => {
+    expect(run([{ kind: 'remote-show' }, toggle]).effects).toEqual(['fetchModel', 'show', 'pin']);
+  });
+});

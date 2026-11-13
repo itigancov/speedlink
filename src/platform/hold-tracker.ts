@@ -1,7 +1,7 @@
 // The overlay hold (product spec §5.1): feeds `stepHud` with the content script's events and runs its effects. One
 // per frame, each with its own timer; the top frame renders, a sub-frame relays.
 import { type HudContext, type HudEffect, type HudEvent, INITIAL_HUD_STATE, stepHud } from '@/domain/hud-state';
-import { type HoldTracker, keyInput, swallow } from './key-capture';
+import { type HoldTracker, type HudField, keyInput, swallow } from './key-capture';
 
 /** How long ⌥ must be held alone before the Peek shows. Fixed, no setting. */
 export const PEEK_DELAY_MS = 400;
@@ -10,16 +10,20 @@ export const PEEK_DELAY_MS = 400;
 export interface HoldEffects {
   fetchModel(): void;
   show(): void;
+  /** Shows the pinned overlay, or turns the shown Peek into it. */
+  pin(): void;
   close(): void;
-  relay(event: 'show' | 'close'): void;
+  relay(event: 'show' | 'close' | 'pin'): void;
 }
 
 export interface HoldTrackerOptions extends HudContext {
   effects: HoldEffects;
+  /** As key capture's: ⌥ + key in the HUD's search is not a press in a page field. */
+  isHudField?: HudField;
 }
 
 /** The `HoldTracker` for key capture, plus `dispatch` for the overlay's own events and the sub-frame relay. */
-export function createHoldTracker({ effects, ...context }: HoldTrackerOptions): HoldTracker & {
+export function createHoldTracker({ effects, isHudField, ...context }: HoldTrackerOptions): HoldTracker & {
   dispatch(event: HudEvent): void;
 } {
   let state = INITIAL_HUD_STATE;
@@ -45,6 +49,8 @@ export function createHoldTracker({ effects, ...context }: HoldTrackerOptions): 
         return effects.fetchModel();
       case 'show':
         return effects.show();
+      case 'pin':
+        return effects.pin();
       case 'close':
         return effects.close();
       case 'relay':
@@ -61,7 +67,7 @@ export function createHoldTracker({ effects, ...context }: HoldTrackerOptions): 
   }
 
   const onKey = (kind: 'keydown' | 'keyup') => (event: KeyboardEvent) => {
-    if (!dispatch({ kind, input: keyInput(event) })) return undefined;
+    if (!dispatch({ kind, input: keyInput(event, isHudField) })) return undefined;
     swallow(event);
     return 'consumed' as const;
   };

@@ -26,9 +26,9 @@ export type AssignPageReply =
   | { kind: 'unusable' }
   | { kind: 'failed' };
 
-/** A sub-frame's Peek, for the top frame (§4.4). */
+/** A sub-frame's Peek or pin, for the top frame (§4.4). */
 export interface FrameEvent {
-  kind: 'show' | 'close';
+  kind: 'show' | 'close' | 'pin';
 }
 
 /** What `undo` did. `stale`: the record is gone, expired, someone else's, or a touched key changed; nothing written. */
@@ -82,8 +82,8 @@ export interface ProtocolMap {
   getOverlayModel(): OverlayModel;
 
   /**
-   * A sub-frame's Peek: `show` once ⌥ was held 400 ms there, `close` when it ends. The background relays it to the
-   * same tab's top frame, which renders the overlay.
+   * A sub-frame's Peek: `show` once ⌥ was held 400 ms there, `close` when it ends; `pin` on ⌥S there. The background
+   * relays it to the same tab's top frame, which renders the overlay.
    */
   frameEvent(data: FrameEvent): void;
 
@@ -97,8 +97,8 @@ export interface ProtocolMap {
   /** Liveness check before injecting the content script: every frame's script answers `true`. */
   ping(): true;
 
-  /** Overlay control from the `toggle-overlay` command and the background. */
-  overlay(data: { action: 'toggle' | 'pin' | 'cancel-hold' }): void;
+  /** The `toggle-overlay` command: pins the overlay in the top frame, or closes the pinned one. */
+  overlay(data: { action: 'toggle' }): void;
 
   /** Show a page toast in the top frame (product spec §6). */
   toast(data: PageToastData): void;
