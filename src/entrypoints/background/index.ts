@@ -1,4 +1,4 @@
-import { createAssignPage, createUndo } from '@/platform/assign-page';
+import { contentScriptTab, createAssignPage, createUndo } from '@/platform/assign-page';
 import { registerInjectionOnInstall } from '@/platform/injection';
 import { onMessage } from '@/platform/messaging';
 import { createOpenKey } from '@/platform/open-key';
@@ -14,7 +14,7 @@ export default defineBackground(() => {
   onMessage('tryKey', ({ data, sender }) => openKey({ key: data.key, force: false, trial: true }, sender.tab));
   const assignPage = createAssignPage();
   const undo = createUndo();
-  onMessage('assignPage', ({ data, sender }) => assignPage(data, sender.tab));
+  onMessage('assignPage', ({ data, sender }) => assignPage(data, contentScriptTab(sender)));
   onMessage('undo', ({ data }) => undo(data));
   onMessage('openOptions', ({ data, sender }) => openOptions(data?.key, sender.tab));
 

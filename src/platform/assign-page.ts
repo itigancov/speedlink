@@ -21,6 +21,15 @@ export type AssignPage = (
 ) => Promise<AssignPageReply>;
 
 /**
+ * The sender's tab when a content script sent the message, else undefined. An extension page has a tab too when it
+ * is shown in one (the popup opened as `popup.html` in e2e), but it names the tab it means instead.
+ */
+export function contentScriptTab(sender: Browser.runtime.MessageSender): Browser.tabs.Tab | undefined {
+  const extensionPage = sender.url?.startsWith(browser.runtime.getURL('/')) ?? false;
+  return extensionPage ? undefined : sender.tab;
+}
+
+/**
  * The function behind the `assignPage` message. The tab's url and title come from the tabs API, never from the page,
  * and the keymap is read fresh on every call. The undo record is written only after the keymap write succeeded, so
  * it never points at a change that didn't happen; if only the record fails, the page is still saved and says so,
