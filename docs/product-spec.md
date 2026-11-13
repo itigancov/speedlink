@@ -446,7 +446,7 @@ e2e/                   Playwright specs + fixture pages
 
 ### 11.3 Who writes the keymap
 - **Options** reads and writes through `platform/keymap-store` directly.
-- **Assign with undo** (popup and the free-key toast) goes **only through the background**: `assignPage{key, tabId, openMode?, resolve?: 'replace'|'move'}` and `undo{id}`. The background writes the undo record to `storage.session`, which content scripts can't see.
+- **Assign with undo** (popup and the free-key toast) goes **only through the background**: `assignPage{key, tabId?, openMode?, resolve?: 'replace'|'move'}` and `undo{id}`. A content script's own tab (sender.tab) is always the one assigned and it sends no `tabId`; the popup names its tab. The background writes the undo record to `storage.session`, which content scripts can't see.
 - The **content script** only reads `sync`.
 - The **overlay** gets its model from the background (`getOverlayModel`).
 
