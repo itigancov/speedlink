@@ -97,3 +97,14 @@ When the API path is broken, a release still ships by hand:
 1. Download the zip from the GitHub Release.
 2. In the CWS Developer Dashboard, open the item, then **Package** → **Upload new package**.
 3. **Submit for review**, choosing to publish manually after approval (the same deferred publish).
+
+## Privacy policy on GitHub Pages
+
+The listing's Privacy policy URL is `https://itigancov.github.io/speedlink/privacy/`. `site/` is the whole published site: `privacy/index.html` and `.nojekyll`. The root `/` is left empty for a later landing page (backlog item 24), so the policy's address never moves.
+
+`pages.yml` publishes `site/` with GitHub's official Pages actions on a push to `main` that touches `site/`, and on manual dispatch. Its only extra permissions are `pages: write` and `id-token: write`. The Pages source is **GitHub Actions**, so `docs/` and the rest of the repo are never published.
+
+**One-time setup** (done by hand; the workflow cannot do it):
+1. In the repo, **Settings** → **Pages** → **Build and deployment** → **Source**: **GitHub Actions**.
+2. Merge a change under `site/` to `main`, or run **Pages** from the **Actions** tab. The first run creates the `github-pages` Environment.
+3. Open the policy URL and check it in light and dark.

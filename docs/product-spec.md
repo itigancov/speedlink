@@ -562,7 +562,7 @@ Key-state colors live inside `KeyCap`.
 - `version: "4.0.0"`; `minimum_chrome_version: "121"`, set by `Tab.lastAccessed` (Smart switch, §4.1). Other APIs used are lower (`storage.session` 102, `runtime.getContexts` 116). No `key` field.
 - `permissions: storage, tabs, scripting`; `host_permissions: ["<all_urls>"]`.
 - Content script `<all_urls>`, `all_frames: true`, `run_at: document_start`.
-- Icons: v1's 16/32/48/128 PNGs (no regression; item 20 may replace them).
+- Icons: the 16/32/48/128 PNGs drawn from the `Brand` logo mark by `pnpm listing`, at the same paths as v1's. The 128 px icon is 96 px of artwork inside 16 px of transparent padding.
 - `web_accessible_resources`: the Inter woff2, `use_dynamic_url: true`.
 - Commands: `toggle-overlay` (suggested Alt+S), `_execute_action` (no suggested key).
 - Nothing beyond this list. A permission that adds a new install warning compared with v1 is a **release blocker**: drop it rather than disable v1 users.
@@ -591,10 +591,10 @@ Key-state colors live inside `KeyCap`.
 
 **Listing**
 - New English summary and description, worded from the glossary.
-- 3–5 screenshots at 1280×800, captured by a Playwright script from the real build on fixture pages: Options keymap, popup assign, Peek overlay, toast.
-- A small promo tile 440×280.
+- Five screenshots at 1280×800, captured by `pnpm listing` from the real build on a demo keymap and a neutral backdrop page, with Alt labels: Options keymap, popup assign, Peek overlay, saved toast, pinned overlay with a search.
+- A small promo tile 440×280, drawn by the same command. The assets and every listing text live in `store/` (`listing.md`).
 - Privacy tab: single purpose; justifications for `tabs`, `scripting`, `storage` and `<all_urls>`; data "not collected".
-- A short privacy policy page hosted from the repo.
+- A short privacy policy page, `site/privacy/index.html`, published on GitHub Pages at `https://itigancov.github.io/speedlink/privacy/`. Support and the policy's contact are GitHub Issues; no email is published.
 
 **Manual QA** (`docs/release-checklist.md`, run before every major or minor release)
 1. Real Store update 1.6 → 4.0: keymap migrated, S moved, `speedlink` untouched, report in the service-worker console.
