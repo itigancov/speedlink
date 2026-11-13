@@ -1,7 +1,6 @@
 // The overlay's hold state machine (product spec §5.1, §11.5): plain events in, the next state and effects out.
 // The content script's hold tracker feeds it and runs the effects (timer, model fetch, overlay, frame relay).
 import type { BrowserOs, KeydownInput } from './keydown';
-import { isAssignable, keyLabelFromCode } from './keys';
 
 /** What stops a pending ⌥ hold besides a key. */
 export type HoldCancelReason = 'mousedown' | 'wheel' | 'blur' | 'visibilitychange';
@@ -32,7 +31,7 @@ export interface HudContext {
  * - `keydown` / `keyup`: every key event, as plain data.
  * - `timer-fired`: the 400 ms hold timer ran out.
  * - `cancel`: a page-side mousedown or wheel, or the window's blur or visibilitychange.
- * - `opened`: the overlay opened a key (a tile click, ↵ in the search).
+ * - `opened`: a key was opened: a tile click, ↵ in the search, or key capture's ⌥ + key (not a free browser key).
  * - `close`: the overlay's own ways out: a scrim click, the pencil, Esc on an empty search.
  * - `toggle`: ⌥S in this frame, the `toggle-overlay` command, or a sub-frame's pin.
  * - `remote-show` / `remote-close`: a sub-frame's Peek, relayed to the top frame.
@@ -76,14 +75,6 @@ const step = (state: HudState, effects: HudEffect[] = [], consumed = false): Hud
 const leftWindow = (reason: HoldCancelReason) => reason === 'blur' || reason === 'visibilitychange';
 
 const isShift = (code: string) => code === 'ShiftLeft' || code === 'ShiftRight';
-
-/** ⌥ + one of the 35 keys, outside a page field: key capture opens it, or answers that it is free. */
-const opensKey = ({ code, altKey, ctrlKey, metaKey, altGraph, composing, editable }: KeydownInput) => {
-  const label = keyLabelFromCode(code);
-  return (
-    altKey && !ctrlKey && !metaKey && !altGraph && !composing && !editable && label !== null && isAssignable(label)
-  );
-};
 
 export function stepHud(state: HudState, event: HudEvent, context: HudContext): HudStep {
   const top = context.frame === 'top';
@@ -142,7 +133,8 @@ export function stepHud(state: HudState, event: HudEvent, context: HudContext): 
         case 'keydown': {
           const { code } = event.input;
           if ((isAlt(code) && event.input.repeat) || isShift(code)) return step(state);
-          if (code === 'KeyS' && event.input.altKey) return { ...pin([]), consumed: true };
+          const { altKey, ctrlKey, metaKey, altGraph } = event.input;
+          if (code === 'KeyS' && altKey && !ctrlKey && !metaKey && !altGraph) return { ...pin([]), consumed: true };
           // A key reaches key capture (which opens it, or answers free) and anything else the page; Esc is ours.
           return step(closed, [close], code === 'Escape');
         }
@@ -160,12 +152,10 @@ export function stepHud(state: HudState, event: HudEvent, context: HudContext): 
     }
 
     case 'pinned': {
-      // Only an open or a way out closes it: the ⌥ release, the page and other frames leave it alone (Esc, ↵ and the
-      // search keys are the overlay's own).
+      // Only an open or a way out closes it: keys (⌥ + key is key capture's; Esc, ↵ and the search keys are the
+      // overlay's own), the ⌥ release, the page and other frames leave it alone.
       const closed: HudState = { phase: 'closed', peeked: state.peeked };
       switch (event.kind) {
-        case 'keydown':
-          return opensKey(event.input) ? step(closed, [close]) : step(state);
         // ⌥S closes as it pinned: its ⌥ release follows.
         case 'toggle':
           return step({ phase: 'closed', peeked: true }, [close]);

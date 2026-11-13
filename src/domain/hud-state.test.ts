@@ -263,6 +263,14 @@ describe('stepHud: pinning', () => {
     expect(run([...PEEK, toggle]).effects).toEqual([...PEEK_EFFECTS, 'pin']);
   });
 
+  it.each([
+    ['Ctrl', { ctrlKey: true }],
+    ['⌘', { metaKey: true }],
+    ['AltGr', { altGraph: true }],
+  ])('closes a Peek on ⌥%s + S instead of pinning it', (_, fields) => {
+    expect(run([...PEEK, withAlt('KeyS', fields)]).effects).toEqual([...PEEK_EFFECTS, 'close']);
+  });
+
   it('pins a Peek on S and consumes it, so neither key capture nor the page sees it', () => {
     const result = run([...PEEK, withAlt('KeyS')]);
     expect(result.effects).toEqual([...PEEK_EFFECTS, 'pin']);
@@ -294,9 +302,10 @@ describe('stepHud: the pinned overlay', () => {
     ['an assigned key', withAlt('KeyK')],
     ['⇧ + key', withAlt('KeyK', { shiftKey: true })],
     ['a free key', withAlt('KeyQ')],
-  ])('closes on ⌥ + %s and leaves it to key capture', (_, press) => {
+    ['a key the browser keeps', withAlt('KeyD')],
+  ])('leaves ⌥ + %s to key capture, and closes only once it opens a key', (_, press) => {
     const result = run([...PINNED, altDown(), press]);
-    expect(result.effects).toEqual([...PINNED_EFFECTS, 'close']);
+    expect(result.effects).toEqual(PINNED_EFFECTS);
     expect(result.consumed).toBe(false);
   });
 

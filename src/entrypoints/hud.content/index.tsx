@@ -48,7 +48,11 @@ export default defineContentScript({
       isAssigned: occupied.isAssigned,
       holdTracker,
       isInvalid: () => ctx.isInvalid,
-      openKey: (request) => sendMessage('openKey', request),
+      // An open closes the pinned overlay; a free key's toast then shows on the page.
+      openKey: (request) => {
+        holdTracker.dispatch({ kind: 'opened' });
+        return sendMessage('openKey', request);
+      },
       toggle: () => holdTracker.dispatch({ kind: 'toggle' }),
       isHudField: hud?.isHudField,
     });
