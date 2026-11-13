@@ -1,0 +1,106 @@
+name: Release
+
+# Push a `v*` tag to release. A tag with a `-…` suffix (v4.0.0-rc.1) is a pre-release:
+# the whole pipeline runs, but the Store step is `wxt submit --dry-run`. See docs/publishing.md.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Fails fastest: the tag must name the version in package.json.
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Tag matches package.json
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          tag_version="${tag_version%%-*}"
+          package_version="$(jq -r .version package.json)"
+          if [ "$tag_version" != "$package_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME is for $tag_version, but package.json is at $package_version"
+            exit 1
+          fi
+
+  verify:
+    needs: version
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # Reads `packageManager` from package.json.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm zip
+
+      # The one zip: the Release attaches it and the submit job downloads it.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: chrome-zip
+          path: .output/*-chrome.zip
+          if-no-files-found: error
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ contains(github.ref_name, '-') && '--prerelease' || '' }}
+        run: gh release create "$GITHUB_REF_NAME" .output/*-chrome.zip --verify-tag --generate-notes $PRERELEASE
+
+  submit:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: chrome-web-store
+    env:
+      CHROME_API_VERSION: v2
+      CHROME_PUBLISH_TYPE: STAGED_PUBLISH
+      CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CHROME_SERVICE_ACCOUNT_PRIVATE_KEY }}
+      CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ vars.CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL }}
+      CHROME_PUBLISHER_ID: ${{ vars.CHROME_PUBLISHER_ID }}
+      CHROME_EXTENSION_ID: ${{ vars.CHROME_EXTENSION_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Reads `packageManager` from package.json.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: chrome-zip
+          path: release-zip
+
+      # Pre-release tags prove the key, the Environment and the Store link without uploading.
+      - name: Submit to the Chrome Web Store
+        env:
+          DRY_RUN: ${{ contains(github.ref_name, '-') && '--dry-run' || '' }}
+        run: |
+          zips=(release-zip/*-chrome.zip)
+          [ "${#zips[@]}" -eq 1 ] || { echo "::error::Expected one chrome zip, found ${#zips[@]}"; exit 1; }
+          CHROME_ZIP="${zips[0]}" pnpm exec wxt submit $DRY_RUN

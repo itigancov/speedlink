@@ -4,10 +4,13 @@ on:
   pull_request:
   push:
     branches: [main]
+  # release.yml runs this same gate before it zips anything.
+  workflow_call:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A release run (a tag) is never cancelled half way.
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   ci:
