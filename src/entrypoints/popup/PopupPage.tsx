@@ -2,7 +2,7 @@
 // never writes the keymap: the background assigns (§11.3) and sends the saved toast to the page.
 import { cn } from 'cn';
 import { BanIcon, KeyboardIcon, ZapIcon } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { type MouseEvent, useEffect, useRef, useState } from 'react';
 import { KeyboardGrid } from '@/components/KeyboardGrid';
 import { KeyCap, type KeyCapState } from '@/components/KeyCap';
 import { Monogram } from '@/components/Monogram';
@@ -10,23 +10,19 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { keyFromCode, type PickedKey, pickerModel } from '@/domain/assign-picker';
-import type { Keymap } from '@/domain/keymap-ops';
+import { keyFromCode, type PickedKey, type PickerModel, pickerModel } from '@/domain/assign-picker';
+import type { Keymap, Resolve } from '@/domain/keymap-ops';
 import { isAssignable, type Key, type KeyLabel } from '@/domain/keys';
 import { withoutScheme } from '@/domain/link';
 import { DEFAULT_OPEN_MODE, displayName, OPEN_MODES, type OpenMode } from '@/domain/shortcut';
 import { useKeymap } from '@/hooks/use-keymap';
 import type { AssignPageReply } from '@/platform/messaging';
-import { chordLabel, PLATFORM, type Platform, triggerLabel, triggerPlus } from '@/platform/platform-labels';
-import { type PopupTab, usePopupTab } from './use-popup-tab';
+import { chordLabel, PLATFORM, type Platform, triggerPlus, triggerSymbol } from '@/platform/platform-labels';
+import type { PopupTab } from '@/platform/tabs';
+import { usePopupTab } from './use-popup-tab';
 
 export interface PopupActions {
-  assignPage(request: {
-    key: Key;
-    tabId: number;
-    openMode: OpenMode;
-    resolve?: 'replace' | 'move';
-  }): Promise<AssignPageReply>;
+  assignPage(request: { key: Key; tabId: number; openMode: OpenMode; resolve?: Resolve }): Promise<AssignPageReply>;
   openOptions(): Promise<void>;
   close(): void;
 }
@@ -39,8 +35,6 @@ export interface PopupPageProps {
   platform?: Platform;
 }
 
-type Resolve = 'replace' | 'move';
-
 /** Key presses inside the Opens as select (its trigger or its open list) drive the select, never the picker. */
 const inSelect = (target: EventTarget | null) =>
   target instanceof Element && target.closest('[data-slot=select-trigger],[data-slot=select-content]') !== null;
@@ -48,6 +42,9 @@ const inSelect = (target: EventTarget | null) =>
 /** Native activation applies on a focused control: ↵ on a chip picks it, on the select opens it. */
 const onControl = (target: EventTarget | null) =>
   target instanceof Element && (target.closest('button') !== null || inSelect(target));
+
+/** A pointer press on a picker key leaves focus where it was, so ↵ right after a click still saves. */
+const keepFocus = (event: MouseEvent) => event.preventDefault();
 
 /** "⌥K already opens **Name**.", with the name in bold. */
 function ConflictText({ chord, name }: { chord: string; name: string }) {
@@ -77,15 +74,7 @@ function Header({ onOpenKeymap }: { onOpenKeymap: () => void }) {
   );
 }
 
-function PageCard({
-  tab,
-  model,
-  platform,
-}: {
-  tab: PopupTab;
-  model: ReturnType<typeof pickerModel>;
-  platform: Platform;
-}) {
+function PageCard({ tab, model, platform }: { tab: PopupTab; model: PickerModel; platform: Platform }) {
   const icon = tab.favIconUrl === '' ? undefined : tab.favIconUrl;
   return (
     <section className="flex items-center gap-3 rounded-xl border bg-card p-2.5">
@@ -113,7 +102,7 @@ function PageCard({
   );
 }
 
-function miniState(label: KeyLabel, keymap: Keymap, picked: Key | null): KeyCapState {
+function miniKeyState(label: KeyLabel, keymap: Keymap, picked: Key | null): KeyCapState {
   if (!isAssignable(label)) return 'reserved';
   if (label === picked) return 'picked';
   return keymap[label] === undefined ? 'free' : 'taken';
@@ -256,6 +245,7 @@ export function PopupPage({ actions, tabId, platform = PLATFORM }: PopupPageProp
               size="xs"
               aria-pressed={key === pickedKey}
               disabled={!ready}
+              onMouseDown={keepFocus}
               onClick={() => pick(key)}
               className="aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground"
             >
@@ -272,10 +262,11 @@ export function PopupPage({ actions, tabId, platform = PLATFORM }: PopupPageProp
               size="sm"
               label={label}
               platform={platform}
-              state={miniState(label, keymap, pickedKey)}
+              state={miniKeyState(label, keymap, pickedKey)}
               name={isAssignable(label) ? keymap[label] && displayName(keymap[label]) : undefined}
               aria-pressed={isAssignable(label) ? label === pickedKey : undefined}
               disabled={!ready}
+              onMouseDown={keepFocus}
               onClick={isAssignable(label) ? () => pick(label) : undefined}
             />
           )}
@@ -339,7 +330,7 @@ export function PopupPage({ actions, tabId, platform = PLATFORM }: PopupPageProp
       </div>
 
       <footer className="text-center text-2xs text-muted-foreground">
-        {i18n.t('popup.tip', [triggerLabel(platform)])}
+        {i18n.t('popup.tip', [triggerSymbol(platform)])}
       </footer>
     </main>
   );

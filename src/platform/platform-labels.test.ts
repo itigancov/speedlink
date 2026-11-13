@@ -7,6 +7,7 @@ import {
   triggerLabel,
   triggerPlus,
   triggerPlusKey,
+  triggerSymbol,
   triggerWord,
 } from './platform-labels';
 
@@ -67,6 +68,11 @@ describe('trigger labels', () => {
   it('writes the trigger before a picked key as "⌥ +" on a Mac and "Alt +" elsewhere', () => {
     expect(triggerPlus('mac')).toBe('⌥ +');
     expect(triggerPlus('other')).toBe('Alt +');
+  });
+
+  it('gives the bare trigger for short copy: "⌥" on a Mac and "Alt" elsewhere', () => {
+    expect(triggerSymbol('mac')).toBe('⌥');
+    expect(triggerSymbol('other')).toBe('Alt');
   });
 });
 

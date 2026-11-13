@@ -8,6 +8,7 @@ platform:
     chord: ⌥$1
     plusKey: ⌥ + key
     plus: ⌥ +
+    symbol: ⌥
     fn: fn
     control: ⌃
     option: ⌥ option
@@ -18,6 +19,7 @@ platform:
     chord: Alt+$1
     plusKey: Alt + key
     plus: Alt +
+    symbol: Alt
     control: Ctrl
     alt: Alt
   space: space

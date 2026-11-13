@@ -242,6 +242,13 @@ describe('saving', () => {
     expect(assignPage).toHaveBeenCalledExactlyOnceWith({ key: 'G', tabId: 7, openMode: 'bg' });
   });
 
+  it('a click on a chip or a mini-keyboard key keeps focus where it was, so ↵ then saves', async () => {
+    await renderPopup();
+    // A pointer press whose default is prevented doesn't move focus to the button.
+    expect(fireEvent.mouseDown(button('⌥R'))).toBe(false);
+    expect(fireEvent.mouseDown(miniKey('7'))).toBe(false);
+  });
+
   it('↵ on a focused button activates that button, not the save', async () => {
     await renderPopup();
     const chip = button('⌥R');
@@ -406,7 +413,7 @@ describe('an unusable page', () => {
 describe('the frame', () => {
   it('shows the footer tip', async () => {
     await renderPopup();
-    expect(screen.getByText('Tip: hold ⌥ Option on any page to see all keys')).toBeDefined();
+    expect(screen.getByText('Tip: hold ⌥ on any page to see all keys')).toBeDefined();
   });
 
   it('reads Alt + K off a Mac', async () => {

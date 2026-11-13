@@ -42,6 +42,7 @@ const TRIGGER_KEYS = {
     chord: 'platform.mac.chord',
     plusKey: 'platform.mac.plusKey',
     plus: 'platform.mac.plus',
+    symbol: 'platform.mac.symbol',
   },
   other: {
     label: 'platform.other.trigger',
@@ -49,6 +50,7 @@ const TRIGGER_KEYS = {
     chord: 'platform.other.chord',
     plusKey: 'platform.other.plusKey',
     plus: 'platform.other.plus',
+    symbol: 'platform.other.symbol',
   },
 } as const;
 
@@ -70,6 +72,11 @@ export function chordLabel(key: KeyLabel, platform: Platform = PLATFORM): string
 /** "⌥ + key" or "Alt + key", for copy about every key at once. */
 export function triggerPlusKey(platform: Platform = PLATFORM): string {
   return i18n.t(TRIGGER_KEYS[platform].plusKey);
+}
+
+/** "⌥" or "Alt", for short copy such as the popup's tip. */
+export function triggerSymbol(platform: Platform = PLATFORM): string {
+  return i18n.t(TRIGGER_KEYS[platform].symbol);
 }
 
 /** "⌥ +" or "Alt +", before a picked key's keycap. */
