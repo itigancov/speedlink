@@ -91,7 +91,8 @@ test.describe('the pinned overlay', () => {
 
     await page.keyboard.down('Alt');
     await page.waitForTimeout(PAST_HOLD_MS);
-    await expect(overlay(page).getByText('⌥ held')).toBeVisible();
+    // "⌥ held" on macOS, "Alt held" elsewhere.
+    await expect(overlay(page).getByText(/^(⌥|Alt) held$/)).toBeVisible();
     await page.keyboard.press('KeyS');
     await page.keyboard.up('Alt');
 
