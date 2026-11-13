@@ -16,6 +16,7 @@
     "test": "vitest run",
     "e2e": "wxt build && playwright test",
     "listing": "SPEEDLINK_E2E_HOOKS=1 wxt build && playwright test --config playwright.listing.config.ts",
+    "smoke:live": "wxt build && playwright test --config playwright.live.config.ts",
     "postinstall": "wxt prepare && (git config core.hooksPath .githooks || true)"
   },
   "dependencies": {

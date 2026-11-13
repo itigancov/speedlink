@@ -1,0 +1,1 @@
+document.addEventListener("keydown",async function(e){const s=await chrome.storage.sync.get("speedlink"),t=s.speedlink.settings.useShift,n={action:"openUrl",url:window.location.href,key:e.code,postAction:s.speedlink.settings.postAction};(t&&e.altKey&&e.shiftKey&&!e.code.includes("Alt")||!t&&e.altKey&&!e.code.includes("Alt"))&&chrome.runtime.sendMessage(n)});

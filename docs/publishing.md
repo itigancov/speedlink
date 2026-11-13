@@ -41,7 +41,7 @@ A release is one `v*` tag. `release.yml` runs these jobs in order, and each need
 3. **release**: `pnpm zip`, uploads the `*-chrome.zip` as a workflow artifact, creates the GitHub Release with the zip and generated notes. Only this job can write to the repo.
 4. **submit**: in the `chrome-web-store` Environment, downloads the same zip and runs `wxt submit` with the settings from [What belongs in `release.yml`](#what-belongs-in-releaseyml). It never rebuilds, so the file submitted is the file attached to the Release.
 
-**Pre-release dry run.** Push `v<version>-rc.N` from `main`, for example `v4.0.0-rc.1` while `package.json` is at `4.0.0`. The run goes through every job, but the Release is a prerelease and submit runs `wxt submit --dry-run`, so nothing reaches the Store. A green run ends with "DRY RUN: Skipped upload and publishing". Then remove the prerelease and its tag:
+**Pre-release dry run.** Push `v<version>-rc.N` from `main`, for example `v4.0.0-rc.1` while `package.json` is at `4.0.0`. The run goes through every job, but the Release is a prerelease and submit runs `wxt submit --dry-run`, so nothing reaches the Store. A green run ends with "DRY RUN: Skipped upload and publishing". A candidate's prerelease holds the zip that `docs/release-checklist.md` checks, so keep it until the real version is published. Then remove each candidate's prerelease and tag:
 
 ```bash
 gh release delete v<version>-rc.N --cleanup-tag --yes

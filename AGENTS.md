@@ -11,6 +11,7 @@ pnpm only, at the version in `packageManager`: `pnpm install`, `pnpm <script>`, 
 - `pnpm test`: Vitest once. Run a single file with `pnpm test src/path/file.test.ts`.
 - `pnpm e2e`: builds, then runs Playwright against the build (it also builds a negative-control variant into `.output-e2e-throw/` and a variant with service-worker test hooks into `.output-e2e-hooks/`). First run needs `pnpm exec playwright install chromium`.
 - `pnpm listing`: builds the e2e-hooks variant and redraws the Store listing images with its own Playwright config (`playwright.listing.config.ts`, `listing/`): the five screenshots and the promo tile into `store/`, the extension icons into `public/icon/`. It fails on a wrong size or an alpha channel. Not part of `pnpm e2e` or CI; the listing texts in `store/listing.md` are edited by hand.
+- `pnpm smoke:live`: builds, then runs the four open modes on live sites (`playwright.live.config.ts`, `live/`; release checklist #9). `SPEEDLINK_EXTENSION=<folder>` runs it on an unzipped release candidate instead. Not part of `pnpm e2e` or CI.
 - `pnpm dev` / `pnpm build` / `pnpm zip`: WXT watch mode, unpacked build in `.output/`, Store zip.
 
 Done means `check`, `test` and `e2e` all pass. A `pre-push` hook (`.githooks/`, wired by `postinstall`) runs `check` and `test` before every push; fix the failure rather than skipping it.
@@ -25,7 +26,7 @@ src/platform/      everything touching chrome.*: stores, tabs (open executor), o
 src/components/ui/ stock shadcn;  src/components/: shared custom (KeyCap, KeyboardGrid, Monogram, Brand)
 src/hooks/  src/assets/ (tokens.css, theme.css for pages, hud.css for the HUD)  src/locales/en.yml
 public/icon/       extension icons;  public/fonts/  Inter woff2 + OFL.txt (see README)
-e2e/               Playwright specs, harness (extension.ts) and fixture-pages/
+e2e/               Playwright specs, harness (extension.ts), fixture-pages/ and fixture-v1/ (the shipped 1.6 build, for the update spec)
 ```
 
 **Boundary:** `src/domain/` is pure TypeScript. It takes plain data in and returns plain data or a plan out; `platform/` and entrypoints do the side effects (pure plan → thin executor, e.g. `planOpen(...) → OpenPlan`, executed by the background). Biome enforces this: inside `src/domain/` it rejects imports of WXT, `#imports`, `#i18n`, `@webext-core/*`, React, the polyfill and `platform/`, and the `chrome` / `browser` globals.

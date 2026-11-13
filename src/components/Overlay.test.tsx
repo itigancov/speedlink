@@ -183,6 +183,17 @@ describe('the pinned overlay', () => {
     expect(document.activeElement).toBe(search());
   });
 
+  it('focuses the search once the page gets focus back, as after ⌥S from the omnibox', () => {
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    pinned();
+    expect(document.activeElement).not.toBe(search());
+
+    hasFocus.mockReturnValue(true);
+    fireEvent.focus(window);
+    expect(document.activeElement).toBe(search());
+    hasFocus.mockRestore();
+  });
+
   it('shows the Pinned badge and "Esc close" in the legend', () => {
     pinned();
     expect(screen.getByText('Pinned')).toBeDefined();
