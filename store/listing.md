@@ -49,7 +49,7 @@ Productivity. English.
 |---|---|
 | Privacy policy | https://itigancov.github.io/speedlink/privacy/ |
 | Support | https://github.com/itigancov/speedlink/issues |
-| Homepage | Left for item 22: the repo (https://github.com/itigancov/speedlink) or empty until the landing page (item 24) exists |
+| Homepage | https://github.com/itigancov/speedlink (until the landing page exists) |
 
 There is no contact email: Support and the policy's contact are GitHub Issues.
 
