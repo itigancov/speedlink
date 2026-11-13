@@ -82,6 +82,21 @@ popup:
   moveTo: Move it to $1
   conflict: $1 already opens $2.
   tip: "Tip: hold $1 on any page to see all keys"
+welcome:
+  title: Welcome to SpeedLink
+  heading: Hold $1 and press a key to jump to a site
+  steps:
+    assign:
+      title: Put a page on a key
+      body: Click the SpeedLink icon, or press $1 + a free key on the page.
+    open:
+      title: Press $1 + key anywhere
+      body: SpeedLink opens that key’s link, or switches to it if it’s already open.
+    peek:
+      title: Hold $1 to see your keys
+      body: Your keymap appears over the page while you hold it.
+  pinTip: "Pin SpeedLink to the toolbar: click the puzzle icon, then the pin next to SpeedLink."
+  openKeymap: Open keymap
 options:
   loading: Loading your keys…
   commandHint: Set $1 for pages where SpeedLink can’t run

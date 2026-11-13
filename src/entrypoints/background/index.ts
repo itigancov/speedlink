@@ -6,10 +6,12 @@ import { createOpenKey } from '@/platform/open-key';
 import { openOptions } from '@/platform/options-tab';
 import { readOverlayModel, relayFrameEvent } from '@/platform/overlay';
 import { registerStoragePreparation } from '@/platform/storage-preparation';
+import { registerWelcomeOnInstall } from '@/platform/welcome-tab';
 
 export default defineBackground(() => {
   registerStoragePreparation();
   registerInjectionOnInstall();
+  registerWelcomeOnInstall();
   registerCommands();
 
   const openKey = createOpenKey();

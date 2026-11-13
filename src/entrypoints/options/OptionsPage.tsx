@@ -1,6 +1,7 @@
 // Options · Keymap (product spec §8): the `/` search, the Keyboard or List view and the selected key's inspector.
-import { SearchIcon, ZapIcon } from 'lucide-react';
+import { SearchIcon } from 'lucide-react';
 import { type KeyboardEvent, type Ref, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import { Brand } from '@/components/Brand';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Kbd } from '@/components/ui/kbd';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -35,12 +36,7 @@ interface SearchProps {
 function Header({ search }: { search: SearchProps }) {
   return (
     <header className="flex flex-wrap items-center gap-x-8 gap-y-3 border-b bg-card px-8 py-4">
-      <div className="flex items-center gap-2.5">
-        <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-lg bg-primary">
-          <ZapIcon className="size-4 fill-primary-foreground text-primary-foreground" />
-        </span>
-        <span className="font-bold text-lg">{i18n.t('extName')}</span>
-      </div>
+      <Brand />
       <InputGroup className="h-10 max-w-lg flex-1">
         <InputGroupAddon>
           <SearchIcon aria-hidden="true" />

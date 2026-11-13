@@ -19,9 +19,9 @@ Done means `check`, `test` and `e2e` all pass. A `pre-push` hook (`.githooks/`, 
 ```
 src/entrypoints/   background/, hud.content/ (the page content script), popup/, options/, welcome/ (unlisted page),
                    gallery/ (dev-only: every shared piece in every state; dropped from builds)
-src/domain/        pure TS: keys, key-grid, shortcut, link, tab-match, keymap-ops, fitting-keys, open-plan, assign-plan, assign-picker, keydown, restricted, search, migrations
-src/platform/      everything touching chrome.*: stores, tabs (open executor), open-key, assign-page (assign with undo), options-tab, badge, injection (sendToTab), key-capture, commands, messaging, platform-labels, hud-font, i18n
-src/components/ui/ stock shadcn;  src/components/: shared custom (KeyCap, KeyboardGrid, Monogram)
+src/domain/        pure TS: keys, key-grid, shortcut, link, tab-match, keymap-ops, fitting-keys, open-plan, assign-plan, assign-picker, keydown, restricted, search, migrations, welcome
+src/platform/      everything touching chrome.*: stores, tabs (open executor), open-key, assign-page (assign with undo), options-tab, badge, injection (sendToTab), key-capture, commands, messaging, platform-labels, hud-font, i18n, welcome-tab
+src/components/ui/ stock shadcn;  src/components/: shared custom (KeyCap, KeyboardGrid, Monogram, Brand)
 src/hooks/  src/assets/ (tokens.css, theme.css for pages, hud.css for the HUD)  src/locales/en.yml
 public/icon/       extension icons;  public/fonts/  Inter woff2 + OFL.txt (see README)
 e2e/               Playwright specs, harness (extension.ts) and fixture-pages/

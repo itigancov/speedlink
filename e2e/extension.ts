@@ -13,6 +13,8 @@ export interface CapturedException {
 
 interface Fixtures {
   extensionPath: string;
+  /** Leaves the welcome tab that opens on install alone. Only `welcome.spec.ts` wants it. */
+  keepWelcomeTab: boolean;
   context: BrowserContext;
   extensionId: string;
   /** Opens a page with CDP `Runtime.exceptionThrown` capture attached before any script runs. */
@@ -25,10 +27,24 @@ interface Fixtures {
   updateExtension: () => Promise<Worker>;
 }
 
+/** The extension's welcome tab, if it is open. */
+export const welcomeTabs = (context: BrowserContext): Page[] =>
+  context.pages().filter((page) => page.url().endsWith('/welcome.html'));
+
+/**
+ * Waits for the welcome tab that opens on install and closes it, so tab counts in a spec start as they would
+ * without it. The production behaviour stays on: nothing is switched off by a build flag.
+ */
+export async function closeWelcomeTab(context: BrowserContext): Promise<void> {
+  await base.expect.poll(() => welcomeTabs(context).length, { message: 'the welcome tab opens on install' }).toBe(1);
+  await welcomeTabs(context)[0]?.close();
+}
+
 export const test = base.extend<Fixtures>({
   extensionPath: [EXTENSION_PATH, { option: true }],
+  keepWelcomeTab: [false, { option: true }],
 
-  context: async ({ extensionPath }, use) => {
+  context: async ({ extensionPath, keepWelcomeTab }, use) => {
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
       headless: true,
@@ -39,6 +55,7 @@ export const test = base.extend<Fixtures>({
         '--enable-unsafe-extension-debugging',
       ],
     });
+    if (!keepWelcomeTab) await closeWelcomeTab(context);
     await use(context);
     await context.close();
   },
