@@ -7,9 +7,29 @@ import { createToastSlot, ToastRegion, type ToastSlot } from './ToastRegion';
 let slot: ToastSlot;
 let openNew: Mock<(key: Key) => void>;
 let putPageOnKey: Mock<(key: Key) => void>;
+let undo: Mock<(key: Key, undoId: string) => void>;
+
+/** A stand-in for the content script's occupied keys: `assign` marks a key taken and tells subscribers. */
+function fakeOccupied() {
+  const taken = new Set<Key>();
+  const listeners = new Set<() => void>();
+  return {
+    isAssigned: (key: Key) => taken.has(key),
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    assign: (key: Key) =>
+      act(() => {
+        taken.add(key);
+        for (const listener of listeners) listener();
+      }),
+  };
+}
+let occupied: ReturnType<typeof fakeOccupied>;
 
 function renderRegion(platform: 'mac' | 'other' = 'mac') {
-  render(<ToastRegion slot={slot} actions={{ openNew, putPageOnKey }} platform={platform} />);
+  render(<ToastRegion slot={slot} actions={{ openNew, putPageOnKey, undo }} occupied={occupied} platform={platform} />);
 }
 
 const show = (...args: Parameters<ToastSlot['show']>) => act(() => slot.show(...args));
@@ -21,6 +41,8 @@ beforeEach(() => {
   slot = createToastSlot();
   openNew = vi.fn();
   putPageOnKey = vi.fn();
+  undo = vi.fn();
+  occupied = fakeOccupied();
 });
 
 afterEach(() => {
@@ -94,6 +116,120 @@ describe('the free-key toast', () => {
 
     expect(putPageOnKey).toHaveBeenCalledExactlyOnceWith('K');
     expect(pill()).not.toBeNull();
+  });
+});
+
+describe('the free-key toast, when its key is taken meanwhile', () => {
+  it('closes when its key becomes assigned (sync, Options, another tab)', () => {
+    renderRegion();
+    show({ kind: 'free', key: 'K' });
+
+    occupied.assign('K');
+
+    expect(pill()).toBeNull();
+  });
+
+  it('stays when another key does', () => {
+    renderRegion();
+    show({ kind: 'free', key: 'K' });
+
+    occupied.assign('J');
+
+    expect(pill()).not.toBeNull();
+  });
+
+  it('leaves other toasts alone', () => {
+    renderRegion();
+    show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });
+
+    occupied.assign('K');
+
+    expect(pill()).not.toBeNull();
+  });
+});
+
+describe('the saved toast', () => {
+  it('reads "⌥K → The Guide saved · Undo", with no ×', () => {
+    renderRegion('mac');
+    show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });
+
+    expect(pill()?.textContent).toBe('⌥K→ The Guide savedUndo');
+    expect(pill()?.dataset.tone).toBe('saved');
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull();
+  });
+
+  it('closes at once on Undo, and asks to undo that assign', () => {
+    renderRegion();
+    show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+    expect(pill()).toBeNull();
+    expect(undo).toHaveBeenCalledExactlyOnceWith('K', 'u1');
+  });
+
+  it('dismisses itself after 5 s', () => {
+    renderRegion();
+    show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });
+
+    advance(4999);
+    expect(pill()).not.toBeNull();
+    advance(1);
+    expect(pill()).toBeNull();
+  });
+
+  it('stays while hovered, so Undo is there as long as it shows', () => {
+    renderRegion();
+    show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });
+    fireEvent.pointerEnter(pill() as HTMLElement);
+
+    advance(60_000);
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+    expect(undo).toHaveBeenCalledExactlyOnceWith('K', 'u1');
+  });
+
+  it('replaces the free-key toast it came from', () => {
+    renderRegion();
+    show({ kind: 'free', key: 'K' });
+    show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });
+
+    expect(screen.getAllByTestId('page-toast')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDefined();
+  });
+});
+
+describe('the error toast', () => {
+  it.each([
+    ['undo-stale', '⌥KCouldn’t undo — your keys changed'],
+    ['save-failed', '⌥KCouldn’t save ⌥K'],
+  ] as const)('%s reads %j, with no action and no ×', (reason, text) => {
+    renderRegion('mac');
+    show({ kind: 'error', key: 'K', reason });
+
+    expect(pill()?.textContent).toBe(text);
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('names the key the platform way', () => {
+    renderRegion('other');
+    show({ kind: 'error', key: 'K', reason: 'save-failed' });
+
+    expect(screen.getByText('Couldn’t save Alt+K')).toBeDefined();
+  });
+
+  it('dismisses itself after 5 s, held while hovered', () => {
+    renderRegion();
+    show({ kind: 'error', key: 'K', reason: 'undo-stale' });
+    fireEvent.pointerEnter(pill() as HTMLElement);
+    advance(10_000);
+    expect(pill()).not.toBeNull();
+
+    fireEvent.pointerLeave(pill() as HTMLElement);
+    advance(4999);
+    expect(pill()).not.toBeNull();
+    advance(1);
+    expect(pill()).toBeNull();
   });
 });
 

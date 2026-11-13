@@ -202,6 +202,26 @@ function Toasts() {
             actionLabel={i18n.t('pageToast.openNew')}
             onAction={noop}
           />
+          <PageToast
+            chip={chordLabel('K', platform)}
+            tone="saved"
+            message={i18n.t('pageToast.saved', ['The Guide'])}
+            actionLabel={i18n.t('pageToast.undo')}
+            onAction={noop}
+          />
+          <PageToast
+            chip={chordLabel('K', platform)}
+            tone="saved"
+            message={i18n.t('pageToast.saved', [LONG_NAME])}
+            actionLabel={i18n.t('pageToast.undo')}
+            onAction={noop}
+          />
+          <PageToast chip={chordLabel('K', platform)} tone="error" message={i18n.t('pageToast.undoStale')} />
+          <PageToast
+            chip={chordLabel('K', platform)}
+            tone="error"
+            message={i18n.t('pageToast.saveFailed', [chordLabel('K', platform)])}
+          />
         </div>
       ))}
       <Caption>ToastRegion (bottom centre of this window)</Caption>
@@ -218,8 +238,20 @@ function Toasts() {
         <Button variant="outline" onClick={() => gallerySlot.show({ kind: 'switched', key: 'Y', name: LONG_NAME })}>
           switched, long name
         </Button>
+        <Button
+          variant="outline"
+          onClick={() => gallerySlot.show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'gallery' })}
+        >
+          saved K (5 s)
+        </Button>
+        <Button variant="outline" onClick={() => gallerySlot.show({ kind: 'error', key: 'K', reason: 'undo-stale' })}>
+          error: undo stale (5 s)
+        </Button>
+        <Button variant="outline" onClick={() => gallerySlot.show({ kind: 'error', key: 'K', reason: 'save-failed' })}>
+          error: save failed (5 s)
+        </Button>
       </div>
-      <ToastRegion slot={gallerySlot} actions={{ openNew: noop, putPageOnKey: noop }} />
+      <ToastRegion slot={gallerySlot} actions={{ openNew: noop, putPageOnKey: noop, undo: noop }} />
     </div>
   );
 }
