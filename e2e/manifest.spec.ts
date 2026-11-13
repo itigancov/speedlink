@@ -2,7 +2,7 @@
 // a new permission that adds an install warning over v1 is a release blocker.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { EXTENSION_PATH, expect, test } from './extension';
+import { EXTENSION_PATH, expect, serviceWorker, test } from './extension';
 
 const manifest = JSON.parse(readFileSync(`${EXTENSION_PATH}/manifest.json`, 'utf8'));
 
@@ -93,4 +93,24 @@ test('only the HUD font is web-accessible, on every URL, behind a dynamic URL', 
   expect(manifest.web_accessible_resources).toEqual([
     { resources: ['fonts/inter-latin-wght.woff2'], matches: ['<all_urls>'], use_dynamic_url: true },
   ]);
+});
+
+/** The part of `chrome` this service-worker evaluation uses; e2e does not load the extension's types. */
+declare const chrome: { management: { getPermissionWarningsByManifest(manifest: string): Promise<string[]> } };
+
+// Chrome disables an extension on update when the new manifest warns about something the old one didn't. 1.6 is the
+// version every v1 user updates from (`fixture-v1/` is its build). When this fails, release checklist #2's local CRX
+// test is due.
+test('the manifest warns about exactly what 1.6 warns about', async ({ context }) => {
+  const v1 = JSON.parse(readFileSync(join(import.meta.dirname, 'fixture-v1/manifest.json'), 'utf8'));
+  // Warnings come from permissions, hosts and content scripts; the i18n placeholders need `_locales`, so drop them.
+  const { default_locale: _, ...current } = { ...manifest, name: 'SpeedLink', description: 'SpeedLink' };
+  const worker = await serviceWorker(context);
+  const warnings = (m: object) =>
+    worker.evaluate((json) => chrome.management.getPermissionWarningsByManifest(json), JSON.stringify(m));
+
+  const before = await warnings(v1);
+  expect(await warnings(current)).toEqual(before);
+  // The control: a permission known to warn must change the list, or the comparison proves nothing.
+  expect(await warnings({ ...current, permissions: [...current.permissions, 'history'] })).not.toEqual(before);
 });
