@@ -12,7 +12,6 @@ export default defineConfig({
   outDir: e2eThrow ? '.output-e2e-throw' : e2eHooks ? '.output-e2e-hooks' : '.output',
   modules: ['@wxt-dev/module-react', '@wxt-dev/i18n/module'],
   manifest: {
-    version: '4.0.0',
     name: '__MSG_extName__',
     description: '__MSG_extDescription__',
     default_locale: 'en',
