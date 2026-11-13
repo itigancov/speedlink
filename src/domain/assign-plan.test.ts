@@ -20,6 +20,7 @@ describe('planAssign', () => {
   it('puts the page on a free key, named after its title, with the default settings', () => {
     expect(planAssign({}, 'K', page)).toEqual({
       kind: 'written',
+      shortcut: saved,
       change: { K: saved },
       undo: { keys: { K: null }, written: { K: saved } },
     });
@@ -62,6 +63,7 @@ describe('planAssign', () => {
   it('replaces: the old shortcut goes, its settings not inherited, and undo remembers it', () => {
     expect(planAssign({ G: github }, 'G', page, { resolve: 'replace' })).toEqual({
       kind: 'written',
+      shortcut: saved,
       change: { G: saved },
       undo: { keys: { G: github }, written: { G: saved } },
     });
@@ -70,6 +72,7 @@ describe('planAssign', () => {
   it('moves: the old shortcut goes to its Move target, and undo frees that key and restores the original', () => {
     expect(planAssign({ G: github }, 'G', page, { resolve: 'move' })).toEqual({
       kind: 'written',
+      shortcut: saved,
       change: { G: saved, I: github },
       undo: { keys: { G: github, I: null }, written: { G: saved, I: github } },
     });

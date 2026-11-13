@@ -127,6 +127,16 @@ describe('assignPage', () => {
     expect(await undoRecord()).toBeUndefined();
   });
 
+  it('still replies saved, and toasts, when only the undo record could not be written', async () => {
+    openTabs(tab(3));
+    vi.spyOn(browser.storage.session, 'set').mockRejectedValue(new Error('session storage unavailable'));
+
+    const reply = await createAssignPage()({ key: 'K', tabId: 3 }, undefined);
+
+    expect(reply).toEqual({ kind: 'saved', undoId: expect.any(String) });
+    expect(await stored('K')).toMatchObject({ link: URL });
+  });
+
   it('a second assign replaces the undo record', async () => {
     openTabs(tab(3), tab(4, { url: 'https://other.example/', title: 'Other' }));
     const assignPage = createAssignPage();

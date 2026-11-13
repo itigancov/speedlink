@@ -3,7 +3,7 @@
 import type { Browser } from 'wxt/browser';
 import { type AssignOptions, planAssign, planUndo, undoRecord } from '@/domain/assign-plan';
 import type { Key } from '@/domain/keys';
-import { displayName, type Shortcut } from '@/domain/shortcut';
+import { displayName } from '@/domain/shortcut';
 import { sendToast } from './injection';
 import { readKeymap, writeChange } from './keymap-store';
 import type { AssignPageReply, UndoReply } from './messaging';
@@ -23,7 +23,8 @@ export type AssignPage = (
 /**
  * The function behind the `assignPage` message. The tab's url and title come from the tabs API, never from the page,
  * and the keymap is read fresh on every call. The undo record is written only after the keymap write succeeded, so
- * it never points at a change that didn't happen. The saved toast goes to whatever page the tab shows by then.
+ * it never points at a change that didn't happen; if only the record fails, the page is still saved and says so,
+ * and its Undo comes back stale. The saved toast goes to whatever page the tab shows by then.
  */
 export function createAssignPage(): AssignPage {
   return async ({ key, tabId: named, openMode, resolve }, senderTab) => {
@@ -38,8 +39,8 @@ export function createAssignPage(): AssignPage {
       const written = await writeChange(plan.change);
       if (!written.ok) return { kind: 'failed' };
       const record = undoRecord(plan.undo, crypto.randomUUID(), Date.now());
-      await writeUndo(record);
-      sendToast(tabId, { kind: 'saved', key, name: displayName(plan.change[key] as Shortcut), undoId: record.id });
+      await writeUndo(record).catch((error: unknown) => console.error('SpeedLink: no undo record', error));
+      sendToast(tabId, { kind: 'saved', key, name: displayName(plan.shortcut), undoId: record.id });
       return { kind: 'saved', undoId: record.id };
     } catch (error) {
       console.error('SpeedLink: could not assign', key, error);

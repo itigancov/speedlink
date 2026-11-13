@@ -5,7 +5,7 @@ import { isRestrictedUrl } from './restricted';
 import { DEFAULT_OPEN_MODE, DEFAULT_TAB_MATCH, type OpenMode, type Shortcut, validateShortcut } from './shortcut';
 
 /** The tab's page as SpeedLink read it from the tabs API, never from the page. */
-export interface AssignPage {
+export interface TabPage {
   url: string;
   /** The tab title, '' when Chrome gives none. */
   title: string;
@@ -25,14 +25,20 @@ export interface AssignUndo {
 export type AssignPlan =
   | { readonly kind: 'unusable' }
   | { readonly kind: 'conflict'; readonly existing: Shortcut; readonly moveTarget: Key | null }
-  | { readonly kind: 'written'; readonly change: KeymapChange; readonly undo: AssignUndo };
+  | {
+      readonly kind: 'written';
+      /** The new shortcut, as it goes on the key. */
+      readonly shortcut: Shortcut;
+      readonly change: KeymapChange;
+      readonly undo: AssignUndo;
+    };
 
 /**
  * The new shortcut is the page with the default settings (plus the open mode, when given), named after the trimmed
  * tab title; it never inherits a replaced shortcut's settings. A page that isn't a usable http(s) link, or that
  * SpeedLink can't run on (§4.6), is `unusable`. A conflict is `assign`'s, passed through.
  */
-export function planAssign(keymap: Keymap, key: Key, page: AssignPage, options: AssignOptions = {}): AssignPlan {
+export function planAssign(keymap: Keymap, key: Key, page: TabPage, options: AssignOptions = {}): AssignPlan {
   if (isRestrictedUrl(page.url)) return { kind: 'unusable' };
   const shortcut = validateShortcut({
     link: page.url,
@@ -47,7 +53,7 @@ export function planAssign(keymap: Keymap, key: Key, page: AssignPage, options: 
   if (result.kind === 'conflict') return result;
   const keys: KeymapChange = {};
   for (const touched of Object.keys(result.change) as Key[]) keys[touched] = keymap[touched] ?? null;
-  return { kind: 'written', change: result.change, undo: { keys, written: result.change } };
+  return { kind: 'written', shortcut: shortcut.value, change: result.change, undo: { keys, written: result.change } };
 }
 
 /**
