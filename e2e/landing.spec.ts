@@ -82,7 +82,9 @@ test('every image, font and icon it references is in site/ and loads', async ({ 
     ...[...document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"], link[rel="preload"]')].map(
       (link) => link.href,
     ),
-    ...[...document.querySelectorAll<HTMLMetaElement>('meta[property="og:image"]')].map((meta) => meta.content),
+    ...[...document.querySelectorAll<HTMLMetaElement>('meta[property="og:image"], meta[name="twitter:image"]')].map(
+      (meta) => meta.content,
+    ),
   ]);
   expect(references.length).toBeGreaterThan(0);
   for (const url of references) {
