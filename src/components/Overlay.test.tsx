@@ -83,10 +83,16 @@ describe('the overlay: what it shows', () => {
   it('shows the held badge, the hint and the legend with ⌥ on a Mac', () => {
     renderOverlay();
     expect(screen.getByText('⌥ held')).toBeDefined();
-    expect(screen.getByText('Press a key — or keep typing to search')).toBeDefined();
+    expect(screen.getByText('Press a key — S to search')).toBeDefined();
     expect(screen.getByTestId('overlay-legend').textContent).toBe(
-      'keygo⇧ + keyforce new tabtypesearch names & links⌥ releaseorEscclose' + 'open now — will switch, not reopen',
+      'keygo⇧ + keyforce new tab⌥ releaseorEscclose' + 'open now — will switch, not reopen',
     );
+  });
+
+  it('promises no typing in the Peek: ⌥ is held, so every letter is a key', () => {
+    renderOverlay();
+    expect(screen.queryByText(/keep typing/)).toBeNull();
+    expect(screen.queryByText('search names & links')).toBeNull();
   });
 
   it('reads Alt elsewhere', () => {
@@ -142,7 +148,7 @@ describe('the overlay: the mouse', () => {
 
   it('does not close on a click inside the dialog', () => {
     renderOverlay();
-    fireEvent.click(screen.getByText('Press a key — or keep typing to search'));
+    fireEvent.click(screen.getByText('Press a key — S to search'));
     expect(close).not.toHaveBeenCalled();
   });
 
@@ -192,6 +198,11 @@ describe('the pinned overlay', () => {
     fireEvent.focus(window);
     expect(document.activeElement).toBe(search());
     hasFocus.mockRestore();
+  });
+
+  it('keeps the search field’s placeholder', () => {
+    pinned();
+    expect(search().placeholder).toBe('Press a key — or keep typing to search');
   });
 
   it('shows the Pinned badge and "Esc close" in the legend', () => {

@@ -43,6 +43,7 @@ overlay:
   held: $1 held
   pinned: Pinned
   hint: Press a key — or keep typing to search
+  peekHint: Press a key — $1 to search
   search: Search your keys
   empty: No keys yet
   noMatch: No keys match "$1"

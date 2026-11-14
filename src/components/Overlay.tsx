@@ -69,7 +69,7 @@ function Legend({ platform, mode }: { platform: Platform; mode: OverlayMode }) {
     >
       {item(i18n.t('overlay.legend.key'), i18n.t('overlay.legend.go'))}
       {item(i18n.t('overlay.legend.shiftKey'), i18n.t('overlay.legend.forceNew'))}
-      {item(i18n.t('overlay.legend.type'), i18n.t('overlay.legend.search'))}
+      {mode === 'pinned' && item(i18n.t('overlay.legend.type'), i18n.t('overlay.legend.search'))}
       <span className="inline-flex items-center gap-1.5">
         {mode === 'peek' && (
           <>
@@ -170,7 +170,7 @@ export function Overlay({
               className="min-w-0 flex-1 bg-transparent text-foreground text-ui outline-none placeholder:text-muted-foreground"
             />
           ) : (
-            <span className="text-muted-foreground text-ui">{i18n.t('overlay.hint')}</span>
+            <span className="text-muted-foreground text-ui">{i18n.t('overlay.peekHint', ['S'])}</span>
           )}
         </div>
         {model.tiles.length === 0 ? (

@@ -85,6 +85,19 @@ test.describe('the Peek', () => {
     expect(fromExtension(exceptions, extensionId)).toEqual([]);
   });
 
+  test('promises only what works: "S to search", with no typing in the legend', async ({ context }) => {
+    const worker = await serviceWorker(context);
+    await store(worker, 'K', 'Kanban');
+    const page = await open(context, `${ORIGIN}/keys.html`);
+
+    await page.keyboard.down('Alt');
+
+    await expect(overlay(page)).toContainText('Press a key — S to search');
+    await expect(overlay(page)).not.toContainText('keep typing');
+    await expect(overlay(page).getByTestId('overlay-legend')).not.toContainText('search names & links');
+    await page.keyboard.up('Alt');
+  });
+
   test('a quick ⌥ + key opens it and never shows the overlay', async ({ context }) => {
     const worker = await serviceWorker(context);
     await store(worker, 'K', 'Kanban');
