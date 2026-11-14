@@ -14,7 +14,8 @@ import { useAutosave } from '@/hooks/use-autosave';
 import { useKeymap } from '@/hooks/use-keymap';
 import { lastWebTab, useOpenTabs } from '@/hooks/use-open-tabs';
 import { useOverlayCommandBound } from '@/hooks/use-overlay-command-bound';
-import { openShortcutSettings, SHORTCUT_SETTINGS } from '@/platform/commands';
+import { usePageKeys } from '@/hooks/use-page-keys';
+import { openShortcutSettings, SEARCH_HASH, SHORTCUT_SETTINGS } from '@/platform/commands';
 import { isEditableTarget } from '@/platform/key-capture';
 import { readKeymap, writeChange } from '@/platform/keymap-store';
 import { sendMessage } from '@/platform/messaging';
@@ -61,6 +62,11 @@ function Header({ search }: { search: SearchProps }) {
   );
 }
 
+function focusSearch(input: RefObject<HTMLInputElement | null>) {
+  input.current?.focus();
+  input.current?.select();
+}
+
 /** `/` anywhere on the page, outside a field and without ⌘, Ctrl or ⌥, jumps to the search and selects its text. */
 function useSlashFocus(input: RefObject<HTMLInputElement | null>) {
   useEffect(() => {
@@ -74,12 +80,35 @@ function useSlashFocus(input: RefObject<HTMLInputElement | null>) {
       )
         return;
       event.preventDefault();
-      input.current?.focus();
-      input.current?.select();
+      focusSearch(input);
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [input]);
+}
+
+/**
+ * `#search` (the page opened on it, or `toggle-overlay` sent this tab there, §5.3) focuses the search as `/` does,
+ * without a reload, and gives the hash back to the selected key, so the next `#search` is a hash change again.
+ */
+function useSearchHash(input: RefObject<HTMLInputElement | null>, selected: Key) {
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  // Read while rendering: the key editor's effect has put `#key=K` over it by the time effects run.
+  const [openedOnSearch] = useState(() => window.location.hash === SEARCH_HASH);
+  useEffect(() => {
+    const go = () => {
+      const { pathname, search } = window.location;
+      window.history.replaceState(window.history.state, '', `${pathname}${search}#key=${selectedRef.current}`);
+      focusSearch(input);
+    };
+    if (openedOnSearch) go();
+    const onHashChange = () => {
+      if (window.location.hash === SEARCH_HASH) go();
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [input, openedOnSearch]);
 }
 
 /** The quiet line while `toggle-overlay` has no key (an update from v1): where to set ⌥S (§5.3). */
@@ -113,6 +142,9 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
   const tabs = useOpenTabs();
   const editor = useKeyEditor(keymap);
   const { key, draft, stored } = editor;
+  useSearchHash(searchRef, key);
+  // ⌥ + a free key selects it through the same path as a click, so a pending draft is settled as on any key switch.
+  usePageKeys({ keymap, onFree: editor.select, onReserved: () => focusSearch(searchRef) });
   const autosave = useAutosave({ key, draft, stored });
 
   const openKeys = useMemo(() => {

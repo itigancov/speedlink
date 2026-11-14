@@ -148,6 +148,65 @@ test.describe('Try', () => {
   });
 });
 
+test.describe('⌥ + key on Options', () => {
+  test('opens the key in a new tab and leaves Options alone, draft included', async ({ context, extensionId }) => {
+    const worker = await serviceWorker(context, extensionId);
+    await store(worker, 'G', { openMode: 'this', closeCurrent: true });
+    const { page, errors } = await openOptions(context, extensionId, 'G');
+    await page.bringToFront();
+    await page.getByLabel('Name — shown in the overlay').fill('Draft');
+
+    const opened = context.waitForEvent('page');
+    // Focus leaves the field first: ⌥ + key typed in a field is the field's.
+    await page.getByRole('heading', { level: 1, name: 'Keymap' }).click();
+    await page.keyboard.press('Alt+KeyG');
+
+    await expect.poll(async () => (await opened).url()).toBe(LINK);
+    expect(page.isClosed()).toBe(false);
+    expect(page.url()).toBe(`chrome-extension://${extensionId}/options.html#key=G`);
+    await expect(page.getByLabel('Name — shown in the overlay')).toHaveValue('Draft');
+    expect(errors).toEqual([]);
+  });
+
+  test('on a free key selects it, ready to be filled', async ({ context, extensionId }) => {
+    const worker = await serviceWorker(context, extensionId);
+    await store(worker, 'G', {});
+    const { page, errors } = await openOptions(context, extensionId, 'G');
+
+    await page.keyboard.press('Alt+KeyK');
+
+    await expect(page.getByRole('heading', { level: 2 })).toHaveText('Free key');
+    expect(page.url()).toBe(`chrome-extension://${extensionId}/options.html#key=K`);
+    expect(errors).toEqual([]);
+  });
+
+  test('⌥S focuses the search', async ({ context, extensionId }) => {
+    const { page, errors } = await openOptions(context, extensionId, 'G');
+
+    await page.keyboard.press('Alt+KeyS');
+
+    await expect(page.getByRole('searchbox', { name: 'Find a link, site or key' })).toBeFocused();
+    expect(errors).toEqual([]);
+  });
+
+  test('#search focuses the search without reloading, as the toggle-overlay command sends it', async ({
+    context,
+    extensionId,
+  }) => {
+    const { page, errors } = await openOptions(context, extensionId, 'G');
+    await page.getByRole('textbox', { name: 'Link', exact: true }).fill('https://unsaved.example/');
+
+    await page.evaluate(() => {
+      window.location.hash = '#search';
+    });
+
+    await expect(page.getByRole('searchbox', { name: 'Find a link, site or key' })).toBeFocused();
+    await expect(page.getByRole('textbox', { name: 'Link', exact: true })).toHaveValue('https://unsaved.example/');
+    await expect.poll(() => page.url()).toBe(`chrome-extension://${extensionId}/options.html#key=G`);
+    expect(errors).toEqual([]);
+  });
+});
+
 test('v1-imported keys appear on the keyboard', async ({ context, extensionId }) => {
   const worker = await serviceWorker(context, extensionId);
   await expect.poll(async () => (await worker.evaluate(() => chrome.storage.sync.get('meta'))).meta).toBeTruthy();
