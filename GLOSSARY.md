@@ -85,3 +85,7 @@ _Avoid_: sticky mode, search mode
 **Page toast**:
 A short message at the bottom of the current page about a key: that it is free, that a page was just saved on it (with Undo), that Smart switch moved to an open tab, or that a save or an Undo didn't happen. One shows at a time.
 _Avoid_: notification, snackbar
+
+**Launcher**:
+The popup on a page that can't be put on a key (the new tab page, chrome://, the Web Store): the overlay's tiles, where pressing a key opens its shortcut. It has no search.
+_Avoid_: popup mode, fallback overlay
