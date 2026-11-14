@@ -1,19 +1,35 @@
 // `pnpm listing`: draws every image the Web Store listing needs from the real build (the e2e-hooks variant, which has
 // the popup's `?tabId=N` entry), into `store/` and `public/icon/`. The demo keymap goes straight into storage.sync,
 // every demo site is a routed stub, and the browser says it is Chrome on Windows, so the triggers read "Alt". Last,
-// it refreshes the landing page's copies in `site/media/`. Not part of `pnpm e2e` or CI: the author reviews the images
-// (item 20) before they are uploaded (item 22).
-import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+// it refreshes the landing page's copies in `site/media/`. A second scenario records the demo loop (item 25) for the
+// landing page and the README, and draws the social card. Not part of `pnpm e2e` or CI: the author reviews the images
+// (item 20) and the loop before they are uploaded (item 22) or committed.
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import type { BrowserContext, Page } from '@playwright/test';
+import type { BrowserContext, Page, Worker } from '@playwright/test';
+import type { KeyLabel } from '@/domain/keys';
 import { expect, HOOKS_EXTENSION_PATH, serviceWorker, test } from '../e2e/extension';
 import { BACKDROP_URL, DEMO_KEYMAP } from './demo';
 import { flatten, inspect } from './png';
-import { iconPage, popupCompositePage, promoTilePage } from './templates';
+import {
+  DEMO_PAGE,
+  type DemoTab,
+  demoFramePage,
+  iconPage,
+  popupCompositePage,
+  promoTilePage,
+  socialCardPage,
+} from './templates';
+import { encodeDemo } from './video';
 
 interface Tab {
   id: number;
   url?: string;
+  title?: string;
+  active: boolean;
+  index: number;
+  windowId: number;
 }
 
 /** The part of `chrome` these service-worker evaluations use; e2e does not load the extension's types. */
@@ -26,13 +42,19 @@ declare const speedlinkE2E: { toggleOverlay(tab: Tab): Promise<void> };
 const ROOT = resolve(import.meta.dirname, '..');
 const STORE = join(ROOT, 'store');
 const ICONS = join(ROOT, 'public/icon');
-/** The landing page's copies of the images it shows (e2e/landing.spec.ts checks they match `store/`). */
+/** The landing page's media: its copies of the Store images (e2e/landing.spec.ts checks they match `store/`), the
+ * demo loop and the social card. */
 const SITE_MEDIA = join(ROOT, 'site/media');
+/** The README's copy of the demo loop. */
+const README_GIF = join(ROOT, 'docs/media/demo.gif');
 
 const WINDOWS_CHROME =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 const SCREENSHOT = { width: 1280, height: 800 };
 const TILE = { width: 440, height: 280 };
+const CARD = { width: 1200, height: 630 };
+/** The trigger as the demo's Windows browser labels it. */
+const ALT = 'Alt' as KeyLabel;
 /** The Store takes 128 px icons as 96 px of artwork inside 16 px of transparent padding. */
 const ICON_SIZES = [
   { size: 16, padding: 0 },
@@ -45,13 +67,16 @@ const ICON_SIZES = [
 // content scripts, and their labels would stay macOS's.
 test.use({
   extensionPath: HOOKS_EXTENSION_PATH,
-  launchArgs: [`--user-agent=${WINDOWS_CHROME}`],
+  // No host resolves: a request the routes miss fails instead of reaching the live site.
+  launchArgs: [`--user-agent=${WINDOWS_CHROME}`, '--host-resolver-rules=MAP * ~NOTFOUND'],
   extraContextOptions: { viewport: SCREENSHOT, deviceScaleFactor: 1, reducedMotion: 'reduce', colorScheme: 'light' },
 });
 
-/** What every demo site's stub page says: its name as the tab title. */
-const stub = (title: string) =>
-  `<!doctype html><meta charset="utf-8"><title>${title}</title><body style="font:16px system-ui;padding:32px">${title}</body>`;
+/** What every demo site's stub page says: its name, as the tab title and centred on a plain page with its host. */
+const stub = (title: string, host: string) =>
+  `<!doctype html><meta charset="utf-8"><title>${title}</title><body style="margin:0;height:100vh;display:grid;
+place-content:center;text-align:center;font:600 32px/1.3 system-ui;color:#1a1c1e;background:#f7f8fa">${title}
+<div style="font:400 16px/1.5 system-ui;color:#5b6070">${host}</div></body>`;
 
 /** Answers every http(s) request itself: the backdrop from the repo, a stub for each demo site, nothing else. */
 async function routeDemoSites(context: BrowserContext): Promise<void> {
@@ -61,7 +86,8 @@ async function routeDemoSites(context: BrowserContext): Promise<void> {
     (url) => url.protocol === 'https:' || url.protocol === 'http:',
     (route) => {
       const { hostname } = new URL(route.request().url());
-      const html = hostname === new URL(BACKDROP_URL).hostname ? backdrop : stub(names.get(hostname) ?? hostname);
+      const html =
+        hostname === new URL(BACKDROP_URL).hostname ? backdrop : stub(names.get(hostname) ?? hostname, hostname);
       return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html });
     },
   );
@@ -88,6 +114,19 @@ async function drawingPage(context: BrowserContext, extensionId: string, html: s
   return page;
 }
 
+/** The demo keymap, seeded in the stored shape before any page opens. */
+async function seedKeymap(worker: Worker): Promise<void> {
+  await worker.evaluate(
+    (items) => chrome.storage.sync.set(items),
+    Object.fromEntries(
+      DEMO_KEYMAP.map(({ key, name, link, openMode, tabMatch }) => [
+        `key.${key}`,
+        { link, name, openMode, tabMatch, closeCurrent: false },
+      ]),
+    ),
+  );
+}
+
 function write(path: string, png: Buffer, rules: { width: number; height: number; alpha: boolean }): void {
   mkdirSync(join(path, '..'), { recursive: true });
   writeFileSync(path, png);
@@ -104,16 +143,7 @@ test('draws the icons, the promo tile and the five screenshots', async ({ contex
   const stylesheets = builtStylesheets();
   await routeDemoSites(context);
 
-  // Seed the keymap in the stored shape before any page opens.
-  await worker.evaluate(
-    (items) => chrome.storage.sync.set(items),
-    Object.fromEntries(
-      DEMO_KEYMAP.map(({ key, name, link, openMode, tabMatch }) => [
-        `key.${key}`,
-        { link, name, openMode, tabMatch, closeCurrent: false },
-      ]),
-    ),
-  );
+  await seedKeymap(worker);
 
   // Icons, from the logo mark.
   for (const { size, padding } of ICON_SIZES) {
@@ -216,5 +246,134 @@ test('draws the icons, the promo tile and the five screenshots', async ({ contex
   await shoot(backdrop, '04-saved-toast.png');
 
   // The landing page: refresh each image it holds a copy of.
-  for (const name of readdirSync(SITE_MEDIA)) copyFileSync(join(STORE, name), join(SITE_MEDIA, name));
+  const store = new Set(readdirSync(STORE));
+  for (const name of readdirSync(SITE_MEDIA).filter((name) => store.has(name))) {
+    copyFileSync(join(STORE, name), join(SITE_MEDIA, name));
+  }
+});
+
+test('records the demo loop and draws the social card', async ({ context, extensionId }) => {
+  const worker = await serviceWorker(context);
+  const stylesheets = builtStylesheets();
+  await routeDemoSites(context);
+  await seedKeymap(worker);
+
+  const site = (key: string) => {
+    const shortcut = DEMO_KEYMAP.find((shortcut) => shortcut.key === key);
+    if (shortcut === undefined) throw new Error(`no demo shortcut on ${key}`);
+    return shortcut;
+  };
+  const names = new Map(DEMO_KEYMAP.map(({ link, name }) => [new URL(link).hostname, name]));
+  /** The window's web tabs as the service worker sees them, in strip order, named as the demo keymap names them. */
+  const strip = async (): Promise<DemoTab[]> => {
+    const tabs = (await worker.evaluate(() => chrome.tabs.query({}))).filter(({ url }) => url?.startsWith('https:'));
+    const window = tabs.find(({ active }) => active)?.windowId;
+    return tabs
+      .filter(({ windowId }) => windowId === window)
+      .sort((a, b) => a.index - b.index)
+      .map(({ url = '', title = '', active }) => ({
+        title: names.get(new URL(url).hostname) ?? title,
+        link: url,
+        active,
+      }));
+  };
+  const activeLink = async () => (await strip()).find(({ active }) => active)?.link;
+
+  // GitHub and Notion wait in background tabs; the article is in front.
+  const pages = new Map<string, Page>();
+  for (const key of ['G', 'N']) {
+    const page = await context.newPage();
+    await page.goto(site(key).link);
+    pages.set(key, page);
+  }
+  const backdrop = await context.newPage();
+  await backdrop.setViewportSize(DEMO_PAGE);
+  await backdrop.goto(BACKDROP_URL);
+  await backdrop.bringToFront();
+  await expect.poll(activeLink).toBe(BACKDROP_URL);
+
+  /** Each still, framed (`png`) and as the bare page (`pagePng`). */
+  const frames: { name: string; png: Buffer; pagePng: string; seconds: number }[] = [];
+  const frame = async (name: string, page: Page, keys: KeyLabel[], seconds: number) => {
+    await page.setViewportSize(DEMO_PAGE);
+    const pagePng = (await page.screenshot({ animations: 'disabled' })).toString('base64');
+    const drawn = await drawingPage(
+      context,
+      extensionId,
+      demoFramePage(stylesheets, { tabs: await strip(), pagePng, keys }),
+      SCREENSHOT,
+    );
+    frames.push({ name, png: flatten(await drawn.screenshot({ animations: 'disabled' })), pagePng, seconds });
+    await drawn.close();
+  };
+
+  // 1. The article.
+  await frame('backdrop', backdrop, [], 1.5);
+
+  // 2. Alt held: Peek, with Open now on G and N.
+  await backdrop.keyboard.down('Alt');
+  const dialog = backdrop.getByRole('dialog', { name: 'Your keys' });
+  await expect(dialog.getByText(/^Alt held$/)).toBeVisible();
+  await expect(dialog.getByText(/^Open · tab/)).toHaveCount(2);
+  await frame('peek', backdrop, [ALT], 2);
+
+  // 3. G: the GitHub tab that was already open comes to the front, and no tab is added.
+  const before = (await strip()).length;
+  await backdrop.keyboard.press('KeyG');
+  await backdrop.keyboard.up('Alt');
+  await expect.poll(activeLink).toBe(site('G').link);
+  expect((await strip()).length).toBe(before);
+  const github = pages.get('G');
+  if (github === undefined) throw new Error('no GitHub page');
+  await frame('switch', github, [ALT, 'G'], 1.5);
+
+  // 4. Alt + M from there: Gmail wasn't open, so it opens in a new tab.
+  const opened = context.waitForEvent('page');
+  await github.keyboard.press('Alt+KeyM');
+  const gmail = await opened;
+  // The extension's own tab loads before the routes reach it, so it fails to resolve; load it again, routed.
+  await gmail.goto(site('M').link);
+  await expect.poll(activeLink).toBe(site('M').link);
+  expect((await strip()).length).toBe(before + 1);
+  await frame('open', gmail, [ALT, 'M'], 1.5);
+
+  // 5. Keys up, a pause, then the loop fades back to the article.
+  await frame('rest', gmail, [], 1.3);
+
+  const work = mkdtempSync(join(tmpdir(), 'speedlink-frames-'));
+  const shots = frames.map(({ name, png, seconds }) => {
+    const path = join(work, `${name}.png`);
+    writeFileSync(path, png);
+    return { png: path, seconds };
+  });
+  mkdirSync(join(README_GIF, '..'), { recursive: true });
+  encodeDemo(shots, SCREENSHOT, {
+    mp4: join(SITE_MEDIA, 'demo.mp4'),
+    webm: join(SITE_MEDIA, 'demo.webm'),
+    gif: README_GIF,
+  });
+  rmSync(work, { recursive: true, force: true });
+
+  // The poster: the Peek still, the frame the loop is about.
+  const peek = frames.find(({ name }) => name === 'peek');
+  if (peek === undefined) throw new Error('no Peek frame');
+  write(join(SITE_MEDIA, 'demo-poster.png'), peek.png, { ...SCREENSHOT, alpha: false });
+
+  // The social card, with the page under Peek.
+  const card = await drawingPage(
+    context,
+    extensionId,
+    socialCardPage(
+      stylesheets,
+      'Put your sites on keys.',
+      'Hold Alt and press a key to open a site, or jump to the tab where it’s already open.',
+      peek.pagePng,
+    ),
+    CARD,
+  );
+  write(join(SITE_MEDIA, 'social-card.png'), flatten(await card.screenshot({ animations: 'disabled' })), {
+    ...CARD,
+    alpha: false,
+  });
+  await card.close();
 });
