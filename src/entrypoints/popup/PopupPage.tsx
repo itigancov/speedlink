@@ -1,11 +1,13 @@
-// Popup · Assign this page (product spec §7): the tab's page card, the key picker, Opens as and the save. The popup
-// never writes the keymap: the background assigns (§11.3) and sends the saved toast to the page.
+// Popup (product spec §7). On a page that can take a key: the tab's page card, the key picker, Opens as and the save.
+// On one that can't (the new tab page, chrome://, the Web Store): a launcher, the overlay's tiles with a key press
+// that opens. The popup never writes the keymap: the background assigns (§11.3) and opens (§4.1).
 import { cn } from 'cn';
 import { BanIcon, KeyboardIcon, ZapIcon } from 'lucide-react';
 import { type MouseEvent, useEffect, useRef, useState } from 'react';
 import { KeyboardGrid } from '@/components/KeyboardGrid';
 import { KeyCap, type KeyCapState } from '@/components/KeyCap';
 import { Monogram } from '@/components/Monogram';
+import { OverlayEmpty, OverlayTiles } from '@/components/OverlayTiles';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -14,9 +16,10 @@ import { keyFromCode, type PickedKey, type PickerModel, pickerModel } from '@/do
 import type { Keymap, Resolve } from '@/domain/keymap-ops';
 import { isAssignable, type Key, type KeyLabel } from '@/domain/keys';
 import { withoutScheme } from '@/domain/link';
+import type { OverlayModel } from '@/domain/overlay-model';
 import { DEFAULT_OPEN_MODE, displayName, OPEN_MODES, type OpenMode } from '@/domain/shortcut';
 import { useKeymap } from '@/hooks/use-keymap';
-import type { AssignPageReply } from '@/platform/messaging';
+import type { AssignPageReply, OpenKeyReply } from '@/platform/messaging';
 import { chordLabel, PLATFORM, type Platform, triggerPlus, triggerSymbol } from '@/platform/platform-labels';
 import type { PopupTab } from '@/platform/tabs';
 import { usePopupTab } from './use-popup-tab';
@@ -25,6 +28,10 @@ export interface PopupActions {
   assignPage(request: { key: Key; tabId: number; openMode: OpenMode; resolve?: Resolve }): Promise<AssignPageReply>;
   openOptions(): Promise<void>;
   close(): void;
+  /** The launcher: open a key from the tab the popup came from; `force` is Force new tab. */
+  openKey(request: { key: Key; tabId: number; force: boolean }): Promise<OpenKeyReply>;
+  /** The launcher's tiles, for that tab. */
+  getOverlayModel(tabId: number): Promise<OverlayModel>;
 }
 
 export interface PopupPageProps {
@@ -60,16 +67,19 @@ function ConflictText({ chord, name }: { chord: string; name: string }) {
   );
 }
 
-function Header({ onOpenKeymap }: { onOpenKeymap: () => void }) {
+/** The brand and, with `onOpenKeymap`, the icon that opens the keymap. */
+function Header({ onOpenKeymap }: { onOpenKeymap?: () => void }) {
   return (
     <header className="flex items-center gap-2">
       <span aria-hidden="true" className="flex size-6 items-center justify-center rounded-md bg-primary">
         <ZapIcon className="size-3.5 fill-primary-foreground text-primary-foreground" />
       </span>
       <h1 className="flex-1 font-bold text-md">{i18n.t('extName')}</h1>
-      <Button variant="ghost" size="icon-xs" aria-label={i18n.t('popup.openKeymap')} onClick={onOpenKeymap}>
-        <KeyboardIcon aria-hidden="true" className="size-4" />
-      </Button>
+      {onOpenKeymap !== undefined && (
+        <Button variant="ghost" size="icon-xs" aria-label={i18n.t('popup.openKeymap')} onClick={onOpenKeymap}>
+          <KeyboardIcon aria-hidden="true" className="size-4" />
+        </Button>
+      )}
     </header>
   );
 }
@@ -108,9 +118,14 @@ function miniKeyState(label: KeyLabel, keymap: Keymap, picked: Key | null): KeyC
   return keymap[label] === undefined ? 'free' : 'taken';
 }
 
-export function PopupPage({ actions, tabId, platform = PLATFORM }: PopupPageProps) {
-  const tab = usePopupTab(tabId);
-  const keymap = useKeymap();
+interface ViewProps {
+  actions: PopupActions;
+  tab: PopupTab;
+  keymap: Keymap;
+  platform: Platform;
+}
+
+function AssignView({ actions, tab, keymap, platform }: ViewProps) {
   const [picked, setPicked] = useState<Key | null | undefined>(undefined);
   const [openMode, setOpenMode] = useState<OpenMode>(DEFAULT_OPEN_MODE);
   const [saving, setSaving] = useState(false);
@@ -118,17 +133,16 @@ export function PopupPage({ actions, tabId, platform = PLATFORM }: PopupPageProp
   // A second ↵ can land before the re-render that disables everything.
   const inFlight = useRef(false);
 
-  const model = tab === null || keymap === null ? null : pickerModel(keymap, tab, picked ?? null);
-  const defaultKey = model?.usable ? model.defaultKey : null;
+  const model = pickerModel(keymap, tab, picked ?? null);
+  const defaultKey = model.usable ? model.defaultKey : null;
 
-  // The default pick is made once, when the tab and the keymap have loaded; after that only the user picks.
-  const loaded = model !== null;
+  // The default pick is made once, on the first render; after that only the user picks.
   useEffect(() => {
-    if (loaded && picked === undefined) setPicked(defaultKey);
-  }, [loaded, picked, defaultKey]);
+    if (picked === undefined) setPicked(defaultKey);
+  }, [picked, defaultKey]);
 
-  const ready = model?.usable === true && !saving;
-  const pickedState: PickedKey | null = model?.usable ? model.picked : null;
+  const ready = model.usable && !saving;
+  const pickedState: PickedKey | null = model.usable ? model.picked : null;
 
   const pick = (key: Key) => {
     if (!ready) return;
@@ -137,7 +151,7 @@ export function PopupPage({ actions, tabId, platform = PLATFORM }: PopupPageProp
   };
 
   const save = async (resolve?: Resolve) => {
-    if (!ready || pickedState === null || tab?.id === undefined || inFlight.current) return;
+    if (!ready || pickedState === null || tab.id === undefined || inFlight.current) return;
     const { key } = pickedState;
     inFlight.current = true;
     setSaving(true);
@@ -186,10 +200,6 @@ export function PopupPage({ actions, tabId, platform = PLATFORM }: PopupPageProp
     await actions.openOptions();
     actions.close();
   };
-
-  if (tab === null || keymap === null || model === null) {
-    return <main className="w-95 bg-background p-3" />;
-  }
 
   const full = model.usable && model.full;
   const chips = model.usable ? model.chips : [];
@@ -334,4 +344,120 @@ export function PopupPage({ actions, tabId, platform = PLATFORM }: PopupPageProp
       </footer>
     </main>
   );
+}
+
+/** What the launcher says about the key it just tried: it holds nothing, or opening it failed. */
+interface LauncherNotice {
+  kind: 'free' | 'failed';
+  key: Key;
+}
+
+/**
+ * The popup on a page that can't take a key (§7): the overlay's tiles for that tab, and a key press opens. A bare key,
+ * ⌥ + key (muscle memory) and a click all open; ⇧ is Force new tab. `event.code`, so the layout doesn't matter.
+ */
+function Launcher({ actions, tab, keymap, platform }: ViewProps) {
+  const [model, setModel] = useState<OverlayModel | null>(null);
+  const [notice, setNotice] = useState<LauncherNotice | null>(null);
+  const inFlight = useRef(false);
+  const tabId = tab.id;
+
+  // The keymap is a dependency only to read the tiles again when it changes while the popup is open.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: see above
+  useEffect(() => {
+    if (tabId === undefined) return;
+    let live = true;
+    actions
+      .getOverlayModel(tabId)
+      .then((read) => {
+        if (live) setModel(read);
+      })
+      .catch((error: unknown) => console.error('SpeedLink: no keys for the popup', error));
+    return () => {
+      live = false;
+    };
+  }, [actions, tabId, keymap]);
+
+  const open = async (key: Key, force: boolean) => {
+    if (tabId === undefined || inFlight.current) return;
+    inFlight.current = true;
+    setNotice(null);
+    let reply: OpenKeyReply;
+    try {
+      reply = await actions.openKey({ key, tabId, force });
+    } catch (error) {
+      console.error('SpeedLink: could not open', key, error);
+      reply = { kind: 'failed' };
+    }
+    inFlight.current = false;
+    if (reply.kind === 'opened' || reply.kind === 'noop') return actions.close();
+    setNotice({ kind: reply.kind, key });
+  };
+
+  const latest = useRef(open);
+  latest.current = open;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.isComposing) return;
+      const key = keyFromCode(event.code);
+      if (key === null) return;
+      event.preventDefault();
+      void latest.current(key, event.shiftKey);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const openKeymap = async () => {
+    await actions.openOptions();
+    actions.close();
+  };
+
+  const empty = model !== null && model.tiles.length === 0;
+  return (
+    <main className="flex w-95 flex-col gap-2 bg-background p-3 text-foreground">
+      <Header />
+      <section className="flex items-center justify-between gap-3 rounded-xl border bg-card p-2.5">
+        <p className="text-2xs text-warning-foreground">{i18n.t('popup.unusable')}</p>
+        {!empty && (
+          <Button variant="link" size="xs" onClick={() => void openKeymap()}>
+            {i18n.t('popup.openKeymap')}
+          </Button>
+        )}
+      </section>
+      {model !== null &&
+        (empty ? (
+          <OverlayEmpty onOpenKeymap={() => void openKeymap()} />
+        ) : (
+          <OverlayTiles
+            tiles={model.tiles}
+            platform={platform}
+            onOpen={(key, force) => void open(key, force)}
+            className="max-h-96 grid-cols-2"
+          />
+        ))}
+      {notice?.kind === 'free' && (
+        <p role="status" className="text-center text-muted-foreground text-ui">
+          {i18n.t('popup.keyFree', [chordLabel(notice.key, platform)])}
+        </p>
+      )}
+      {notice?.kind === 'failed' && (
+        <Alert variant="destructive" className="px-3 py-2 text-ui">
+          <AlertDescription className="col-span-2 col-start-1 text-ui">
+            {i18n.t('popup.openFailed', [chordLabel(notice.key, platform)])}
+          </AlertDescription>
+        </Alert>
+      )}
+    </main>
+  );
+}
+
+export function PopupPage({ actions, tabId, platform = PLATFORM }: PopupPageProps) {
+  const tab = usePopupTab(tabId);
+  const keymap = useKeymap();
+  if (tab === null || keymap === null) return <main className="w-95 bg-background p-3" />;
+
+  // A page that can't go on a key has nothing to assign; it gets the launcher (§7).
+  const View = pickerModel(keymap, tab, null).usable ? AssignView : Launcher;
+  return <View actions={actions} tab={tab} keymap={keymap} platform={platform} />;
 }

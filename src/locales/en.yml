@@ -72,6 +72,8 @@ popup:
   openKeymap: Open keymap
   alreadyOn: Already on $1
   unusable: This page can’t be put on a key
+  keyFree: $1 is free
+  openFailed: Couldn’t open $1
   prompt: Press a key to put this page on it
   promptFull: All 35 keys are in use — press one to replace it
   fitting: "Free & fitting:"

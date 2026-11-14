@@ -1,6 +1,6 @@
 // One overlay tile (product spec §5.4): keycap (md), name and what pressing the key will do. A click opens the key,
-// ⇧ + click in a new tab; the pencil on hover edits it in Options. It lives in the HUD's shadow root and never takes
-// focus, so the page keeps its own.
+// ⇧ + click in a new tab; the pencil on hover edits it in Options (left out where a tile can't: the popup's
+// launcher). It lives in the HUD's shadow root and never takes focus, so the page keeps its own.
 import { cn } from 'cn';
 import { PencilIcon } from 'lucide-react';
 import { type MouseEvent, useEffect, useRef } from 'react';
@@ -34,7 +34,8 @@ export interface OverlayTileProps {
   highlighted?: boolean;
   /** `force`: ⇧ was held (Force new tab). */
   onOpen(force: boolean): void;
-  onEdit(): void;
+  /** The pencil's action; without one the tile has no pencil. */
+  onEdit?(): void;
   platform?: Platform;
 }
 
@@ -60,7 +61,8 @@ export function OverlayTile({
         onClick={(event) => onOpen(event.shiftKey)}
         aria-label={i18n.t('overlay.tile', [i18n.t('keyCap.assigned', [triggerWord(platform), key, name]), text])}
         className={cn(
-          'flex w-full cursor-pointer items-center gap-3 rounded-xl border p-2 pr-8 text-left outline-none transition hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-ring',
+          'flex w-full cursor-pointer items-center gap-3 rounded-xl border p-2 text-left outline-none transition hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-ring',
+          onEdit !== undefined && 'pr-8',
           open ? 'border-success-border bg-success-tile' : 'border-border bg-card',
           highlighted && 'border-primary ring-1 ring-primary',
         )}
@@ -78,15 +80,17 @@ export function OverlayTile({
           </span>
         </span>
       </button>
-      <button
-        type="button"
-        onMouseDown={keepFocus}
-        onClick={onEdit}
-        aria-label={i18n.t('overlay.edit', [chordLabel(key, platform)])}
-        className="absolute top-1 right-1 inline-flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-none transition hover:text-foreground group-hover:opacity-100"
-      >
-        <PencilIcon aria-hidden="true" className="size-3.5" />
-      </button>
+      {onEdit !== undefined && (
+        <button
+          type="button"
+          onMouseDown={keepFocus}
+          onClick={onEdit}
+          aria-label={i18n.t('overlay.edit', [chordLabel(key, platform)])}
+          className="absolute top-1 right-1 inline-flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-none transition hover:text-foreground group-hover:opacity-100"
+        >
+          <PencilIcon aria-hidden="true" className="size-3.5" />
+        </button>
+      )}
     </div>
   );
 }

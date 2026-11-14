@@ -9,7 +9,8 @@ import type { OverlayModel } from '@/domain/overlay-model';
 import { searchTiles } from '@/domain/search';
 import { highlightIn, moveHighlight } from '@/domain/tile-grid';
 import { PLATFORM, type Platform, triggerSymbol } from '@/platform/platform-labels';
-import { keepFocus, OverlayTile } from './OverlayTile';
+import { keepFocus } from './OverlayTile';
+import { OverlayEmpty, OverlayTiles } from './OverlayTiles';
 import { type KeydownSource, windowKeydowns } from './ToastRegion';
 import { Badge } from './ui/badge';
 import { Kbd } from './ui/kbd';
@@ -174,32 +175,18 @@ export function Overlay({
           )}
         </div>
         {model.tiles.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-8 text-ui">
-            <span className="font-semibold">{i18n.t('overlay.empty')}</span>
-            <button
-              type="button"
-              onMouseDown={keepFocus}
-              onClick={actions.openKeymap}
-              className="cursor-pointer rounded-sm font-semibold text-link outline-none hover:text-link-hover hover:underline focus-visible:outline-2 focus-visible:outline-ring"
-            >
-              {i18n.t('overlay.openKeymap')}
-            </button>
-          </div>
+          <OverlayEmpty onOpenKeymap={actions.openKeymap} />
         ) : visible.length === 0 ? (
           <p className="py-8 text-center font-semibold text-ui">{i18n.t('overlay.noMatch', [query.trim()])}</p>
         ) : (
-          <div data-testid="overlay-tiles" className="grid min-h-0 grid-cols-4 gap-2 overflow-y-auto">
-            {visible.map((tile) => (
-              <OverlayTile
-                key={tile.key}
-                tile={tile}
-                highlighted={tile === highlighted}
-                platform={platform}
-                onOpen={(force) => actions.open(tile.key, force)}
-                onEdit={() => actions.edit(tile.key)}
-              />
-            ))}
-          </div>
+          <OverlayTiles
+            tiles={visible}
+            highlighted={highlighted}
+            platform={platform}
+            onOpen={actions.open}
+            onEdit={actions.edit}
+            className="grid-cols-4"
+          />
         )}
         <Legend platform={platform} mode={mode} />
       </div>
