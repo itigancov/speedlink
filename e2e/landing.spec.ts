@@ -1,6 +1,6 @@
 // Guards the landing page in `site/` (backlog item 24): its links, the privacy promise that it loads nothing from
-// anywhere else, and that its screenshots and font are the current copies. The page is served at its real Pages URL
-// from disk; no extension is involved. Look and layout are the author's review, not this spec's.
+// anywhere else, that its media loads (the demo loop, item 25) and that its screenshots and font are the current
+// copies. The page is served at its real Pages URL from disk; no extension is involved. Look and layout are the author's review, not this spec's.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
@@ -50,6 +50,8 @@ function contentType(file: string): string {
   const types: Record<string, string> = {
     '.html': 'text/html; charset=utf-8',
     '.png': 'image/png',
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
     '.woff2': 'font/woff2',
   };
   return types[extname(file)] ?? 'application/octet-stream';
@@ -74,11 +76,13 @@ test('requests nothing from outside site/', async ({ page }) => {
   expect(outside).toEqual([]);
 });
 
-test('every image, font and icon it references is in site/ and loads', async ({ page }) => {
+test('every image, video, font and icon it references is in site/ and loads', async ({ page }) => {
   const { missing } = await visit(page);
   expect(missing).toEqual([]);
   const references = await page.evaluate(() => [
     ...[...document.images].map((image) => image.currentSrc),
+    ...[...document.querySelectorAll('video')].map((video) => video.poster),
+    ...[...document.querySelectorAll('video source')].map((source) => (source as HTMLSourceElement).src),
     ...[...document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"], link[rel="preload"]')].map(
       (link) => link.href,
     ),
@@ -95,8 +99,27 @@ test('every image, font and icon it references is in site/ and loads', async ({ 
     [...document.images].filter((image) => !image.complete || image.naturalWidth === 0).map((image) => image.src),
   );
   expect(unloaded).toEqual([]);
+  // Each video picked a source and read its header.
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        [...document.querySelectorAll('video')].map((video) => video.readyState >= 1 && video.currentSrc !== ''),
+      ),
+    )
+    .not.toContain(false);
   const fonts = await page.evaluate(() => [...document.fonts].map(({ family, status }) => `${family}: ${status}`));
   expect(fonts).toEqual(['SpeedLink Inter: loaded']);
+});
+
+test('under reduced motion the hero shows the demo poster and plays nothing', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await visit(page);
+  const hero = page.locator('.hero video');
+  await expect(hero).toHaveAttribute('poster', 'media/demo-poster.png');
+  expect(await hero.evaluate((video: HTMLVideoElement) => ({ src: video.currentSrc, paused: video.paused }))).toEqual({
+    src: '',
+    paused: true,
+  });
 });
 
 async function hrefs(page: Page, name: string): Promise<(string | null)[]> {
@@ -105,9 +128,11 @@ async function hrefs(page: Page, name: string): Promise<(string | null)[]> {
   return Promise.all(links.map((link) => link.getAttribute('href')));
 }
 
-/** The copies in `site/<folder>/` and the folder they come from. */
+/** The copies in `site/<folder>/` of files in the folder they come from; `site/media/` also has files of its own. */
 const copies = (folder: string, from: string) =>
-  readdirSync(join(SITE, folder)).map((name) => ({ copy: `${folder}/${name}`, original: `${from}/${name}` }));
+  readdirSync(join(SITE, folder))
+    .filter((name) => existsSync(join(ROOT, from, name)))
+    .map((name) => ({ copy: `${folder}/${name}`, original: `${from}/${name}` }));
 
 // The screenshots (`pnpm listing` writes both), Inter and the favicon.
 for (const { copy, original } of [

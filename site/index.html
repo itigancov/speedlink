@@ -15,15 +15,14 @@
     <meta property="og:title" content="SpeedLink: put your sites on keys" />
     <meta property="og:description" content="Put your sites on keys. Hold ⌥ (Alt) and press a key to open a site or jump to its tab." />
     <meta property="og:url" content="https://itigancov.github.io/speedlink/" />
-    <!-- The promo tile until item 25's 1200×630 card. -->
-    <meta property="og:image" content="https://itigancov.github.io/speedlink/media/promo-tile.png" />
-    <meta property="og:image:width" content="440" />
-    <meta property="og:image:height" content="280" />
-    <meta property="og:image:alt" content="SpeedLink: your sites, one key away." />
+    <meta property="og:image" content="https://itigancov.github.io/speedlink/media/social-card.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="SpeedLink: put your sites on keys. Peek shows your keys over a web page." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="SpeedLink: put your sites on keys" />
     <meta name="twitter:description" content="Put your sites on keys. Hold ⌥ (Alt) and press a key to open a site or jump to its tab." />
-    <meta name="twitter:image" content="https://itigancov.github.io/speedlink/media/promo-tile.png" />
+    <meta name="twitter:image" content="https://itigancov.github.io/speedlink/media/social-card.png" />
     <style>
       /* Inter, copied from public/fonts/ (OFL.txt beside it). Nothing on this page loads from another site. */
       @font-face {
@@ -113,7 +112,7 @@
       .key.on { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); box-shadow: 0 2px 0 var(--primary-edge), 0 0 0 4px var(--primary-ring); }
       .key.lg.on { box-shadow: 0 3px 0 var(--primary-edge), 0 0 0 6px var(--primary-ring); }
       .media { padding: 8px; border-radius: 22px; background: var(--card); border: 1px solid var(--border); box-shadow: var(--media-shadow); }
-      .media img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 14px; }
+      .media img, .media video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 14px; }
 
       /* ── Nav ── */
       .nav { display: flex; align-items: center; gap: 10px; padding: 20px var(--gutter); font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
@@ -129,7 +128,7 @@
 
       /* Bleeding media: .bleed-r runs off the right edge, .bleed-l off the left. */
       .bleed-r { width: calc(100% + 96px); padding-right: 0; border-right: 0; border-radius: 22px 0 0 22px; }
-      .bleed-r img { border-radius: 14px 0 0 14px; }
+      .bleed-r img, .bleed-r video { border-radius: 14px 0 0 14px; }
       .bleed-l { width: calc(100% + 96px); margin-left: -96px; padding-left: 0; border-left: 0; border-radius: 0 22px 22px 0; }
       .bleed-l img { border-radius: 0 14px 14px 0; }
 
@@ -235,9 +234,9 @@
         .hero .cta { flex-direction: column; align-items: stretch; width: 100%; gap: 10px; margin-top: 28px; text-align: center; }
         .legend { margin-top: 28px; padding-top: 20px; }
         .media { padding: 4px; border-radius: 14px; }
-        .media img { border-radius: 10px; }
+        .media img, .media video { border-radius: 10px; }
         .bleed-r { padding-right: 0; border-radius: 14px 0 0 14px; }
-        .bleed-r img { border-radius: 10px 0 0 10px; }
+        .bleed-r img, .bleed-r video { border-radius: 10px 0 0 10px; }
         .bleed-l { padding-left: 0; border-radius: 0 14px 14px 0; }
         .bleed-l img { border-radius: 0 10px 10px 0; }
         .section { padding: 64px var(--gutter); }
@@ -277,8 +276,14 @@
           </div>
           <p class="legend rise d3"><span class="key">⌥</span><span>on a Mac,</span><span class="key">Alt</span><span>on Windows, Linux and ChromeOS</span></p>
         </div>
-        <!-- The media slot: the Peek screenshot until item 25's looping video. -->
-        <div class="media bleed-r media-in"><img src="media/03-peek.png" width="1280" height="800" fetchpriority="high" alt="Peek: SpeedLink’s keys shown over a web page, with open sites marked by a dot" /></div>
+        <!-- The demo loop (pnpm listing). Its sources apply only without reduced motion: with it, the video has none
+             to play and shows its poster. MP4 first, the smaller file; WebM for browsers without H.264. -->
+        <div class="media bleed-r media-in">
+          <video autoplay loop muted playsinline poster="media/demo-poster.png" width="1280" height="800" aria-label="Demo: holding Alt shows Peek over a web page; Alt+G switches to the GitHub tab that was already open, and Alt+M opens Gmail in a new tab">
+            <source src="media/demo.mp4" type="video/mp4" media="(prefers-reduced-motion: no-preference)" />
+            <source src="media/demo.webm" type="video/webm" media="(prefers-reduced-motion: no-preference)" />
+          </video>
+        </div>
       </section>
 
       <section class="section how" aria-labelledby="h-how">
