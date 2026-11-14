@@ -93,9 +93,26 @@ describe('toggleOverlay: the toggle-overlay command', () => {
     'chrome://extensions/',
     'https://chromewebstore.google.com/detail/x',
     'https://www.google.com/_/chrome/newtab',
-    browser.runtime.getURL('/welcome.html'),
   ])('opens Options next to %s, which can’t host the overlay, without messaging it', async (url) => {
     const page = tab(2, url);
+    openTabs([page]);
+
+    await toggleOverlay(page);
+
+    expect(calls).toEqual([`tabs.create {"url":"${OPTIONS}","windowId":1,"index":3,"openerTabId":2}`]);
+  });
+
+  it('sends the Options tab it was pressed on to the keymap search, without reloading it', async () => {
+    const page = tab(2, `${OPTIONS}#key=D`);
+    openTabs([page]);
+
+    await toggleOverlay(page);
+
+    expect(calls).toEqual([`tabs.update 2 {"url":"${OPTIONS}#search"}`]);
+  });
+
+  it('opens Options next to the welcome page, which has no search', async () => {
+    const page = tab(2, browser.runtime.getURL('/welcome.html'));
     openTabs([page]);
 
     await toggleOverlay(page);

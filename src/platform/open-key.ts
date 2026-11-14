@@ -16,6 +16,8 @@ const LOAD_TIMEOUT_MS = 10_000;
 export interface OpenKeyRequest {
   key: Key;
   force: boolean;
+  /** The popup's tab; ignored when a content script asks, since its own tab is the sender's. The popup names it. */
+  tabId?: number;
   /** Options' Try ⌥K: opened through `trialShortcut`, so the Options tab is never replaced or closed. */
   trial?: boolean;
 }
@@ -23,24 +25,27 @@ export interface OpenKeyRequest {
 export type OpenKey = (request: OpenKeyRequest, senderTab: Browser.tabs.Tab | undefined) => Promise<OpenKeyReply>;
 
 /**
- * The function behind the `openKey` and `tryKey` messages (and the e2e hook). `senderTab` is the tab the key was pressed on,
- * also for a press in a sub-frame. The keymap and the tabs are read fresh on every call. A tab API failure replies
- * `failed` and is logged, never retried, so a flaky moment can't open a link twice.
+ * The function behind the `openKey` and `tryKey` messages (and the e2e hook). `senderTab` is the tab the key was
+ * pressed on, also for a press in a sub-frame; without one (the popup) the request's `tabId` names it. The keymap and
+ * the tabs are read fresh on every call. A tab API failure replies `failed` and is logged, never retried, so a flaky
+ * moment can't open a link twice.
  */
 export function createOpenKey(): OpenKey {
   const flash = createBadgeFlash();
 
-  return async ({ key, force, trial = false }, senderTab) => {
-    if (senderTab?.id === undefined) return { kind: 'failed' };
+  return async ({ key, force, tabId: named, trial = false }, senderTab) => {
+    const tabId = senderTab?.id ?? named;
+    if (tabId === undefined) return { kind: 'failed' };
     try {
       const [keymap, tabs] = await Promise.all([readKeymap(), readPlanTabs()]);
       const stored = keymap[key];
       if (stored === undefined) {
-        sendToast(senderTab.id, { kind: 'free', key });
+        // Options and welcome (Try) have no content script to show it; their page acts on the reply.
+        if (!trial) sendToast(tabId, { kind: 'free', key });
         return { kind: 'free' };
       }
       const shortcut = trial ? trialShortcut(stored) : stored;
-      const currentTab = tabs.find((tab) => tab.id === senderTab.id);
+      const currentTab = tabs.find((tab) => tab.id === tabId);
       if (currentTab === undefined) return { kind: 'failed' };
 
       const plan = planOpen(shortcut, { currentTab, tabs, force });
