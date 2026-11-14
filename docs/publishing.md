@@ -98,13 +98,17 @@ When the API path is broken, a release still ships by hand:
 2. In the CWS Developer Dashboard, open the item, then **Package** → **Upload new package**.
 3. **Submit for review**, choosing to publish manually after approval (the same deferred publish).
 
-## Privacy policy on GitHub Pages
+## Landing page and privacy policy on GitHub Pages
 
-The listing's Privacy policy URL is `https://itigancov.github.io/speedlink/privacy/`. `site/` is the whole published site: `privacy/index.html` and `.nojekyll`. The root `/` is left empty for a later landing page (backlog item 24), so the policy's address never moves.
+`site/` is the whole published site, plain static files with no build:
+- `/` (`index.html`): the landing page, the listing's Homepage URL `https://itigancov.github.io/speedlink/`. Its styles are inline and it loads nothing from another site. Its files sit beside it: `media/` holds copies of the `store/` images it shows (the screenshots, and the promo tile as `og:image`), which `pnpm listing` refreshes; `fonts/` holds Inter and `OFL.txt`, and `icon/32.png` the favicon, copied once from `public/`. `e2e/landing.spec.ts` checks the links, that no request leaves `site/`, that every file it references loads, and that every copy equals its original.
+- `/privacy/` (`privacy/index.html`): the policy, the listing's Privacy policy URL `https://itigancov.github.io/speedlink/privacy/`. Its font is inlined. Its address never moves.
+- `.nojekyll`.
 
 `pages.yml` publishes `site/` with GitHub's official Pages actions on a push to `main` that touches `site/`, and on manual dispatch. Its only extra permissions are `pages: write` and `id-token: write`. The Pages source is **GitHub Actions**, so `docs/` and the rest of the repo are never published.
 
 **One-time setup** (done by hand; the workflow cannot do it):
 1. In the repo, **Settings** → **Pages** → **Build and deployment** → **Source**: **GitHub Actions**.
 2. Merge a change under `site/` to `main`, or run **Pages** from the **Actions** tab. The first run creates the `github-pages` Environment.
-3. Open the policy URL and check it in light and dark.
+3. Open the landing page and the policy URL and check them in light and dark.
+4. Once the landing page is live, paste `https://itigancov.github.io/speedlink/` into the Dashboard's **Homepage URL** field.

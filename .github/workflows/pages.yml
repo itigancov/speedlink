@@ -1,6 +1,6 @@
 name: Pages
 
-# Publishes site/ (the privacy policy the Store listing links to) to GitHub Pages. See docs/publishing.md.
+# Publishes site/ (the landing page and the privacy policy the Store listing links to) to GitHub Pages. See docs/publishing.md.
 on:
   push:
     branches: [main]
