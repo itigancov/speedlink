@@ -1,8 +1,9 @@
 // `pnpm listing`: draws every image the Web Store listing needs from the real build (the e2e-hooks variant, which has
 // the popup's `?tabId=N` entry), into `store/` and `public/icon/`. The demo keymap goes straight into storage.sync,
-// every demo site is a routed stub, and the browser says it is Chrome on Windows, so the triggers read "Alt". Not
-// part of `pnpm e2e` or CI: the author reviews the images (item 20) before they are uploaded (item 22).
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+// every demo site is a routed stub, and the browser says it is Chrome on Windows, so the triggers read "Alt". Last,
+// it refreshes the landing page's copies in `site/media/`. Not part of `pnpm e2e` or CI: the author reviews the images
+// (item 20) before they are uploaded (item 22).
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
 import { expect, HOOKS_EXTENSION_PATH, serviceWorker, test } from '../e2e/extension';
@@ -25,6 +26,8 @@ declare const speedlinkE2E: { toggleOverlay(tab: Tab): Promise<void> };
 const ROOT = resolve(import.meta.dirname, '..');
 const STORE = join(ROOT, 'store');
 const ICONS = join(ROOT, 'public/icon');
+/** The landing page's copies of the images it shows (e2e/landing.spec.ts checks they match `store/`). */
+const SITE_MEDIA = join(ROOT, 'site/media');
 
 const WINDOWS_CHROME =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
@@ -211,4 +214,7 @@ test('draws the icons, the promo tile and the five screenshots', async ({ contex
   await expect(backdrop.getByTestId('page-toast')).toContainText('saved');
   await expect(backdrop.getByTestId('page-toast').getByRole('button', { name: 'Undo' })).toBeVisible();
   await shoot(backdrop, '04-saved-toast.png');
+
+  // The landing page: refresh each image it holds a copy of.
+  for (const name of readdirSync(SITE_MEDIA)) copyFileSync(join(STORE, name), join(SITE_MEDIA, name));
 });

@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SpeedLink: put your sites on keys</title>
+    <meta name="description" content="Put your sites on keys. Hold ⌥ (Alt) and press a key to open a site or jump to its tab." />
+    <link rel="canonical" href="https://itigancov.github.io/speedlink/" />
+    <link rel="icon" type="image/png" sizes="32x32" href="icon/32.png" />
+    <link rel="preload" href="fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+    <meta name="theme-color" content="#f3f4f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14161a" media="(prefers-color-scheme: dark)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SpeedLink" />
+    <meta property="og:title" content="SpeedLink: put your sites on keys" />
+    <meta property="og:description" content="Put your sites on keys. Hold ⌥ (Alt) and press a key to open a site or jump to its tab." />
+    <meta property="og:url" content="https://itigancov.github.io/speedlink/" />
+    <!-- The promo tile until item 25's 1200×630 card. -->
+    <meta property="og:image" content="https://itigancov.github.io/speedlink/media/promo-tile.png" />
+    <meta property="og:image:width" content="440" />
+    <meta property="og:image:height" content="280" />
+    <meta property="og:image:alt" content="SpeedLink: your sites, one key away." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SpeedLink: put your sites on keys" />
+    <meta name="twitter:description" content="Put your sites on keys. Hold ⌥ (Alt) and press a key to open a site or jump to its tab." />
+    <meta name="twitter:image" content="https://itigancov.github.io/speedlink/media/promo-tile.png" />
+    <style>
+      /* Inter, copied from public/fonts/ (OFL.txt beside it). Nothing on this page loads from another site. */
+      @font-face {
+        font-family: "SpeedLink Inter";
+        font-style: normal;
+        font-weight: 100 900;
+        font-display: swap;
+        src: url("fonts/inter-latin-wght.woff2") format("woff2");
+      }
+
+      /* ── Tokens: src/assets/tokens.css, with the privacy page's dark palette ── */
+      :root {
+        color-scheme: light dark;
+        --background: #f3f4f7;
+        --foreground: #1a1c1e;
+        --card: #ffffff;
+        --muted: #f7f8fa;
+        --muted-foreground: #5b6070;
+        --border: #e1e3e9;
+        --key-border: #d5d8e0;
+        --primary: #0066ff;
+        --primary-hover: #0057d9;
+        --primary-foreground: #ffffff;
+        --primary-edge: #0047b3;
+        --primary-ring: rgba(0, 102, 255, 0.16);
+        --accent: #e5eeff;
+        --accent-foreground: #0050cc;
+        --link: #0050cc;
+        --link-hover: #003a99;
+        --success: #1f9d55;
+        --media-shadow: 0 1px 2px rgba(26, 28, 30, 0.06), 0 32px 64px -24px rgba(26, 28, 30, 0.28);
+        --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+        /* Side gutter: 80px at 1280, and the content stays on a centred 1280 grid on wider screens. */
+        --gutter: max(80px, calc((100% - 1280px) / 2 + 80px));
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --background: #14161a;
+          --foreground: #eceef2;
+          --card: #1c1f24;
+          --muted: #181b20;
+          --muted-foreground: #a3a9b8;
+          --border: #2c3037;
+          --key-border: #3a3f48;
+          --primary: #4d94ff;
+          --primary-hover: #6aa6ff;
+          --primary-foreground: #0a1324;
+          --primary-edge: #2a6fd6;
+          --primary-ring: rgba(77, 148, 255, 0.2);
+          --accent: #1d2a44;
+          --accent-foreground: #8fb6ff;
+          --link: #8fb6ff;
+          --link-hover: #b8d0ff;
+          --success: #3fb974;
+          --media-shadow: 0 32px 64px -24px rgba(0, 0, 0, 0.7);
+        }
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--foreground);
+        font: 16px/1.6 "SpeedLink Inter", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      /* The bleeding screenshots run off the page's edge; main clips them so nothing scrolls sideways. */
+      main { overflow-x: clip; }
+      a { color: var(--link); transition: color 150ms ease; }
+      a:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 4px; }
+      @media (hover: hover) and (pointer: fine) { a:hover { color: var(--link-hover); } }
+      h1, h2, h3 { text-wrap: balance; }
+      p { text-wrap: pretty; }
+
+      /* ── Shared atoms ── */
+      .mark { display: flex; flex: none; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 8px; background: #0066ff; }
+      .mark svg { width: 16px; height: 16px; fill: #fff; stroke: #fff; }
+      .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 52px; padding: 0 28px; border-radius: 12px; background: var(--primary); color: var(--primary-foreground); font-size: 16px; font-weight: 600; text-decoration: none; box-shadow: 0 2px 0 var(--primary-edge); transition: transform 160ms var(--ease-out), background-color 150ms ease; -webkit-tap-highlight-color: transparent; }
+      .btn:active { transform: scale(0.97); }
+      .btn svg { width: 18px; height: 18px; }
+      .btn-sm { height: 40px; padding: 0 16px; border-radius: 10px; font-size: 14px; }
+      /* .btn:hover also outranks a:hover, so the label keeps its colour. */
+      @media (hover: hover) and (pointer: fine) { .btn:hover { background: var(--primary-hover); color: var(--primary-foreground); } }
+      .note { font-size: 13px; line-height: 18px; color: var(--muted-foreground); }
+      .key { display: inline-flex; align-items: center; justify-content: center; height: 28px; min-width: 28px; padding: 0 8px; border-radius: 8px; background: var(--card); border: 1px solid var(--key-border); box-shadow: 0 2px 0 var(--key-border); color: var(--foreground); font-size: 13px; font-weight: 600; line-height: 1; }
+      .key.lg { height: 56px; min-width: 56px; padding: 0 14px; border-radius: 12px; font-size: 20px; box-shadow: 0 3px 0 var(--key-border); }
+      .key.on { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); box-shadow: 0 2px 0 var(--primary-edge), 0 0 0 4px var(--primary-ring); }
+      .key.lg.on { box-shadow: 0 3px 0 var(--primary-edge), 0 0 0 6px var(--primary-ring); }
+      .media { padding: 8px; border-radius: 22px; background: var(--card); border: 1px solid var(--border); box-shadow: var(--media-shadow); }
+      .media img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 14px; }
+
+      /* ── Nav ── */
+      .nav { display: flex; align-items: center; gap: 10px; padding: 20px var(--gutter); font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+      .nav .btn { margin-left: auto; }
+
+      /* ── Hero ── */
+      .hero { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 64px; align-items: center; padding: 64px 0 112px var(--gutter); }
+      .hero .text { display: flex; flex-direction: column; align-items: flex-start; }
+      .hero h1 { margin: 0; font-size: 60px; line-height: 64px; font-weight: 700; letter-spacing: -0.035em; }
+      .hero .sub { margin: 20px 0 0; font-size: 19px; line-height: 29px; color: var(--muted-foreground); }
+      .hero .cta { display: flex; align-items: center; gap: 16px; margin-top: 36px; }
+      .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 40px 0 0; padding-top: 24px; border-top: 1px solid var(--border); font-size: 13px; line-height: 18px; color: var(--muted-foreground); }
+
+      /* Bleeding media: .bleed-r runs off the right edge, .bleed-l off the left. */
+      .bleed-r { width: calc(100% + 96px); padding-right: 0; border-right: 0; border-radius: 22px 0 0 22px; }
+      .bleed-r img { border-radius: 14px 0 0 14px; }
+      .bleed-l { width: calc(100% + 96px); margin-left: -96px; padding-left: 0; border-left: 0; border-radius: 0 22px 22px 0; }
+      .bleed-l img { border-radius: 0 14px 14px 0; }
+
+      /* ── Section scaffolding ── */
+      .section { padding: 112px var(--gutter); }
+      .section-head { display: flex; flex-direction: column; gap: 12px; max-width: 640px; margin-bottom: 48px; }
+      h2 { margin: 0; font-size: 40px; line-height: 48px; font-weight: 700; letter-spacing: -0.03em; }
+
+      /* ── How it works ── */
+      .how { border-top: 1px solid var(--border); }
+      .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 0; padding: 0; list-style: none; }
+      .step { display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border); }
+      .stage { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 152px; border-radius: 14px; background: var(--muted); border: 1px solid var(--border); }
+      .stage .row { display: flex; align-items: center; gap: 10px; }
+      .stage .plus { font-size: 20px; font-weight: 500; color: var(--muted-foreground); }
+      .stage .cap { font-size: 12px; line-height: 16px; color: var(--muted-foreground); }
+      .tabs { display: flex; gap: 6px; }
+      .tab { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12px; font-weight: 600; background: var(--background); border: 1px solid var(--border); color: var(--muted-foreground); }
+      .tab.on { background: var(--card); border-color: var(--primary); color: var(--foreground); box-shadow: 0 0 0 3px var(--primary-ring); }
+      .tab i { width: 7px; height: 7px; border-radius: 4px; background: var(--success); }
+      .step .body { display: flex; gap: 14px; padding: 0 8px; }
+      .num { flex: none; display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 14px; background: var(--accent); color: var(--accent-foreground); font-size: 13px; font-weight: 700; }
+      .step h3 { margin: 2px 0 6px; font-size: 18px; line-height: 24px; font-weight: 700; letter-spacing: -0.01em; }
+      .step p { margin: 0; font-size: 15px; line-height: 22px; color: var(--muted-foreground); }
+
+      /* ── Features ── */
+      .features { padding: 56px 0; }
+      .feature { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 80px; align-items: center; padding: 56px 0 56px var(--gutter); }
+      .feature.rev { grid-template-columns: minmax(0, 1fr) minmax(0, 400px); padding: 56px var(--gutter) 56px 0; }
+      .ftext { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+      .feature.rev .ftext { order: 1; }
+      .ftext h2 { font-size: 36px; line-height: 42px; }
+      .ftext p { margin: 0; font-size: 17px; line-height: 27px; color: var(--muted-foreground); }
+      .hint { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 18px; color: var(--muted-foreground); }
+      .hint .mark { width: 28px; height: 28px; border-radius: 7px; }
+      .hint .mark svg { width: 14px; height: 14px; }
+
+      /* ── Quiet keymap block ── */
+      .quiet { margin: 56px var(--gutter) 0; display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 56px; align-items: center; padding: 40px; border-radius: 24px; background: var(--card); border: 1px solid var(--border); }
+      .quiet .qtext { display: flex; flex-direction: column; gap: 12px; }
+      .quiet h3 { margin: 0; font-size: 24px; line-height: 30px; font-weight: 700; letter-spacing: -0.02em; }
+      .quiet p { margin: 0; font-size: 15px; line-height: 23px; color: var(--muted-foreground); }
+      .quiet .media { padding: 0; border-radius: 14px; box-shadow: none; overflow: hidden; }
+      .quiet .media img { border-radius: 0; }
+
+      /* ── One-liners ── */
+      .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; padding: 96px var(--gutter) 0; }
+      .fact { display: flex; gap: 16px; align-items: flex-start; margin: 0; font-size: 15px; line-height: 23px; color: var(--muted-foreground); }
+      .fact .ic { flex: none; display: flex; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: 10px; background: var(--card); border: 1px solid var(--border); color: var(--foreground); }
+      .fact .ic svg { width: 18px; height: 18px; }
+      .fact b { display: block; color: var(--foreground); font-weight: 600; }
+
+      /* ── Closing CTA + footer ── */
+      .closing { margin: 112px var(--gutter) 0; display: flex; flex-wrap: wrap; align-items: center; gap: 32px; padding: 48px 56px; border-radius: 28px; background: var(--card); border: 1px solid var(--border); }
+      .closing .combo { display: flex; align-items: center; gap: 10px; color: var(--muted-foreground); font-size: 20px; }
+      .closing h2 { flex: 1 1 360px; }
+      .closing .cta { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+      .footer { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; margin-top: 80px; padding: 32px var(--gutter) 48px; border-top: 1px solid var(--border); font-size: 14px; line-height: 20px; }
+      .footer .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--foreground); }
+      .footer .brand .mark { width: 24px; height: 24px; border-radius: 6px; }
+      .footer .brand .mark svg { width: 12px; height: 12px; }
+      .footer nav { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-left: auto; }
+      .footer nav a { text-decoration: none; }
+      @media (hover: hover) and (pointer: fine) { .footer nav a:hover { text-decoration: underline; } }
+
+      /* ── Motion: hero entrance once per visit; nothing below the fold animates ── */
+      @keyframes sl-rise { from { opacity: 0; transform: translateY(8px); } }
+      @keyframes sl-bleed { from { opacity: 0; transform: translateX(32px); } }
+      @keyframes sl-fade { from { opacity: 0; } }
+      .rise { animation: sl-rise 500ms var(--ease-out) both; }
+      .d1 { animation-delay: 50ms; }
+      .d2 { animation-delay: 90ms; }
+      .d3 { animation-delay: 160ms; }
+      .media-in { animation: sl-bleed 700ms var(--ease-out) 140ms both; }
+      @media (prefers-reduced-motion: reduce) {
+        .rise, .media-in { animation: sl-fade 300ms ease both; }
+        .btn:active { transform: none; }
+      }
+
+      /* ── Narrow (not in the design, which shows 1280 and 390): one column, media bleeding to one side ── */
+      @media (max-width: 960px) {
+        :root { --gutter: 40px; }
+        .hero { grid-template-columns: minmax(0, 1fr); gap: 40px; padding: 40px 0 80px var(--gutter); }
+        .hero .text { padding-right: var(--gutter); }
+        .bleed-r { width: 100%; }
+        .bleed-l { width: 100%; margin-left: 0; }
+        .steps { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+        .feature, .feature.rev { grid-template-columns: minmax(0, 1fr); gap: 28px; padding: 40px 0 40px var(--gutter); }
+        .feature.rev { padding: 40px var(--gutter) 40px 0; }
+        .feature .ftext { padding-right: var(--gutter); }
+        .feature.rev .ftext { order: 0; padding: 0 0 0 var(--gutter); }
+        .quiet { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+      }
+
+      /* ── Phone ── */
+      @media (max-width: 640px) {
+        :root { --gutter: 16px; }
+        .nav { padding: 16px var(--gutter); font-size: 17px; }
+        .nav .btn { display: none; }
+        .hero { padding: 24px 0 64px var(--gutter); }
+        .hero h1 { font-size: 40px; line-height: 44px; letter-spacing: -0.03em; }
+        .hero .sub { font-size: 17px; line-height: 26px; margin-top: 16px; }
+        .hero .cta { flex-direction: column; align-items: stretch; width: 100%; gap: 10px; margin-top: 28px; text-align: center; }
+        .legend { margin-top: 28px; padding-top: 20px; }
+        .media { padding: 4px; border-radius: 14px; }
+        .media img { border-radius: 10px; }
+        .bleed-r { padding-right: 0; border-radius: 14px 0 0 14px; }
+        .bleed-r img { border-radius: 10px 0 0 10px; }
+        .bleed-l { padding-left: 0; border-radius: 0 14px 14px 0; }
+        .bleed-l img { border-radius: 0 10px 10px 0; }
+        .section { padding: 64px var(--gutter); }
+        .section-head { margin-bottom: 32px; }
+        h2 { font-size: 28px; line-height: 34px; }
+        .stage { height: 128px; }
+        .features { padding: 24px 0; }
+        .ftext h2 { font-size: 28px; line-height: 34px; }
+        .ftext p { font-size: 16px; line-height: 25px; }
+        .quiet { margin: 40px var(--gutter) 0; padding: 24px 20px 20px; border-radius: 20px; }
+        .quiet .media { border-radius: 10px; }
+        .facts { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 64px var(--gutter) 0; }
+        .closing { margin: 64px var(--gutter) 0; flex-direction: column; align-items: stretch; gap: 20px; padding: 32px 20px; border-radius: 20px; }
+        .closing h2 { flex: none; }
+        .closing .cta { align-items: stretch; text-align: center; }
+        .footer { flex-direction: column; align-items: flex-start; gap: 16px; margin-top: 56px; padding: 24px var(--gutter) 40px; }
+        .footer nav { margin-left: 0; flex-direction: column; gap: 12px; }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- The logo mark, copied from src/components/Brand.tsx (this static page cannot import it). -->
+    <header class="nav">
+      <span class="mark"><svg aria-hidden="true" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z" /></svg></span>
+      SpeedLink
+      <a class="btn btn-sm" href="https://chromewebstore.google.com/detail/kddkenmaadibebdpekhfibihfpealhbe">Add to Chrome</a>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="h-hero">
+        <div class="text">
+          <h1 id="h-hero" class="rise">Put your sites on keys.</h1>
+          <p class="sub rise d1">Hold ⌥ (Alt) and press a key to open a site, or jump to the tab where it’s already open.</p>
+          <div class="cta rise d2">
+            <a class="btn" href="https://chromewebstore.google.com/detail/kddkenmaadibebdpekhfibihfpealhbe">Add to Chrome<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
+            <span class="note">Free</span>
+          </div>
+          <p class="legend rise d3"><span class="key">⌥</span><span>on a Mac,</span><span class="key">Alt</span><span>on Windows, Linux and ChromeOS</span></p>
+        </div>
+        <!-- The media slot: the Peek screenshot until item 25's looping video. -->
+        <div class="media bleed-r media-in"><img src="media/03-peek.png" width="1280" height="800" fetchpriority="high" alt="Peek: SpeedLink’s keys shown over a web page, with open sites marked by a dot" /></div>
+      </section>
+
+      <section class="section how" aria-labelledby="h-how">
+        <div class="section-head">
+          <h2 id="h-how">How it works</h2>
+        </div>
+        <ol class="steps">
+          <li class="step">
+            <div class="stage" aria-hidden="true">
+              <div class="row"><span class="key lg on">G</span><span class="key lg">H</span><span class="key lg">I</span></div>
+              <span class="cap">suggested for github.com</span>
+            </div>
+            <div class="body"><span class="num">1</span><div><h3>Put a page on a key.</h3><p>Click the toolbar icon; SpeedLink suggests a free key that fits the site.</p></div></div>
+          </li>
+          <li class="step">
+            <div class="stage" aria-hidden="true">
+              <div class="row"><span class="key lg">⌥ Alt</span><span class="plus">+</span><span class="key lg on">G</span></div>
+              <span class="cap">on any page</span>
+            </div>
+            <div class="body"><span class="num">2</span><div><h3>Hold ⌥ (Alt) and press the key.</h3><p>On any page.</p></div></div>
+          </li>
+          <li class="step">
+            <div class="stage" aria-hidden="true">
+              <div class="tabs"><span class="tab">Docs</span><span class="tab on"><i></i>GitHub</span><span class="tab">Mail</span></div>
+              <span class="cap">already open — you jump to it</span>
+            </div>
+            <div class="body"><span class="num">3</span><div><h3>Smart switch.</h3><p>If the site is already open, you jump to that tab. If not, it opens.</p></div></div>
+          </li>
+        </ol>
+      </section>
+
+      <!-- Screenshots are copies of store/, written by `pnpm listing`; e2e/landing.spec.ts checks they match. -->
+      <div class="features">
+        <section class="feature rev" aria-labelledby="h-peek">
+          <div class="ftext">
+            <span class="hint"><span class="key">⌥</span>hold for a moment</span>
+            <h2 id="h-peek">Peek.</h2>
+            <p>Hold ⌥ for a moment and your keys appear over the page. Press one to go, or let go to close. A dot marks sites that are open right now.</p>
+          </div>
+          <div class="media bleed-l"><img src="media/03-peek.png" width="1280" height="800" loading="lazy" alt="Peek overlay listing eleven shortcuts; GitHub, Figma and Notion show the Open now dot" /></div>
+        </section>
+
+        <section class="feature" aria-labelledby="h-search">
+          <div class="ftext">
+            <span class="hint"><span class="key">⌥</span><span class="key">S</span>pins the overlay</span>
+            <h2 id="h-search">Search your shortcuts.</h2>
+            <p>Press ⌥S to pin the overlay and search by name or link.</p>
+          </div>
+          <div class="media bleed-r"><img src="media/05-pinned-overlay-search.png" width="1280" height="800" loading="lazy" alt="Pinned overlay with the search “ma” matching Maps, Figma and Gmail" /></div>
+        </section>
+
+        <section class="feature rev" aria-labelledby="h-assign">
+          <div class="ftext">
+            <span class="hint"><span class="mark"><svg aria-hidden="true" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z" /></svg></span>toolbar icon</span>
+            <h2 id="h-assign">Assign in a click.</h2>
+            <p>Click the toolbar icon to put the page you’re on on a key. A toast offers Undo.</p>
+          </div>
+          <div class="media bleed-l"><img src="media/02-popup-assign.png" width="1280" height="800" loading="lazy" alt="SpeedLink popup suggesting free keys for the current page, with Alt+O selected" /></div>
+        </section>
+
+        <section class="quiet" aria-labelledby="h-keymap">
+          <div class="qtext">
+            <span class="hint"><span class="key">/</span>to search</span>
+            <h3 id="h-keymap">Your keymap as a keyboard.</h3>
+            <p>Edit a shortcut, drag one key onto another to swap, or search with “/”.</p>
+          </div>
+          <div class="media"><img src="media/01-options-keymap.png" width="1280" height="800" loading="lazy" alt="Options page showing the keymap as a keyboard, with GitHub selected on G" /></div>
+        </section>
+      </div>
+
+      <div class="facts">
+        <p class="fact"><span class="ic"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg></span><span><b>Coming from SpeedLink 1?</b>Your keys come over on update. Nothing to set up again.</span></p>
+        <p class="fact"><span class="ic"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg></span><span><b>Private by design.</b>Your keymap stays in your browser and syncs only through Chrome’s own sync. No data collected, no analytics. <a href="privacy/">Privacy policy</a></span></p>
+      </div>
+
+      <section class="closing" aria-labelledby="h-closing">
+        <div class="combo" aria-hidden="true"><span class="key lg">⌥</span><span>+</span><span class="key lg on">G</span></div>
+        <h2 id="h-closing">Put your sites on keys.</h2>
+        <div class="cta">
+          <a class="btn" href="https://chromewebstore.google.com/detail/kddkenmaadibebdpekhfibihfpealhbe">Add to Chrome<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
+          <span class="note">Free</span>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span class="brand"><span class="mark"><svg aria-hidden="true" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z" /></svg></span>SpeedLink</span>
+      <nav aria-label="Footer">
+        <a href="privacy/">Privacy policy</a>
+        <a href="https://github.com/itigancov/speedlink/issues">Support</a>
+        <a href="https://github.com/itigancov/speedlink">Source on GitHub</a>
+      </nav>
+    </footer>
+  </body>
+</html>
