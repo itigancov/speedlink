@@ -471,3 +471,79 @@ describe('openKey: Try ⌥K from Options', () => {
     );
   });
 });
+
+describe('openKey: from the popup', () => {
+  const restricted = tab(3, { index: 2, active: true, url: 'chrome://newtab/' });
+  const other = tab(4, { index: 3, url: 'https://elsewhere.example/' });
+
+  it('plans against the tab it names: This tab replaces that tab', async () => {
+    openTabs([restricted, other]);
+    await store('D', { openMode: 'this' });
+
+    expect(await createOpenKey()({ key: 'D', force: false, tabId: 3 }, undefined)).toEqual({
+      kind: 'opened',
+      tabId: 3,
+      switched: false,
+    });
+    expect(calls).toEqual([`tabs.update 3 {"url":"${LINK}"}`]);
+  });
+
+  it('closes the named tab with close current', async () => {
+    openTabs([restricted, other]);
+    await store('D', { openMode: 'new', closeCurrent: true });
+
+    await createOpenKey()({ key: 'D', force: false, tabId: 3 }, undefined);
+
+    expect(remove).toHaveBeenCalledWith(3);
+  });
+
+  it('Force new tab opens a new tab next to the named tab, leaving it open', async () => {
+    openTabs([restricted, other]);
+    await store('D', { openMode: 'this', closeCurrent: true });
+
+    await createOpenKey()({ key: 'D', force: true, tabId: 3 }, undefined);
+
+    expect(calls).toEqual([`tabs.create {"url":"${LINK}","windowId":1,"index":3,"openerTabId":3,"active":true}`]);
+  });
+
+  it("a content script's own tab wins over a named one", async () => {
+    openTabs([restricted, other]);
+    await store('D', { openMode: 'this' });
+
+    await createOpenKey()({ key: 'D', force: false, tabId: 3 }, other);
+
+    expect(calls).toEqual([`tabs.update 4 {"url":"${LINK}"}`]);
+  });
+
+  it('replies failed when the named tab is gone', async () => {
+    openTabs([other]);
+    await store('D', {});
+
+    expect(await createOpenKey()({ key: 'D', force: false, tabId: 3 }, undefined)).toEqual({ kind: 'failed' });
+  });
+});
+
+describe('openKey: Try ⌥K with Force new tab', () => {
+  it('opens a new tab even for a matching tab, leaving Options alone', async () => {
+    const options = tab(1, { index: 0, active: true, url: 'chrome-extension://abc/options.html#key=D' });
+    openTabs([options, tab(5, { url: LINK })]);
+    await store('D', {});
+
+    expect(await createOpenKey()({ key: 'D', force: true, trial: true }, options)).toMatchObject({
+      kind: 'opened',
+      tabId: 9,
+    });
+    expect(calls).toEqual([`tabs.create {"url":"${LINK}","windowId":1,"index":1,"openerTabId":1,"active":true}`]);
+  });
+});
+
+describe('openKey: Try ⌥K on a free key', () => {
+  it('replies free and shows no toast, since a SpeedLink page has no content script', async () => {
+    const options = tab(1, { index: 0, active: true, url: 'chrome-extension://abc/options.html' });
+    openTabs([options]);
+    const sendMessage = vi.spyOn(browser.tabs, 'sendMessage');
+
+    expect(await createOpenKey()({ key: 'D', force: false, trial: true }, options)).toEqual({ kind: 'free' });
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+});

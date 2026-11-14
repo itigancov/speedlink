@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, type MockInstan
 import type { Browser } from 'wxt/browser';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
-import type { AssignPageReply } from '@/platform/messaging';
+import type { OverlayModel } from '@/domain/overlay-model';
+import type { AssignPageReply, OpenKeyReply } from '@/platform/messaging';
 import type { Platform } from '@/platform/platform-labels';
 import { type PopupActions, PopupPage } from './PopupPage';
 
@@ -27,6 +28,8 @@ let query: MockInstance;
 let assignPage: Mock<PopupActions['assignPage']>;
 let openOptions: Mock<PopupActions['openOptions']>;
 let close: Mock<PopupActions['close']>;
+let openKey: Mock<PopupActions['openKey']>;
+let getOverlayModel: Mock<PopupActions['getOverlayModel']>;
 
 const store = (key: string, fields: object = {}) =>
   browser.storage.sync.set({
@@ -53,7 +56,13 @@ async function fillAllBut(...except: Key[]) {
 const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 0)));
 
 async function renderPopup({ platform = 'mac', tabId }: { platform?: Platform; tabId?: number } = {}) {
-  render(<PopupPage actions={{ assignPage, openOptions, close }} platform={platform} tabId={tabId} />);
+  render(
+    <PopupPage
+      actions={{ assignPage, openOptions, close, openKey, getOverlayModel }}
+      platform={platform}
+      tabId={tabId}
+    />,
+  );
   await settle();
 }
 
@@ -83,6 +92,8 @@ beforeEach(() => {
   assignPage = vi.fn(async (): Promise<AssignPageReply> => ({ kind: 'saved', undoId: 'u1' }));
   openOptions = vi.fn(async () => {});
   close = vi.fn();
+  openKey = vi.fn(async (): Promise<OpenKeyReply> => ({ kind: 'opened', tabId: 7, switched: false }));
+  getOverlayModel = vi.fn(async (): Promise<OverlayModel> => ({ tiles: [] }));
 });
 
 afterEach(() => {
@@ -124,7 +135,9 @@ describe('the page card', () => {
       },
     );
     tabs = [activeTab({ favIconUrl: 'https://github.com/favicon.ico' })];
-    const { container } = render(<PopupPage actions={{ assignPage, openOptions, close }} platform="mac" />);
+    const { container } = render(
+      <PopupPage actions={{ assignPage, openOptions, close, openKey, getOverlayModel }} platform="mac" />,
+    );
     await waitFor(() =>
       expect(container.querySelector('img')?.getAttribute('src')).toBe('https://github.com/favicon.ico'),
     );
@@ -384,29 +397,180 @@ describe('all 35 keys in use', () => {
   });
 });
 
-describe('an unusable page', () => {
-  it.each(['chrome://extensions/', 'https://chromewebstore.google.com/detail/abc'])(
-    'on %s, says so and disables the picker and Save',
+describe('an unusable page: the launcher', () => {
+  const NEW_TAB = 'chrome://newtab/';
+  const MODEL: OverlayModel = {
+    tiles: [
+      { key: 'D', name: 'Docs', link: 'https://docs.example.com/', subline: { kind: 'tab', index: 3 } },
+      {
+        key: 'Y',
+        name: 'YouTube',
+        link: 'https://youtube.com/',
+        subline: { kind: 'mode', mode: 'smart', site: 'youtube.com' },
+      },
+    ],
+  };
+  const tile = (key: string) => button(new RegExp(`^Option ${key}:`));
+
+  beforeEach(() => {
+    tabs = [activeTab({ id: 7, url: NEW_TAB, title: 'New Tab' })];
+    getOverlayModel.mockResolvedValue(MODEL);
+  });
+
+  it.each([NEW_TAB, 'chrome://extensions/', 'https://chromewebstore.google.com/detail/abc'])(
+    'on %s, says the page can’t be put on a key and shows the keys instead of the picker',
     async (url) => {
       tabs = [activeTab({ url, title: 'Extensions' })];
       await renderPopup();
 
       expect(screen.getByText('This page can’t be put on a key')).toBeDefined();
-      expect(isDisabled(primary())).toBe(true);
-      expect(isDisabled(miniKey('K'))).toBe(true);
-      await press('KeyK');
-      await press('Enter', { key: 'Enter' });
-      expect(assignPage).not.toHaveBeenCalled();
+      expect(tile('D').textContent).toContain('Docs');
+      expect(tile('Y').textContent).toContain('YouTube');
+      expect(screen.queryByTestId('primary')).toBeNull();
+      expect(screen.queryByRole('combobox')).toBeNull();
     },
   );
 
-  it('still opens the keymap', async () => {
-    tabs = [activeTab({ url: 'chrome://extensions/' })];
+  it('asks for the model of the tab it came from', async () => {
+    await renderPopup();
+    expect(getOverlayModel).toHaveBeenCalledWith(7);
+  });
+
+  it('draws the overlay’s tiles: name, what it will do, and no pencil', async () => {
+    await renderPopup();
+    expect(tile('D').getAttribute('aria-label')).toBe('Option D: Docs, Open · tab 3');
+    expect(screen.getByText('youtube.com')).toBeDefined();
+    expect(queryButton(/^Edit/)).toBeNull();
+  });
+
+  it('keeps the picker for a usable page', async () => {
+    tabs = [activeTab()];
+    await renderPopup();
+    expect(screen.getByTestId('primary')).toBeDefined();
+    expect(screen.queryByTestId('overlay-tiles')).toBeNull();
+  });
+
+  it.each([
+    ['a bare key', { code: 'KeyD' }, false],
+    ['⌥ + key', { code: 'KeyD', altKey: true }, false],
+    ['⇧ + key', { code: 'KeyD', shiftKey: true }, true],
+    ['a key by its position, whatever the layout', { code: 'KeyD', key: 'в' }, false],
+  ])('%s opens the key on the tab it came from', async (_name, init, force) => {
+    await renderPopup();
+    await press(init.code, init);
+    expect(openKey).toHaveBeenCalledExactlyOnceWith({ key: 'D', tabId: 7, force });
+  });
+
+  it.each([
+    ['S', { code: 'KeyS' }],
+    ['a key off the grid', { code: 'Numpad3' }],
+    ['⌘ + key', { code: 'KeyD', metaKey: true }],
+    ['Ctrl + key', { code: 'KeyD', ctrlKey: true }],
+  ])('ignores %s', async (_name, init) => {
+    await renderPopup();
+    await press(init.code, init);
+    expect(openKey).not.toHaveBeenCalled();
+  });
+
+  it('opens a clicked tile, and with ⇧ in a new tab', async () => {
+    await renderPopup();
+    fireEvent.click(tile('Y'));
+    await settle();
+    expect(openKey).toHaveBeenLastCalledWith({ key: 'Y', tabId: 7, force: false });
+    fireEvent.click(tile('Y'), { shiftKey: true });
+    expect(openKey).toHaveBeenLastCalledWith({ key: 'Y', tabId: 7, force: true });
+  });
+
+  it.each(['opened', 'noop'] as const)('closes the popup once the key %s', async (kind) => {
+    openKey.mockResolvedValue(kind === 'opened' ? { kind, tabId: 7, switched: false } : { kind });
+    await renderPopup();
+    await press('KeyD');
+    await settle();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('says a free key is free, and stays open', async () => {
+    openKey.mockResolvedValue({ kind: 'free' });
+    await renderPopup();
+    await press('KeyQ');
+    await settle();
+
+    expect(screen.getByText('⌥Q is free')).toBeDefined();
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it('says it could not open a key, and stays open', async () => {
+    openKey.mockResolvedValue({ kind: 'failed' });
+    await renderPopup();
+    await press('KeyD');
+    await settle();
+
+    expect(screen.getByText('Couldn’t open ⌥D')).toBeDefined();
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it('counts a request that never reached the background as failed', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    openKey.mockRejectedValue(new Error('no background'));
+    await renderPopup();
+    await press('KeyD');
+    await settle();
+
+    expect(screen.getByText('Couldn’t open ⌥D')).toBeDefined();
+  });
+
+  it('clears the line on the next press', async () => {
+    openKey.mockResolvedValueOnce({ kind: 'free' });
+    await renderPopup();
+    await press('KeyQ');
+    await settle();
+    await press('KeyD');
+    await settle();
+
+    expect(screen.queryByText('⌥Q is free')).toBeNull();
+  });
+
+  it('reads Alt+Q off a Mac', async () => {
+    openKey.mockResolvedValue({ kind: 'free' });
+    await renderPopup({ platform: 'other' });
+    await press('KeyQ');
+    await settle();
+
+    expect(screen.getByText('Alt+Q is free')).toBeDefined();
+  });
+
+  it('says there are no keys yet, with a way to the keymap', async () => {
+    getOverlayModel.mockResolvedValue({ tiles: [] });
+    await renderPopup();
+
+    expect(screen.getByText('No keys yet')).toBeDefined();
+    fireEvent.click(button('Open keymap'));
+    await settle();
+    expect(openOptions).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('still opens the keymap from the link under the line', async () => {
     await renderPopup();
     fireEvent.click(button('Open keymap'));
     await settle();
     expect(openOptions).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('scrolls its tiles inside the popup past 12 keys', async () => {
+    getOverlayModel.mockResolvedValue({
+      tiles: KEYBOARD_ORDER.slice(0, 14).map((key) => ({
+        key,
+        name: `Site ${key}`,
+        link: 'https://x.example/',
+        subline: { kind: 'mode' as const, mode: 'new' as const, site: 'x.example' },
+      })),
+    });
+    await renderPopup();
+
+    expect(screen.getAllByTestId('overlay-tile')).toHaveLength(14);
+    expect(screen.getByTestId('overlay-tiles').className).toContain('overflow-y-auto');
   });
 });
 

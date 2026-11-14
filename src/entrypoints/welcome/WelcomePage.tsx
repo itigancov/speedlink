@@ -1,11 +1,15 @@
 // The welcome tab (product spec §9): what SpeedLink does and the three moves, shown on install and on the update
-// from v1. Static: it reads no keymap.
+// from v1. Its text is static; the keymap is read only so that ⌥ + key works here too (§9).
 import { PinIcon, PuzzleIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Brand } from '@/components/Brand';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Kbd } from '@/components/ui/kbd';
+import type { Key } from '@/domain/keys';
+import { useKeymap } from '@/hooks/use-keymap';
+import { usePageKeys } from '@/hooks/use-page-keys';
+import { sendMessage } from '@/platform/messaging';
 import { PLATFORM, type Platform, triggerSymbol } from '@/platform/platform-labels';
 
 export interface WelcomePageProps {
@@ -33,7 +37,16 @@ function withTrigger(text: string, platform: Platform): ReactNode {
   );
 }
 
+/** Asks the background for Options, on `key` when there is one; the welcome page stays where it is. */
+function openOptions(key?: Key) {
+  sendMessage('openOptions', key === undefined ? undefined : { key }).catch((error: unknown) =>
+    console.error('SpeedLink: could not open Options', error),
+  );
+}
+
 export function WelcomePage({ platform = PLATFORM, navigate = replacePage }: WelcomePageProps) {
+  // ⌥ + a free key assigns it in Options, ⌥S opens Options.
+  usePageKeys({ keymap: useKeymap(), onFree: openOptions, onReserved: openOptions });
   const steps = [
     {
       id: 'assign',

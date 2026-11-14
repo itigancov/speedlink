@@ -10,6 +10,8 @@ const actions: PopupActions = {
   assignPage: (request) => sendMessage('assignPage', request),
   openOptions: () => sendMessage('openOptions', undefined),
   close: () => window.close(),
+  openKey: (request) => sendMessage('openKey', request),
+  getOverlayModel: (tabId) => sendMessage('getOverlayModel', { tabId }),
 };
 
 /** e2e only: `popup.html?tabId=N` names the tab, since Playwright can't open the toolbar popup. Compiled away elsewhere. */

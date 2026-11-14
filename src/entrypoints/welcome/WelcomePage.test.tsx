@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { WelcomePage } from './WelcomePage';
 
 describe('WelcomePage', () => {
@@ -53,5 +54,71 @@ describe('WelcomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open keymap' }));
 
     expect(navigate).toHaveBeenCalledExactlyOnceWith(browser.runtime.getURL('/options.html'));
+  });
+});
+
+describe('⌥ + key on the welcome page', () => {
+  let sent: { type: string; data: unknown }[];
+
+  const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  const altKey = (code: string, init: KeyboardEventInit = {}) => {
+    const event = new KeyboardEvent('keydown', { code, altKey: true, bubbles: true, cancelable: true, ...init });
+    act(() => {
+      document.body.dispatchEvent(event);
+    });
+    return event;
+  };
+
+  beforeEach(async () => {
+    fakeBrowser.reset();
+    vi.restoreAllMocks();
+    sent = [];
+    // happy-dom reports AltGraph whenever Alt is held; Chrome reports it only for a real AltGr.
+    const ownState = KeyboardEvent.prototype.getModifierState;
+    vi.spyOn(KeyboardEvent.prototype, 'getModifierState').mockImplementation(function (this: KeyboardEvent, key) {
+      return key === 'AltGraph' ? false : ownState.call(this, key);
+    });
+    vi.spyOn(browser.runtime, 'sendMessage').mockImplementation((async (message: { type: string; data: unknown }) => {
+      sent.push(message);
+      return { res: { kind: 'opened', tabId: 9, switched: false } };
+    }) as never);
+    await browser.storage.sync.set({
+      'key.G': { link: 'https://github.com/', openMode: 'smart', tabMatch: 'site', closeCurrent: false },
+    });
+    render(<WelcomePage platform="mac" />);
+    await settle();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('opens an assigned key as Try does, without leaving the page', async () => {
+    const event = altKey('KeyG');
+    await settle();
+
+    expect(sent).toEqual([expect.objectContaining({ type: 'tryKey', data: { key: 'G', force: false } })]);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('⌥⇧+key forces a new tab', async () => {
+    altKey('KeyG', { shiftKey: true });
+    await settle();
+
+    expect(sent).toEqual([expect.objectContaining({ type: 'tryKey', data: { key: 'G', force: true } })]);
+  });
+
+  it('takes a free key to Options on that key', async () => {
+    altKey('KeyK');
+    await settle();
+
+    expect(sent).toEqual([expect.objectContaining({ type: 'openOptions', data: { key: 'K' } })]);
+  });
+
+  it('⌥S opens Options', async () => {
+    altKey('KeyS');
+    await settle();
+
+    expect(sent).toEqual([expect.objectContaining({ type: 'openOptions', data: undefined })]);
   });
 });

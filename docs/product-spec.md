@@ -147,7 +147,9 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
 - The orphaned v1.6 script is left alone.
 
 ### 4.6 Where ⌥+key does not work
-⌥+key does nothing on restricted pages (chrome://, the NTP, the Web Store, the PDF viewer, view-source) and on extension pages (Options, welcome, popup). It also does nothing while focus is inside an `about:blank`, `srcdoc` or `data:` child frame (no `match_about_blank` / `match_origin_as_fallback`). Only ⌥S has a fallback there (§5.3).
+⌥+key does nothing on restricted pages (chrome://, the NTP, the Web Store, the PDF viewer, view-source) and in the popup's own page. It also does nothing while focus is inside an `about:blank`, `srcdoc` or `data:` child frame (no `match_about_blank` / `match_origin_as_fallback`). Only ⌥S has a fallback there (§5.3), and the popup becomes a launcher on a restricted page (§7).
+
+**Extension pages** (Options, welcome) have no content script, so each page runs the same keydown decision itself (§4.2, §4.3: trigger check, AltGr, IME, repeat, editable target, per-OS browser keys) and ⌥+key works there with Try semantics (§8.5): `tryKey{key, force}` opens the shortcut and the SpeedLink page is never replaced or closed. ⇧ = Force new tab. No Peek and no overlay appear on these pages. A free key and ⌥S act on the page: §8.9 for Options, §9 for welcome. A free key replies `free` with no toast.
 
 ### 4.7 Platform labels
 - One synchronous helper decides Mac vs non-Mac from `navigator.userAgent` and is used by every surface.
@@ -162,7 +164,7 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
 
 ### 5.1 Peek
 - **Opening**: the timer starts on keydown of `AltLeft`/`AltRight` with no other modifier and not repeat. Any other keydown, mousedown, wheel, `blur`, `visibilitychange`, or ⌥ keyup before **400 ms** (fixed) cancels it. A quick ⌥+key never flashes the overlay.
-- **In Peek**: key → open; ⇧+key → Force new tab; S → pin (§5.2); ⌥ release or Esc → close. There is no search.
+- **In Peek**: key → open; ⇧+key → Force new tab; S → pin (§5.2); ⌥ release or Esc → close. There is no search: while ⌥ is held every letter is a key, so the hint says "S to search" and typing starts only in the pinned overlay.
   - A key or a tile click that opens closes the Peek: one hold opens one thing. Shift alone doesn't close it.
   - Ctrl, ⌘, and any key that isn't a SpeedLink key close it and pass through to the page; Esc is consumed.
   - Focus never leaves the page in a Peek: the overlay takes no focus, so nothing needs restoring.
@@ -181,9 +183,9 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
 - No results → `No keys match "…"`.
 
 ### 5.3 ⌥S and commands
-- `S` is reserved regardless of command bindings. The content script handles ⌥S itself wherever it runs.
+- `S` is reserved regardless of command bindings. The content script handles ⌥S itself wherever it runs; on Options and welcome the page does (§4.6): ⌥S focuses the keymap search on Options and opens Options from welcome.
 - Command `toggle-overlay` (suggested `Alt+S`) covers the omnibox and restricted pages. Chrome swallows the S keydown, so the handler sends the tab `overlay{action: 'toggle'}`, which pins (clearing a pending hold timer) or closes.
-- The handler checks the tab's URL first: a URL restricted by §4.6 (non-http(s), the NTP, the Web Store) **opens Options on the keymap** at once, focusing an existing Options tab. Otherwise it sends the toggle through `sendToTab` (§4.5, injecting into a tab from before install or update); `restricted` (the PDF viewer) → Options, `failed` (e.g. mid-navigation) → nothing.
+- The handler checks the tab's URL first. On the Options tab itself it sets `#search` in the tab's hash (a hash change, so nothing reloads and a draft survives), and Options focuses the keymap search (§8.9). A URL restricted by §4.6 (non-http(s), the NTP, the Web Store) **opens Options on the keymap** at once, focusing an existing Options tab; so does the welcome page. Otherwise it sends the toggle through `sendToTab` (§4.5, injecting into a tab from before install or update); `restricted` (the PDF viewer) → Options, `failed` (e.g. mid-navigation) → nothing.
 - With focus in the omnibox the overlay still shows on the page, and the search takes focus as soon as the page does.
 - `_execute_action` (popup) has **no suggested key**.
 - An update from v1 leaves both commands unbound. Mitigation: Options shows the quiet line "Set ⌥S for pages where SpeedLink can't run", linking to `chrome://extensions/shortcuts`, while `commands.getAll()` reports no binding. A no-op 4.0.1 then assigns Alt+S (§14).
@@ -194,8 +196,8 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
   - Smart switch would switch to a tab in this window (the current tab included) → "Open · tab N" (1-based position);
   - Smart switch would raise another window → "Open · other window" (green);
   - else Smart → site, New → "new tab", This → "this tab", Background → "background". Both "Open" sublines follow Smart switch's winner (§4.1), so other open modes show their mode even when the page is open.
-- **Top row**: badge "⌥ held" + the hint "Press a key — or keep typing to search". In the pinned overlay the badge reads "Pinned" and the hint is the search field's placeholder.
-- **Footer legend**: key go · ⇧ + key force new tab · type search names & links · ⌥ release or Esc close (pinned: Esc close) · green dot "open now — will switch, not reopen".
+- **Top row**: badge "⌥ held" + the hint "Press a key — S to search". In the pinned overlay the badge reads "Pinned" and the hint is the search field's placeholder ("Press a key — or keep typing to search").
+- **Footer legend**: key go · ⇧ + key force new tab · ⌥ release or Esc close · green dot "open now — will switch, not reopen". The pinned overlay adds "type search names & links" and drops "⌥ release" (Esc close), since typing works only there.
 - **Empty keymap**: "No keys yet" + an "Open keymap" link.
 - **Mouse**: tile click opens, ⇧+click = Force new tab; both work in Peek too. A pencil on tile hover/focus opens Options `#key=K` (focusing an existing tab without reloading it) and closes the overlay.
 - ⌥+free key while the overlay is open: the overlay closes and the "⌥K is free" toast appears.
@@ -248,9 +250,13 @@ Toasts render on the page, top frame only. Each is a dark pill: key chip + messa
 - Pick another = press another key.
 - Replace and Move both write the undo record.
 
-**Unusable page** (any non-http(s) or restricted page)
-- The popup opens; the card says "This page can't be put on a key".
-- The picker and Save are disabled; the keymap link still works.
+**Unusable page** (any non-http(s) or restricted page): the popup is a **launcher**, so it is never a dead end.
+- Under the header, a short line "This page can't be put on a key" and an "Open keymap" link. The picker, Save and Opens as are not shown.
+- Then the overlay's tiles for this tab (§5.4: keycap, name or site, "Open · tab N" subline, green dot), from `getOverlayModel{tabId}`, 2 columns at this width; past 12 tiles the area scrolls inside the popup. No pencil and no search.
+- A bare key, ⌥+key or a tile click opens that key's shortcut through `openKey{key, force, tabId}` with the restricted tab as the current tab (normal semantics, not Try): This tab replaces the new tab page, close current closes it. ⇧ (or ⇧+click) = Force new tab. The keys are read by `event.code`; S is ignored.
+- An `opened` / `noop` reply closes the popup. A free key stays open with "⌥K is free" under the tiles; a `failed` reply shows "Couldn't open ⌥K".
+- Empty keymap: "No keys yet" + "Open keymap".
+- ⌥S on a restricted page still opens Options (§5.3).
 
 **All 35 in use**: no chips and no picked key; the prompt reads "All 35 keys are in use — press one to replace it". Replace only.
 
@@ -339,6 +345,7 @@ There is no left nav: only Keymap is left.
   - Background → background tab;
   - close current ignored.
 - Disabled on a free key.
+- ⌥+key on the page (§8.9) opens through the same path; ⇧ forces a new tab.
 
 ### 8.6 `/` search
 - `/` focuses the search and selects its text; it matches per §2.7. `/` is ignored in editable fields (inputs, textareas, contenteditable) and with ⌘, Ctrl or ⌥ held.
@@ -361,6 +368,13 @@ There is no left nav: only Keymap is left.
 
 ### 8.8 ⌥S hint
 The "Set ⌥S" line, per §5.3.
+
+### 8.9 ⌥+key on Options
+- ⌥+key follows §4.6: an assigned key opens as Try does (§8.5), ⌥⇧+key forces a new tab. A pending draft is left alone.
+- ⌥ + a free key selects that key in the editor, as a click does, so a draft is saved or discarded as on any key switch (§8.4).
+- ⌥S focuses the search and selects its text, as `/` does (§8.6). It arrives either from the page's own listener, or from the `toggle-overlay` command, which sets `#search` (§5.3); the page reacts as it does to `#key=K` (no reload) and puts `#key=K` back.
+- Typing in a field (Link, Name, the search) is the field's: ⌥+key there is not ours. On Windows and Linux the browser's own Alt keys on free keys keep working (§4.3). Repeats send once.
+- No Peek: the keymap is already in view.
 ↳ rebuild map: issues/06-behavior-audit.md (behavior audit), issues/08-theme-and-components.md (theme and components)
 
 ---
@@ -373,6 +387,7 @@ The "Set ⌥S" line, per §5.3.
   - three steps: put a page on a key (the icon, or ⌥ + a free key) → press ⌥ + key anywhere → hold ⌥ to see your keys;
   - a tip to pin the icon;
   - an "Open keymap" button.
+- ⌥+key works here as on Options (§4.6): an assigned key opens in a new tab and the welcome tab stays; ⌥ + a free key opens Options on that key (`#key=K`); ⌥S opens Options.
 - No Top Sites, no Default behavior step, no "Press ⌥Y now", no "What's new" variant.
 ↳ rebuild map: issues/06-behavior-audit.md (behavior audit), issues/10-release-plan.md (release plan)
 
@@ -460,7 +475,8 @@ e2e/                   Playwright specs + fixture pages
 ### 11.4 Messaging
 One typed protocol in `platform/messaging.ts` on `@webext-core/messaging`. No ad-hoc `runtime.sendMessage`.
 - content → bg: `openKey{key, force}`, `assignPage`, `undo{id}`, `openOptions{key?}`, `getOverlayModel`, `frameEvent{kind: 'show'|'close'|'pin'}`
-- popup → bg: `assignPage`, `openOptions`
+- popup → bg: `assignPage`, `openOptions`, and on a restricted page `openKey{key, force, tabId}` and `getOverlayModel{tabId}`. A content script's own tab (sender.tab) always wins and it sends no `tabId`; the popup names the active tab it reads.
+- options, welcome → bg: `tryKey{key, force?}`, `openOptions{key?}`
 - bg → tab (`frameId: 0`): `ping`, `overlay{action: 'toggle'}`, `toast{kind: 'saved'|'free'|'switched'|'error', …}`, `frameEvent`
 - Every bg → tab send goes through one `sendToTab` helper: ping → inject → retry once.
 
@@ -559,7 +575,7 @@ Key-state colors live inside `KeyCap`.
 
 ## 13. Manifest
 
-- `version: "4.0.0"`; `minimum_chrome_version: "121"`, set by `Tab.lastAccessed` (Smart switch, §4.1). Other APIs used are lower (`storage.session` 102, `runtime.getContexts` 116). No `key` field.
+- `version: "4.1.0"`; `minimum_chrome_version: "121"`, set by `Tab.lastAccessed` (Smart switch, §4.1). Other APIs used are lower (`storage.session` 102, `runtime.getContexts` 116). No `key` field.
 - `permissions: storage, tabs, scripting`; `host_permissions: ["<all_urls>"]`.
 - Content script `<all_urls>`, `all_frames: true`, `run_at: document_start`.
 - Icons: the 16/32/48/128 PNGs drawn from the `Brand` logo mark by `pnpm listing`, at the same paths as v1's. The 128 px icon is 96 px of artwork inside 16 px of transparent padding.

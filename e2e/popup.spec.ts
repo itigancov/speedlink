@@ -5,7 +5,8 @@ import { expect, HOOKS_EXTENSION_PATH, test } from './extension';
 // Popup · Assign this page in real Chrome (product spec §7): the save goes through the background, the popup closes
 // and the saved toast with Undo shows on the page. Playwright can't open the toolbar popup, so the e2e-hooks build
 // takes `popup.html?tabId=N` and the popup is opened in a normal tab; the active-tab path is covered by
-// src/entrypoints/popup/PopupPage.test.tsx, as are the picker's states.
+// src/entrypoints/popup/PopupPage.test.tsx, as are the picker's states. On a restricted page the popup is a launcher
+// (§7): a key press opens through the background, with that page as the current tab.
 
 interface Tab {
   id: number;
@@ -69,6 +70,14 @@ const chord = async (page: Page, key: string) =>
   (await page.evaluate(() => /Macintosh|Mac OS X/.test(navigator.userAgent))) ? `⌥${key}` : `Alt+${key}`;
 
 const toast = (page: Page): Locator => page.getByTestId('page-toast');
+
+/** The popup for a tab that can't take a key, once it has drawn its tiles. */
+async function openLauncher(context: BrowserContext, extensionId: string, tabId: number): Promise<Page> {
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/popup.html?tabId=${tabId}`);
+  await expect(popup.getByTestId('overlay-tiles')).toBeVisible();
+  return popup;
+}
 
 test('a free key: ↵ saves the page, the popup closes, the saved toast shows and Undo frees the key', async ({
   context,
@@ -134,10 +143,40 @@ test('a taken key: Move it to ⌥X keeps both, and Undo puts both keys back', as
   expect(await storedOn(worker, '1')).toBeUndefined();
 });
 
-test("an unusable page says it can't go on a key, with Save disabled", async ({ context, extensionId }) => {
+test('an unusable page gets the launcher instead of the picker', async ({ context, extensionId }) => {
+  const worker = await serviceWorker(context);
+  await store(worker, 'D', { link: `${ORIGIN}/frame-child.html?launch`, name: 'Docs', openMode: 'new' });
   const { tabId } = await openPage(context, `chrome-extension://${extensionId}/options.html`);
-  const popup = await openPopup(context, extensionId, tabId);
+  const popup = await openLauncher(context, extensionId, tabId);
 
   await expect(popup.getByText('This page can’t be put on a key')).toBeVisible();
-  await expect(popup.getByTestId('primary')).toBeDisabled();
+  await expect(popup.getByTestId('overlay-tile')).toHaveText([/Docs/]);
+  await expect(popup.getByTestId('primary')).toHaveCount(0);
+});
+
+test('on a restricted page a key press opens, and This tab replaces that tab', async ({ context, extensionId }) => {
+  const worker = await serviceWorker(context);
+  const link = `${ORIGIN}/frame-child.html?launch`;
+  await store(worker, 'D', { link, name: 'Docs', openMode: 'this', tabMatch: 'exact' });
+  const { page, tabId } = await openPage(context, 'chrome://version/');
+  const popup = await openLauncher(context, extensionId, tabId);
+
+  await popup.keyboard.press('KeyD');
+
+  await expect(page).toHaveURL(link);
+  // Replaced, not opened next to it: no other page is on the link.
+  expect(context.pages().filter((other) => other.url() === link)).toEqual([page]);
+});
+
+test('on a restricted page a free key says it is free and opens nothing', async ({ context, extensionId }) => {
+  const worker = await serviceWorker(context);
+  await store(worker, 'D', { link: `${ORIGIN}/frame-child.html?launch`, name: 'Docs' });
+  const { tabId } = await openPage(context, 'chrome://version/');
+  const popup = await openLauncher(context, extensionId, tabId);
+  const pages = context.pages().length;
+
+  await popup.keyboard.press('KeyQ');
+
+  await expect(popup.getByText(`${await chord(popup, 'Q')} is free`)).toBeVisible();
+  expect(context.pages()).toHaveLength(pages);
 });

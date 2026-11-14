@@ -1125,3 +1125,175 @@ describe('the ⌥S hint', () => {
     expect(hint()).toBeNull();
   });
 });
+
+describe('⌥ + key on Options', () => {
+  let sent: { type: string; data: unknown }[];
+
+  beforeEach(() => {
+    sent = [];
+    // happy-dom reports AltGraph whenever Alt is held; Chrome reports it only for a real AltGr.
+    const ownState = KeyboardEvent.prototype.getModifierState;
+    vi.spyOn(KeyboardEvent.prototype, 'getModifierState').mockImplementation(function (this: KeyboardEvent, key) {
+      return key === 'AltGraph' ? false : ownState.call(this, key);
+    });
+    vi.spyOn(browser.runtime, 'sendMessage').mockImplementation((async (message: { type: string; data: unknown }) => {
+      sent.push(message);
+      return { res: { kind: 'opened', tabId: 9, switched: false } };
+    }) as never);
+  });
+
+  const altKey = (code: string, init: KeyboardEventInit = {}, target: Element = document.body) => {
+    const event = new KeyboardEvent('keydown', { code, altKey: true, bubbles: true, cancelable: true, ...init });
+    act(() => {
+      target.dispatchEvent(event);
+    });
+    return event;
+  };
+
+  it('opens an assigned key as Try does, and swallows the press', async () => {
+    await store('G');
+    await renderPage('#key=K');
+
+    const event = altKey('KeyG');
+    await advance();
+
+    expect(sent).toEqual([expect.objectContaining({ type: 'tryKey', data: { key: 'G', force: false } })]);
+    expect(event.defaultPrevented).toBe(true);
+    expect(selectedKey()).toBe(`${T} K: free`);
+  });
+
+  it('⌥⇧+key forces a new tab', async () => {
+    await store('G');
+    await renderPage();
+
+    altKey('KeyG', { shiftKey: true });
+    await advance();
+
+    expect(sent).toEqual([expect.objectContaining({ type: 'tryKey', data: { key: 'G', force: true } })]);
+  });
+
+  it('selects a free key in the editor, ready to be filled', async () => {
+    await store('G');
+    await renderPage('#key=G');
+
+    altKey('KeyK');
+    await advance();
+
+    expect(selectedKey()).toBe(`${T} K: free`);
+    expect(window.location.hash).toBe('#key=K');
+    expect(sent).toEqual([]);
+  });
+
+  it('acts on a free reply: the key was freed since the page last saw it', async () => {
+    // webext-core sends with a callback, so the reply goes through it.
+    vi.spyOn(browser.runtime, 'sendMessage').mockImplementation(((_message: unknown, callback: (r: unknown) => void) =>
+      callback({ res: { kind: 'free' } })) as never);
+    await store('G');
+    await store('Y');
+    await renderPage('#key=G');
+
+    altKey('KeyY');
+    await advance();
+
+    expect(selectedKey()).toMatch(new RegExp(`^${T} Y:`));
+  });
+
+  it('does not select a free key with ⇧ held', async () => {
+    await store('G');
+    await renderPage('#key=G');
+
+    altKey('KeyK', { shiftKey: true });
+    await advance();
+
+    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+  });
+
+  it('leaves the free keys the browser keeps for itself alone', async () => {
+    await store('G');
+    await renderPage('#key=G');
+
+    const event = altKey('KeyD');
+    await advance();
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+  });
+
+  it('⌥S focuses the search and selects its text', async () => {
+    await renderPage();
+    await type(searchField(), 'git');
+    act(() => searchField().blur());
+
+    const event = altKey('KeyS');
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(searchField());
+    expect(searchField().selectionStart).toBe(0);
+    expect(searchField().selectionEnd).toBe(3);
+  });
+
+  it('types as usual inside the Link field', async () => {
+    await store('G');
+    await store('Y');
+    await renderPage('#key=G');
+
+    const event = altKey('KeyY', {}, linkField());
+    await advance();
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(sent).toEqual([]);
+    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+  });
+
+  it('sends once for a held key', async () => {
+    await store('G');
+    await renderPage();
+
+    altKey('KeyG');
+    altKey('KeyG', { repeat: true });
+    altKey('KeyG', { repeat: true });
+    await advance();
+
+    expect(sent).toHaveLength(1);
+  });
+
+  it('shows no overlay while ⌥ is held', async () => {
+    await store('G');
+    await renderPage();
+
+    altKey('AltLeft');
+    await advance(600);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+describe('#search', () => {
+  const goTo = (hash: string) =>
+    act(async () => {
+      window.location.hash = hash;
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+
+  it('focuses the search without a reload, and goes back to the selected key', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    await type(searchField(), 'git');
+    act(() => searchField().blur());
+
+    await goTo('#search');
+
+    expect(document.activeElement).toBe(searchField());
+    expect(searchField().selectionEnd).toBe(3);
+    expect(window.location.hash).toBe('#key=G');
+    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+  });
+
+  it('focuses the search when the page opens on it', async () => {
+    await store('G');
+    await renderPage('#search');
+
+    expect(document.activeElement).toBe(searchField());
+    expect(window.location.hash).toBe('#key=G');
+  });
+});

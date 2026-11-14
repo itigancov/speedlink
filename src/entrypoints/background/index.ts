@@ -15,14 +15,16 @@ export default defineBackground(() => {
   registerCommands();
 
   const openKey = createOpenKey();
-  onMessage('openKey', ({ data, sender }) => openKey(data, sender.tab));
-  onMessage('tryKey', ({ data, sender }) => openKey({ key: data.key, force: false, trial: true }, sender.tab));
+  onMessage('openKey', ({ data, sender }) => openKey(data, contentScriptTab(sender)));
+  onMessage('tryKey', ({ data, sender }) =>
+    openKey({ key: data.key, force: data.force ?? false, trial: true }, sender.tab),
+  );
   const assignPage = createAssignPage();
   const undo = createUndo();
   onMessage('assignPage', ({ data, sender }) => assignPage(data, contentScriptTab(sender)));
   onMessage('undo', ({ data }) => undo(data));
   onMessage('openOptions', ({ data, sender }) => openOptions(data?.key, sender.tab));
-  onMessage('getOverlayModel', ({ sender }) => readOverlayModel(sender.tab));
+  onMessage('getOverlayModel', ({ data, sender }) => readOverlayModel(contentScriptTab(sender), data?.tabId));
   onMessage('frameEvent', ({ data, sender }) => relayFrameEvent(sender.tab, data));
 
   // e2e only: drive the same openKey and the toggle-overlay command from Playwright with a real tab (CDP can't fire

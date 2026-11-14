@@ -42,8 +42,8 @@ export type UndoReply = { kind: 'undone' } | { kind: 'stale' } | { kind: 'failed
  *
  * Directions:
  * - content → bg: openKey, assignPage, undo, openOptions, getOverlayModel, frameEvent
- * - popup → bg: assignPage, openOptions
- * - options → bg: tryKey
+ * - popup → bg: openKey, assignPage, openOptions, getOverlayModel
+ * - options, welcome → bg: tryKey, openOptions
  * - bg → tab (frameId 0, via `sendToTab` in `injection.ts`): ping, overlay, toast, frameEvent
  */
 /**
@@ -63,8 +63,11 @@ export type PageToastData =
 export interface ProtocolMap {
   // content → bg
 
-  /** ⌥+key pressed on a page (sender.tab is the current tab, sub-frames too); `force` is Force new tab. */
-  openKey(data: { key: Key; force: boolean }): OpenKeyReply;
+  /**
+   * ⌥+key pressed on a page (sender.tab is the current tab, sub-frames too); `force` is Force new tab. A content
+   * script's own tab always wins and it sends no `tabId`; the popup on a restricted page names the tab it came from.
+   */
+  openKey(data: { key: Key; force: boolean; tabId?: number }): OpenKeyReply;
 
   /**
    * Put a tab's page on a key (popup, free-key toast) and write the undo record in `storage.session`. A content
@@ -78,8 +81,11 @@ export interface ProtocolMap {
   /** Focus an open Options tab, or open one next to the sender, optionally with a key selected (`#key=K`). */
   openOptions(data?: { key?: Key }): void;
 
-  /** The overlay's model for the sender's tab, built by the background from the fresh keymap and tabs. */
-  getOverlayModel(): OverlayModel;
+  /**
+   * The overlay's model for the sender's tab (else the popup's named `tabId`), built by the background from the fresh
+   * keymap and tabs.
+   */
+  getOverlayModel(data?: { tabId?: number }): OverlayModel;
 
   /**
    * A sub-frame's Peek: `show` once ⌥ was held 400 ms there, `close` when it ends; `pin` on ⌥S there. The background
@@ -87,10 +93,13 @@ export interface ProtocolMap {
    */
   frameEvent(data: FrameEvent): void;
 
-  // options → bg
+  // SpeedLink's own pages → bg
 
-  /** Try ⌥K: open the key as if pressed on the Options tab (sender.tab), which is never replaced or closed. */
-  tryKey(data: { key: Key }): OpenKeyReply;
+  /**
+   * Try ⌥K, and ⌥+key on Options or welcome: open the key as if pressed on the SpeedLink page (sender.tab), which is
+   * never replaced or closed. `force` is Force new tab. A free key replies `free`, with no toast (nothing to show it).
+   */
+  tryKey(data: { key: Key; force?: boolean }): OpenKeyReply;
 
   // bg → tab
 
