@@ -36,7 +36,7 @@ export type Shortcut = Readonly<ShortcutFields> & UnknownFields & Validated;
 export type ShortcutError = LinkError | 'invalid-open-mode' | 'invalid-tab-match' | 'too-large';
 
 export const DEFAULT_OPEN_MODE: OpenMode = 'smart';
-export const DEFAULT_TAB_MATCH: TabMatch = 'site';
+export const DEFAULT_TAB_MATCH: TabMatch = 'page';
 
 /** `storage.sync` QUOTA_BYTES_PER_ITEM: the key's length plus the JSON of its value, in bytes. */
 const SYNC_ITEM_CAP = 8192;

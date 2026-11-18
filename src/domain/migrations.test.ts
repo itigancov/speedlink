@@ -16,9 +16,9 @@ const row = (shortcut: unknown, url: unknown, title: unknown = '', extra: object
 
 const v1 = (shortcuts: unknown, settings: unknown = { smartTabs: true }) => ({ shortcuts, settings });
 
-/** A shortcut as an import produces it: tab match site, close current false. */
+/** A shortcut as an import produces it: tab match page, close current false. */
 const imported = (link: string, openMode: 'smart' | 'new' | 'this' | 'bg', name?: string) =>
-  validShortcut({ link, openMode, tabMatch: 'site', closeCurrent: false, ...(name === undefined ? {} : { name }) });
+  validShortcut({ link, openMode, tabMatch: 'page', closeCurrent: false, ...(name === undefined ? {} : { name }) });
 
 describe('planV1Import: no v1 data', () => {
   it.each([

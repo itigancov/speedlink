@@ -2,7 +2,7 @@
 import { type KeyUse, moveTarget } from './fitting-keys';
 import { isAssignable, type Key, type KeyLabel } from './keys';
 import type { LinkError } from './link';
-import { type OpenMode, type Shortcut, validateShortcut } from './shortcut';
+import { DEFAULT_TAB_MATCH, type OpenMode, type Shortcut, validateShortcut } from './shortcut';
 
 export type V1SkipReason = 'invalid-key' | LinkError | 'too-large' | 'duplicate' | 'key-taken' | 'no-free-key';
 
@@ -81,7 +81,7 @@ function readRows(rows: readonly unknown[], openMode: OpenMode): { candidates: C
       link: typeof fields.url === 'string' ? fields.url : '',
       name: typeof fields.title === 'string' ? fields.title : undefined,
       openMode,
-      tabMatch: 'site',
+      tabMatch: DEFAULT_TAB_MATCH,
       closeCurrent: false,
     });
     if (!result.ok) {

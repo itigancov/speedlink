@@ -196,7 +196,7 @@ describe('autosave', () => {
       link: 'https://docs.example.com/',
       name: 'Docs',
       openMode: 'smart',
-      tabMatch: 'site',
+      tabMatch: 'page',
       closeCurrent: false,
     });
     expect(keyButton('K').getAttribute('aria-label')).toBe(`${T} K: Docs`);

@@ -26,6 +26,12 @@ describe('planAssign', () => {
     });
   });
 
+  it('gives the new shortcut the page tab match', () => {
+    const plan = planAssign({}, 'K', page);
+
+    expect(plan.kind === 'written' && plan.shortcut.tabMatch).toBe('page');
+  });
+
   it.each([
     'chrome://settings/',
     'file:///Users/me/notes.html',

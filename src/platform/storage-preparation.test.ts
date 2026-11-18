@@ -23,7 +23,7 @@ const stored = (link: string, name?: string) => ({
   link,
   ...(name === undefined ? {} : { name }),
   openMode: 'bg',
-  tabMatch: 'site',
+  tabMatch: 'page',
   closeCurrent: false,
 });
 
