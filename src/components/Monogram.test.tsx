@@ -1,57 +1,42 @@
 // @vitest-environment happy-dom
-import { render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 import { validShortcut } from '@/domain/test-shortcut';
 import { Monogram } from './Monogram';
 
-/** happy-dom never loads images: stand in for one that has already loaded (or failed, with no pixels). */
-function stubImages(naturalWidth: number) {
-  vi.stubGlobal(
-    'Image',
-    class extends EventTarget {
-      complete = true;
-      naturalWidth = naturalWidth;
-      src = '';
-      crossOrigin: string | null = null;
-    },
-  );
-}
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
-
-const github = validShortcut({ link: 'https://github.com/acme/speedlink/pulls', name: 'GitHub pulls' });
+const tile = (container: HTMLElement) => container.querySelector<HTMLElement>('[data-slot="monogram"]');
 
 describe('Monogram', () => {
-  it('shows the shortcut monogram', () => {
-    render(<Monogram shortcut={github} />);
-    expect(screen.getByText('GP')).toBeDefined();
+  it('draws one letter of the name on the tile of its site', () => {
+    const { container } = render(<Monogram shortcut={validShortcut({ link: 'https://github.com/x', name: 'Code' })} />);
+    expect(tile(container)?.textContent).toBe('C');
+    expect(tile(container)?.dataset.hue).toBe('amber');
   });
 
-  it('falls back to the site when there is no name', () => {
-    render(<Monogram shortcut={validShortcut({ link: 'https://youtube.com/' })} />);
-    expect(screen.getByText('YO')).toBeDefined();
+  it('falls back to the site for the letter', () => {
+    const { container } = render(<Monogram shortcut={validShortcut({ link: 'https://youtube.com/' })} />);
+    expect(tile(container)?.textContent).toBe('Y');
+    expect(tile(container)?.dataset.hue).toBe('purple');
   });
 
-  it('renders no image without a favicon', () => {
-    const { container } = render(<Monogram shortcut={github} />);
-    expect(container.querySelector('img')).toBeNull();
-    expect(screen.getByText('GP')).toBeDefined();
+  it('draws no image, at every size', () => {
+    for (const size of ['2xs', 'xs', 'sm', 'default', 'lg'] as const) {
+      const { container, unmount } = render(
+        <Monogram shortcut={validShortcut({ link: 'https://mail.google.com/' })} size={size} />,
+      );
+      expect(container.querySelector('img')).toBeNull();
+      expect(tile(container)?.dataset.hue).toBe('red');
+      unmount();
+    }
   });
 
-  it('renders the favicon once it loads', async () => {
-    stubImages(16);
-    const { container } = render(<Monogram shortcut={github} src="https://github.com/favicon.ico" />);
-    await waitFor(() =>
-      expect(container.querySelector('img')?.getAttribute('src')).toBe('https://github.com/favicon.ico'),
-    );
+  it('is decoration: hidden from assistive tech', () => {
+    const { container } = render(<Monogram shortcut={validShortcut({ link: 'https://github.com/' })} />);
+    expect(tile(container)?.getAttribute('aria-hidden')).toBe('true');
   });
 
-  it('keeps the monogram when the favicon fails to load', () => {
-    stubImages(0);
-    const { container } = render(<Monogram shortcut={github} src="https://github.com/missing.ico" />);
-    expect(container.querySelector('img')).toBeNull();
-    expect(screen.getByText('GP')).toBeDefined();
+  it('marks the ringed variant', () => {
+    const { container } = render(<Monogram shortcut={validShortcut({ link: 'https://github.com/' })} ringed />);
+    expect(tile(container)?.dataset.ringed).toBe('true');
   });
 });

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, type Mock, type MockInstance, vi } from 'vitest';
 import type { Browser } from 'wxt/browser';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
@@ -124,28 +124,16 @@ describe('the page card', () => {
     expect(screen.getByText('github.com/acme/speedlink/pulls')).toBeDefined();
   });
 
-  it('shows the favicon once it loads', async () => {
-    vi.stubGlobal(
-      'Image',
-      class extends EventTarget {
-        complete = true;
-        naturalWidth = 16;
-        src = '';
-        crossOrigin: string | null = null;
-      },
-    );
+  it('shows the coloured tile of the page, never its favicon', async () => {
     tabs = [activeTab({ favIconUrl: 'https://github.com/favicon.ico' })];
     const { container } = render(
       <PopupPage actions={{ assignPage, openOptions, close, openKey, getOverlayModel }} platform="mac" />,
     );
-    await waitFor(() =>
-      expect(container.querySelector('img')?.getAttribute('src')).toBe('https://github.com/favicon.ico'),
-    );
-  });
-
-  it('shows the monogram without a favicon', async () => {
-    await renderPopup();
-    expect(screen.getByText('PR')).toBeDefined();
+    await settle();
+    const tile = container.querySelector<HTMLElement>('[data-slot="monogram"]');
+    expect(tile?.textContent).toBe('P');
+    expect(tile?.dataset.hue).toBe('amber');
+    expect(container.querySelector('img')).toBeNull();
   });
 
   it('says which keys already open this tab', async () => {

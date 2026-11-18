@@ -20,7 +20,7 @@ import { KeyCap, type KeyCapState } from '@/components/KeyCap';
 import { ARROWS, neighbourKey } from '@/domain/key-grid';
 import type { Keymap } from '@/domain/keymap-ops';
 import { isAssignable, type Key, type KeyLabel } from '@/domain/keys';
-import { displayName, monogram } from '@/domain/shortcut';
+import { displayName } from '@/domain/shortcut';
 import { chordLabel, type Platform } from '@/platform/platform-labels';
 
 /** A drag in progress: the key being carried and the key it would land on, if any. */
@@ -196,7 +196,7 @@ export function KeyboardCard({
         label={label}
         state={state}
         open={openKeys.has(label)}
-        monogram={shortcut === undefined ? undefined : monogram(shortcut)}
+        shortcut={shortcut}
         name={shortcut === undefined ? undefined : displayName(shortcut)}
         dimmed={drag?.source === label || (matches !== null && !matches.has(label))}
         platform={platform}
@@ -213,7 +213,7 @@ export function KeyboardCard({
       <KeyCap
         label={source}
         state={source === selected ? 'selected' : 'assigned'}
-        monogram={shortcut === undefined ? undefined : monogram(shortcut)}
+        shortcut={shortcut}
         name={shortcut === undefined ? undefined : displayName(shortcut)}
         platform={platform}
         aria-hidden="true"
@@ -265,7 +265,7 @@ export function KeyboardCard({
       }}
     >
       <div className="flex flex-col gap-6 overflow-x-auto rounded-2xl border bg-card p-6">
-        <KeyboardGrid size="lg" platform={platform} renderKey={renderKey} />
+        <KeyboardGrid size="lg" renderKey={renderKey} />
         <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 text-2xs text-muted-foreground">
           <li className="flex items-center gap-1.5">
             <Swatch className="border-primary/20 bg-primary/7" />

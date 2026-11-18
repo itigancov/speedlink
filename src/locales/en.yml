@@ -9,10 +9,6 @@ platform:
     plusKey: ⌥ + key
     plus: ⌥ +
     symbol: ⌥
-    fn: fn
-    control: ⌃
-    option: ⌥ option
-    command: ⌘
   other:
     trigger: Alt
     triggerWord: Alt
@@ -20,9 +16,6 @@ platform:
     plusKey: Alt + key
     plus: Alt +
     symbol: Alt
-    control: Ctrl
-    alt: Alt
-  space: space
 keyCap:
   assigned: "$1 $2: $3"
   free: "$1 $2: free"

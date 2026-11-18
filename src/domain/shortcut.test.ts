@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayName, monogram, parseShortcut, type Shortcut, validateShortcut } from './shortcut';
+import { displayName, monogram, parseShortcut, type Shortcut, TILE_HUES, tileHue, validateShortcut } from './shortcut';
 import { validShortcut } from './test-shortcut';
 
 describe('validateShortcut', () => {
@@ -144,29 +144,72 @@ describe('displayName', () => {
 
 describe('monogram', () => {
   it.each([
-    ['Hacker News', 'HN'],
-    ['Gmail', 'GM'],
-    ['Почта', 'ПО'],
-    ['hacker news daily', 'HN'],
-    ['my-site', 'MS'],
-    ['Q', 'Q'],
-    ['2fa codes', '2C'],
-    ['  ¡Hola!  ', 'HO'],
-    ['𝒜𝒷c', '𝒜𝒷'],
-    ['straße', 'ST'],
-    ['ǆungla', 'ǄU'],
+    ['Hacker News', 'H'],
+    ['gmail', 'G'],
+    ['Почта', 'П'],
+    ['  ¡Hola!  ', 'H'],
+    ['2fa codes', '2'],
+    ['𝒜𝒷c', '𝒜'],
+    ['ǆungla', 'Ǆ'],
+    ['éclair', 'É'],
+    ['\u0065\u0301clair', '\u0045\u0301'],
+    ['東京', '東'],
   ])('gives %j the monogram %s', (name, expected) => {
     expect(monogram(validShortcut({ link: 'example.com', name }))).toBe(expected);
   });
 
   it.each([
-    ['🚀🚀', 'https://github.com/', 'GI'],
-    ['!!!', 'https://bbc.co.uk/', 'BB'],
-    [undefined, 'https://docs.google.com/', 'GO'],
-    [undefined, 'https://bbc.co.uk/', 'BB'],
-    [undefined, 'http://localhost:3000/', 'LO'],
-    [undefined, 'http://127.0.0.1/', '12'],
-  ])('falls back to the main label when the name %j has no word (%s)', (name, link, expected) => {
+    ['🚀🚀', 'https://github.com/', 'G'],
+    ['!!!', 'https://bbc.co.uk/', 'B'],
+    [undefined, 'https://docs.google.com/', 'D'],
+    [undefined, 'https://www.youtube.com/', 'Y'],
+    [undefined, 'http://localhost:3000/', 'L'],
+    [undefined, 'http://127.0.0.1/', '1'],
+    [undefined, 'https://xn--e1afmkfd.xn--p1ai/', 'X'],
+  ])('falls back to the site when the name %j has no letter (%s)', (name, link, expected) => {
     expect(monogram(validShortcut({ link, ...(name === undefined ? {} : { name }) }))).toBe(expected);
+  });
+});
+
+describe('tileHue', () => {
+  it.each([
+    ['https://github.com/', 'amber'],
+    ['https://youtube.com/', 'purple'],
+    ['https://mail.google.com/', 'red'],
+    ['https://google.com/', 'purple'],
+    ['http://localhost/', 'blue'],
+    ['http://localhost:3000/', 'teal'],
+    ['https://news.ycombinator.com/', 'indigo'],
+    ['chrome://extensions/', 'teal'],
+    ['https://xn--e1afmkfd.xn--p1ai/', 'purple'],
+    ['file:///Users/a/notes.html', 'teal'],
+  ])('pins %s to %s', (link, hue) => {
+    expect(tileHue(link)).toBe(hue);
+  });
+
+  it('ignores one leading www. and the path', () => {
+    expect(tileHue('https://www.github.com/acme/speedlink')).toBe(tileHue('https://github.com/'));
+  });
+
+  it('tells ports apart', () => {
+    expect(tileHue('http://localhost:3000/')).not.toBe(tileHue('http://localhost:5173/'));
+  });
+
+  it('keeps the colour of a renamed shortcut', () => {
+    const before = validShortcut({ link: 'github.com', name: 'GitHub' });
+    const after = validShortcut({ link: 'github.com', name: 'Code' });
+    expect(tileHue(after.link)).toBe(tileHue(before.link));
+  });
+
+  it('hashes a link that does not parse whole', () => {
+    expect(tileHue('not a link')).toBe('teal');
+    expect(TILE_HUES).toContain(tileHue(''));
+  });
+
+  it('always gives one of the eight hues', () => {
+    expect(TILE_HUES).toEqual(['red', 'amber', 'blue', 'teal', 'slate', 'purple', 'indigo', 'green']);
+    for (const link of ['https://a.com/', 'https://b.org/x', 'http://10.0.0.1:8080/', 'about:blank', '🚀']) {
+      expect(TILE_HUES).toContain(tileHue(link));
+    }
   });
 });

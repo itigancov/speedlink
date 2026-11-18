@@ -49,6 +49,25 @@
 
   --link: #0050cc;
   --link-hover: #003a99;
+
+  /* Neutrals the 4.2 canvas adds. Its near-primary tints use alpha forms instead of tokens: primary/3, /4, /7,
+     /20, /30, /40. */
+  --foreground-subtle: #3e4250;
+  --border-subtle: #edeef2;
+  --border-strong: #c9cdd8;
+  /* The bottom edge under a blue key (shadow-edge-primary). */
+  --edge-primary: #0047b3;
+
+  /* Monogram tiles, picked by domain/shortcut tileHue in this order; a white letter on each (≥ 4.5:1, tested).
+     The same in every theme. */
+  --tile-red: #b3261e;
+  --tile-amber: #a2540a;
+  --tile-blue: #1a56db;
+  --tile-teal: #0e6e8c;
+  --tile-slate: #3e4250;
+  --tile-purple: #7a3eb1;
+  --tile-indigo: #4b55c4;
+  --tile-green: #0b7a53;
 }
 
 @theme inline {
@@ -91,7 +110,21 @@
   --color-inverse-link: var(--inverse-link);
   --color-link: var(--link);
   --color-link-hover: var(--link-hover);
+  --color-foreground-subtle: var(--foreground-subtle);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-edge-primary: var(--edge-primary);
 
+  --color-tile-red: var(--tile-red);
+  --color-tile-amber: var(--tile-amber);
+  --color-tile-blue: var(--tile-blue);
+  --color-tile-teal: var(--tile-teal);
+  --color-tile-slate: var(--tile-slate);
+  --color-tile-purple: var(--tile-purple);
+  --color-tile-indigo: var(--tile-indigo);
+  --color-tile-green: var(--tile-green);
+
+  /* The canvas's 9, 16 and 22 px radii snap to lg (10), xl (14) and 2xl (20). */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

@@ -1,4 +1,4 @@
-import { type LinkError, mainLabel, normalizeLink, siteOf } from './link';
+import { type LinkError, normalizeLink, siteOf } from './link';
 import type { Result } from './result';
 
 export const OPEN_MODES = ['smart', 'new', 'this', 'bg'] as const;
@@ -103,21 +103,43 @@ export function displayName(shortcut: Shortcut): string {
   return shortcut.name ?? siteOf(shortcut.link);
 }
 
-/** A word is a run of letters or digits (with any combining marks); everything else separates words. */
-const WORD = /[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu;
+/** A letter or digit with any combining marks that follow it. */
+const LETTER = /[\p{L}\p{N}]\p{M}*/u;
 
-const firstChars = (text: string, count: number): string => Array.from(text).slice(0, count).join('');
+const firstLetter = (text: string): string | undefined => text.match(LETTER)?.[0];
+
+/** The one-letter mark on the shortcut's tile: the first letter of the name, else of the site, uppercased. */
+export function monogram(shortcut: Shortcut): string {
+  const letter =
+    (shortcut.name === undefined ? undefined : firstLetter(shortcut.name)) ?? firstLetter(siteOf(shortcut.link));
+  return (letter ?? '').toUpperCase();
+}
+
+/** The tile colours, in the order the hash picks them. Changing the order reshuffles every user's colours. */
+export const TILE_HUES = ['red', 'amber', 'blue', 'teal', 'slate', 'purple', 'indigo', 'green'] as const;
+export type TileHue = (typeof TILE_HUES)[number];
+
+/** FNV-1a, 32-bit, over the UTF-8 bytes. */
+function fnv1a(text: string): number {
+  let hash = 0x811c9dc5;
+  for (const byte of new TextEncoder().encode(text)) hash = Math.imul(hash ^ byte, 0x01000193) >>> 0;
+  return hash;
+}
+
+/** The site to colour by, else the whole link: a link that doesn't parse or has no host (`file:`) hashes whole. */
+function hueSource(link: string): string {
+  try {
+    return siteOf(link) || link;
+  } catch {
+    return link;
+  }
+}
 
 /**
- * One or two characters that tell tiles apart: the initials of the name's first two words, or the first two
- * characters of a one-word name; a name with no word falls back to the link's main label.
+ * The tile colour of a link (product spec §2.2): derived from its site, never stored, so the same site gets the same
+ * colour everywhere and a rename keeps it. The hash and the order of `TILE_HUES` are pinned by tests: changing
+ * either reshuffles every user's colours and needs an ADR.
  */
-export function monogram(shortcut: Shortcut): string {
-  const words = shortcut.name?.match(WORD) ?? [];
-  const [first, second] = words;
-  if (first !== undefined && second !== undefined) {
-    return (firstChars(first, 1) + firstChars(second, 1)).toUpperCase();
-  }
-  if (first !== undefined) return firstChars(first, 2).toUpperCase();
-  return firstChars((mainLabel(shortcut.link).match(WORD) ?? []).join(''), 2).toUpperCase();
+export function tileHue(link: string): TileHue {
+  return TILE_HUES[fnv1a(hueSource(link)) % TILE_HUES.length] as TileHue;
 }

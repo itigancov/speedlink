@@ -839,12 +839,15 @@ describe('drag-to-swap', () => {
   function layOutKeys() {
     const measure = HTMLElement.prototype.getBoundingClientRect;
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      // A keycap shows its label as its first span; anything else isn't laid out here.
-      const label = (this.dataset.slot === 'key-cap' ? this.querySelector('span')?.textContent : '') as KeyLabel;
+      // A keycap shows its label in its key-label slot; anything else isn't laid out here.
+      const label = (
+        this.dataset.slot === 'key-cap' ? this.querySelector('[data-slot="key-label"]')?.textContent : ''
+      ) as KeyLabel;
       const row = KEYBOARD_ROWS.findIndex((labels) => labels.includes(label));
       if (row === -1) return measure.call(this);
       const column = KEYBOARD_ROWS[row]?.indexOf(label) ?? 0;
-      return new DOMRect(((ROW_STAGGER[row] ?? 0) + column) * 64, row * 64, 56, 56);
+      // 76×64 keys, 8 px apart, each row staggered by its fraction of a key width.
+      return new DOMRect((ROW_STAGGER[row] ?? 0) * 76 + column * 84, row * 72, 76, 64);
     });
   }
 

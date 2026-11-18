@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   browserOsFrom,
   chordLabel,
-  modifierRow,
   platformFrom,
   triggerLabel,
   triggerPlus,
@@ -73,28 +72,5 @@ describe('trigger labels', () => {
   it('gives the bare trigger for short copy: "⌥" on a Mac and "Alt" elsewhere', () => {
     expect(triggerSymbol('mac')).toBe('⌥');
     expect(triggerSymbol('other')).toBe('Alt');
-  });
-});
-
-describe('modifierRow', () => {
-  it('is fn ⌃ ⌥ ⌘, space, ⌘ on a Mac, with ⌥ highlighted', () => {
-    expect(modifierRow('mac')).toEqual([
-      { label: 'fn', highlighted: false, wide: false },
-      { label: '⌃', highlighted: false, wide: false },
-      { label: '⌥ option', highlighted: true, wide: false },
-      { label: '⌘', highlighted: false, wide: false },
-      { label: 'space', highlighted: false, wide: true },
-      { label: '⌘', highlighted: false, wide: false },
-    ]);
-  });
-
-  it('is Ctrl · Alt · space · Alt · Ctrl elsewhere, with the first Alt highlighted', () => {
-    expect(modifierRow('other')).toEqual([
-      { label: 'Ctrl', highlighted: false, wide: false },
-      { label: 'Alt', highlighted: true, wide: false },
-      { label: 'space', highlighted: false, wide: true },
-      { label: 'Alt', highlighted: false, wide: false },
-      { label: 'Ctrl', highlighted: false, wide: false },
-    ]);
   });
 });
