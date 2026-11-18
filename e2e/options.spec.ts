@@ -31,7 +31,7 @@ async function serviceWorker(context: BrowserContext, extensionId: string): Prom
 const store = (worker: Worker, key: string, fields: object) =>
   worker.evaluate(([item, value]) => chrome.storage.sync.set({ [item]: value }), [
     `key.${key}`,
-    { link: LINK, openMode: 'smart', tabMatch: 'site', closeCurrent: false, ...fields },
+    { link: LINK, openMode: 'smart', tabMatch: 'page', closeCurrent: false, ...fields },
   ] as const);
 
 const item = async (worker: Worker, key: string) =>
@@ -66,9 +66,10 @@ test('edits a key: the normalized shortcut is stored and Saved shows', async ({ 
     link: 'https://docs.example.com/',
     name: 'Docs',
     openMode: 'smart',
-    tabMatch: 'site',
+    tabMatch: 'page',
     closeCurrent: false,
   });
+  await expect(page.getByRole('radio', { name: 'This page' })).toHaveAttribute('aria-checked', 'true');
   await expect(keyCap(page, 'K')).toHaveAccessibleName(/K: Docs$/);
   expect(errors).toEqual([]);
 });

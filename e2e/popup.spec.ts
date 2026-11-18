@@ -26,7 +26,7 @@ test.use({ extensionPath: HOOKS_EXTENSION_PATH });
 const ORIGIN = `http://127.0.0.1:${FIXTURE_PORT}`;
 const PAGE = `${ORIGIN}/keys.html`;
 /** What the fixture page becomes on a key: its tab title as the name, the default settings. */
-const SAVED = { link: PAGE, name: 'Fixture: keys', openMode: 'smart', tabMatch: 'site', closeCurrent: false };
+const SAVED = { link: PAGE, name: 'Fixture: keys', openMode: 'smart', tabMatch: 'page', closeCurrent: false };
 const OLD = {
   link: `${ORIGIN}/frame-child.html?old`,
   name: 'Old',

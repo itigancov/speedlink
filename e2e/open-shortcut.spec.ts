@@ -83,6 +83,38 @@ const tabsIn = (worker: Worker, windowId: number) =>
 const activeTab = async (worker: Worker, windowId: number) =>
   (await tabsIn(worker, windowId)).find((tab) => tab.active);
 
+test('a second Smart key on the same site opens its own page, not the first key’s tab', async ({
+  context,
+  extensionId,
+}) => {
+  const worker = await serviceWorker(context, extensionId);
+  // Two pages of one site, each put on a key in Options with the defaults.
+  const origin = `http://127.0.0.1:${FIXTURE_PORT}`;
+  const firstLink = `${origin}/frame-child.html`;
+  const secondLink = `${origin}/small-root.html`;
+  for (const [key, link] of [
+    ['A', firstLink],
+    ['B', secondLink],
+  ] as const) {
+    const options = await context.newPage();
+    await options.goto(`chrome-extension://${extensionId}/options.html#key=${key}`);
+    await options.getByRole('textbox', { name: 'Link', exact: true }).fill(link);
+    await expect(options.getByText('Saved')).toBeVisible();
+    await options.close();
+  }
+  const first = await openTab(worker, firstLink);
+  const current = await openTab(worker, page('elsewhere'));
+
+  const reply = (await press(worker, current, 'B')) as { tabId: number };
+
+  expect(reply).toMatchObject({ kind: 'opened', switched: false });
+  expect(reply.tabId).not.toBe(first.id);
+  expect((await activeTab(worker, current.windowId))?.id).toBe(reply.tabId);
+  await expect
+    .poll(() => worker.evaluate((id) => chrome.tabs.get(id), reply.tabId).then((t) => t.url))
+    .toBe(secondLink);
+});
+
 test('Smart switch goes to the most recently used matching tab', async ({ context, extensionId }) => {
   const worker = await serviceWorker(context, extensionId);
   await store(worker, 'D', { link: page('docs'), openMode: 'smart' });

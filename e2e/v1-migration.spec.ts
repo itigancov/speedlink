@@ -22,7 +22,7 @@ test('imports v1 data that arrives after start, once', async ({ context, extensi
   const worker = context.serviceWorkers().find((w) => w.url().includes(extensionId));
   if (worker === undefined) throw new Error('no service worker');
   // The fresh install has stamped meta before v1 data arrives.
-  await expect.poll(async () => (await syncContents(worker)).meta).toEqual({ schemaVersion: 1 });
+  await expect.poll(async () => (await syncContents(worker)).meta).toEqual({ schemaVersion: 2 });
 
   const first = v1Item([
     { canEdit: false, id: '1', shortcut: '1', title: 'Docs', url: 'docs.example.com' },
@@ -32,15 +32,15 @@ test('imports v1 data that arrives after start, once', async ({ context, extensi
 
   const imported = {
     ...first,
-    meta: { schemaVersion: 1, v1Imported: true },
+    meta: { schemaVersion: 2, v1Imported: true },
     'key.1': {
       link: 'https://docs.example.com/',
       name: 'Docs',
       openMode: 'smart',
-      tabMatch: 'site',
+      tabMatch: 'page',
       closeCurrent: false,
     },
-    'key.G': { link: 'https://github.example/', openMode: 'smart', tabMatch: 'site', closeCurrent: false },
+    'key.G': { link: 'https://github.example/', openMode: 'smart', tabMatch: 'page', closeCurrent: false },
   };
   await expect.poll(() => syncContents(worker)).toEqual(imported);
 
