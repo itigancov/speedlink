@@ -4,61 +4,85 @@ import { cva } from 'class-variance-authority';
 import { cn } from 'cn';
 import { LockIcon } from 'lucide-react';
 import type { ComponentProps } from 'react';
+import { Monogram, type MonogramSize } from '@/components/Monogram';
 import type { KeyLabel } from '@/domain/keys';
+import type { Shortcut } from '@/domain/shortcut';
 import { PLATFORM, type Platform, triggerWord } from '@/platform/platform-labels';
 
-export type KeyCapSize = 'lg' | 'xl' | 'md' | 'sm';
-export type KeyCapState = 'free' | 'assigned' | 'selected' | 'drop-target' | 'reserved' | 'taken' | 'picked';
+export type KeyCapSize = 'lg' | 'compact' | 'xl' | 'md' | 'sm';
+export type KeyCapState =
+  | 'free'
+  | 'assigned'
+  | 'selected'
+  | 'drop-target'
+  | 'reserved'
+  | 'taken'
+  | 'picked'
+  | 'start'
+  | 'plain';
 
 const keyCapVariants = cva(
   'relative inline-flex shrink-0 select-none rounded-key border shadow-edge outline-none outline-offset-2 transition focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-not-allowed',
   {
     variants: {
       size: {
-        lg: 'size-14 items-start justify-start p-2 font-semibold text-ui',
+        lg: 'h-16 w-19 flex-col items-stretch justify-between px-2 py-1.5 font-semibold text-ui',
+        compact: 'h-13 w-14 flex-col items-stretch justify-start rounded-lg p-1.5 font-semibold text-ui',
         xl: 'size-11 items-center justify-center font-bold text-xl',
         md: 'size-10 items-center justify-center font-semibold text-sm',
-        sm: 'size-7 items-center justify-center rounded-md font-semibold text-2xs',
+        sm: 'h-6.5 w-7 items-center justify-center rounded-md font-semibold text-2xs',
       },
       state: {
         free: 'border-input bg-card text-muted-foreground shadow-border hover:border-primary/40',
         assigned: 'border-primary/20 bg-primary/7 text-foreground shadow-primary/20 hover:border-primary/40',
-        selected: 'border-primary bg-primary text-primary-foreground shadow-link ring-4 ring-primary/18',
+        selected: 'border-primary bg-primary text-primary-foreground shadow-edge-primary ring-4 ring-primary/18',
         'drop-target': 'border-2 border-warning-drag border-dashed bg-warning text-warning-foreground shadow-none',
         reserved: 'border-border bg-secondary/70 text-muted-foreground shadow-none',
         taken: 'border-secondary bg-secondary text-muted-foreground shadow-none',
-        picked: 'border-primary bg-primary text-primary-foreground shadow-link',
+        picked: 'border-primary bg-primary text-primary-foreground shadow-edge-primary',
+        start: 'border-2 border-primary border-dashed bg-primary/4 text-link shadow-none hover:bg-primary/7',
+        plain: 'border-input bg-card text-foreground shadow-input',
       },
     },
     defaultVariants: { size: 'lg', state: 'free' },
   },
 );
 
-const chipVariants = cva(
-  'absolute right-1.5 bottom-1.5 inline-flex h-5 w-6 items-center justify-center rounded-sm font-bold text-3xs',
-  {
-    variants: {
-      selected: { true: 'bg-primary-foreground/20 text-primary-foreground', false: 'bg-card text-link' },
-    },
-  },
-);
+/** The sizes with a face: the label beside the shortcut's tile, and the open dot on the outer corner. */
+const FACE_TILE: Partial<Record<KeyCapSize, MonogramSize>> = { lg: 'xs', compact: '2xs' };
 
 const LOCK_POSITION: Record<KeyCapSize, string> = {
   lg: 'right-2 bottom-2 size-3.5',
+  compact: 'right-1.5 bottom-1.5 size-3',
   xl: 'right-1 bottom-1 size-3',
   md: 'right-1 bottom-1 size-2.5',
   sm: 'right-0.5 bottom-0.5 size-2',
+};
+
+const DROP_POSITION: Partial<Record<KeyCapSize, string>> = {
+  lg: 'right-2 bottom-1.5 text-sm',
+  compact: 'right-1.5 bottom-1 text-xs',
+};
+
+/** Large and compact keys carry the open dot on their outer corner, ringed; the others inside it. */
+const OUTER_DOT = '-top-1 -right-1 size-2.5 ring-2 ring-card';
+const OPEN_POSITION: Record<KeyCapSize, string> = {
+  lg: OUTER_DOT,
+  compact: OUTER_DOT,
+  xl: 'top-1.5 right-1.5 size-1.5',
+  md: 'top-1.5 right-1.5 size-1.5',
+  sm: 'top-0.5 right-0.5 size-1',
 };
 
 export interface KeyCapProps extends Omit<ComponentProps<'button'>, 'children'> {
   label: KeyLabel;
   size?: KeyCapSize;
   state?: KeyCapState;
-  /** The key's link is open in a tab right now. Combines with assigned and selected. */
+  /** The key's link is open in a tab right now. Combines with assigned and selected; the plain look has no dot. */
   open?: boolean;
-  /** The shortcut's monogram, shown as a chip at the sizes that have room for it. */
-  monogram?: string;
-  /** The shortcut's name, for the accessible name. A `free` key is announced as free whatever it is given. */
+  /** The key's shortcut, drawn as its coloured tile at the sizes that have a face (lg, compact). */
+  shortcut?: Shortcut;
+  /** The shortcut's name: the accessible name, and the bottom line of a large key. A `free` key is announced as free. */
   name?: string;
   /** Faded, e.g. outside a search's matches. Visual only: the key keeps its state, name and click. */
   dimmed?: boolean;
@@ -93,7 +117,7 @@ export function KeyCap({
   size = 'lg',
   state = 'free',
   open = false,
-  monogram,
+  shortcut,
   name,
   dimmed = false,
   platform = PLATFORM,
@@ -104,29 +128,53 @@ export function KeyCap({
   ...props
 }: KeyCapProps) {
   const selected = state === 'selected';
-  const showChip = size === 'lg' && monogram !== undefined && (state === 'assigned' || selected);
+  const holdsShortcut = state === 'assigned' || selected;
+  const tileSize = FACE_TILE[size];
+  const showOpen = open && state !== 'plain';
   const classes = cn(keyCapVariants({ size, state }), dimmed && 'opacity-40', className);
+  const labelSpan = (
+    <span aria-hidden="true" data-slot="key-label">
+      {label}
+    </span>
+  );
   const face = (
     <>
-      <span aria-hidden="true">{label}</span>
+      {tileSize === undefined ? (
+        labelSpan
+      ) : (
+        <span className="flex items-start justify-between gap-1">
+          {labelSpan}
+          {holdsShortcut && shortcut !== undefined && (
+            <Monogram shortcut={shortcut} size={tileSize} ringed={selected} />
+          )}
+        </span>
+      )}
+      {size === 'lg' && holdsShortcut && name !== undefined && (
+        <span
+          aria-hidden="true"
+          data-slot="key-name"
+          className={cn(
+            'truncate text-left font-medium text-2xs',
+            selected ? 'text-primary-foreground' : 'text-foreground-subtle',
+          )}
+        >
+          {name}
+        </span>
+      )}
       {state === 'reserved' && <LockIcon aria-hidden="true" className={cn('absolute', LOCK_POSITION[size])} />}
-      {state === 'drop-target' && size === 'lg' && (
-        <span aria-hidden="true" className="absolute right-2 bottom-1.5 text-sm">
+      {state === 'drop-target' && DROP_POSITION[size] !== undefined && (
+        <span aria-hidden="true" className={cn('absolute', DROP_POSITION[size])}>
           ↔
         </span>
       )}
-      {showChip && (
-        <span aria-hidden="true" className={chipVariants({ selected })}>
-          {monogram}
-        </span>
-      )}
-      {open && (
+      {showOpen && (
         <span
           aria-hidden="true"
+          data-slot="key-open"
           className={cn(
             'absolute rounded-full',
-            size === 'sm' ? 'top-0.5 right-0.5 size-1' : 'top-1.5 right-1.5 size-1.5',
-            selected ? 'bg-primary-foreground' : 'bg-success',
+            OPEN_POSITION[size],
+            selected && tileSize === undefined ? 'bg-primary-foreground' : 'bg-success',
           )}
         />
       )}

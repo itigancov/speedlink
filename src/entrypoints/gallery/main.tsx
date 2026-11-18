@@ -18,7 +18,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { draftOf, type KeyDraft } from '@/domain/key-draft';
 import { isAssignable, type Key, type KeyLabel } from '@/domain/keys';
 import type { OverlayTile as OverlayTileData } from '@/domain/overlay-model';
-import type { Shortcut } from '@/domain/shortcut';
+import { displayName, type Shortcut, TILE_HUES } from '@/domain/shortcut';
 import { validShortcut } from '@/domain/test-shortcut';
 import type { SaveState } from '@/hooks/use-autosave';
 import { chordLabel, type Platform, triggerLabel } from '@/platform/platform-labels';
@@ -26,12 +26,35 @@ import { Inspector } from '../options/Inspector';
 import { KeyboardCard } from '../options/KeyboardCard';
 import { ListCard } from '../options/ListCard';
 
-const SIZES: KeyCapSize[] = ['lg', 'xl', 'md', 'sm'];
-const STATES: KeyCapState[] = ['free', 'assigned', 'selected', 'drop-target', 'reserved', 'taken', 'picked'];
+const SIZES: KeyCapSize[] = ['lg', 'compact', 'xl', 'md', 'sm'];
+const STATES: KeyCapState[] = [
+  'free',
+  'assigned',
+  'selected',
+  'drop-target',
+  'reserved',
+  'taken',
+  'picked',
+  'start',
+  'plain',
+];
 const PLATFORMS: Platform[] = ['mac', 'other'];
 
 const github = validShortcut({ link: 'https://github.com/', name: 'GitHub' });
 const youtube = validShortcut({ link: 'https://youtube.com/' });
+const longName = validShortcut({ link: 'https://github.com/', name: 'GitHub pull requests for acme' });
+
+/** One shortcut per tile hue, in `TILE_HUES` order. */
+const HUE_SAMPLES = [
+  validShortcut({ link: 'https://mail.google.com/', name: 'Gmail' }),
+  validShortcut({ link: 'https://github.com/', name: 'GitHub' }),
+  validShortcut({ link: 'https://reddit.com/' }),
+  validShortcut({ link: 'http://localhost:3000/', name: 'Dev server' }),
+  validShortcut({ link: 'https://figma.com/', name: 'Figma' }),
+  validShortcut({ link: 'https://youtube.com/' }),
+  validShortcut({ link: 'https://news.ycombinator.com/', name: 'Hacker News' }),
+  validShortcut({ link: 'https://calendar.google.com/', name: 'Calendar' }),
+];
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -48,7 +71,7 @@ function Caption({ children }: { children: ReactNode }) {
 
 function KeyCapMatrix() {
   return (
-    <div className="flex flex-col gap-4 overflow-x-auto">
+    <div className="flex flex-col gap-4 overflow-x-auto p-2">
       {SIZES.map((size) => (
         <div key={size} className="flex items-end gap-6">
           <Caption>{size}</Caption>
@@ -60,8 +83,8 @@ function KeyCapMatrix() {
                   state={state}
                   open={open}
                   label={state === 'reserved' ? 'S' : 'G'}
-                  name={state === 'free' || state === 'reserved' ? undefined : 'GitHub'}
-                  monogram="GH"
+                  name={state === 'free' || state === 'reserved' || state === 'start' ? undefined : 'GitHub'}
+                  shortcut={github}
                 />
                 <Caption>
                   {state}
@@ -70,6 +93,14 @@ function KeyCapMatrix() {
               </div>
             )),
           )}
+          <div className="flex flex-col items-center gap-1">
+            <KeyCap size={size} state="assigned" label="G" name="GitHub" shortcut={github} dimmed />
+            <Caption>dimmed</Caption>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <KeyCap size={size} state="assigned" label="P" name={longName.name} shortcut={longName} />
+            <Caption>long name</Caption>
+          </div>
         </div>
       ))}
     </div>
@@ -77,13 +108,15 @@ function KeyCapMatrix() {
 }
 
 /** A sample keymap to fill the grids: a few assigned keys, one open, one selected. */
-function sampleState(label: KeyLabel): { state: KeyCapState; open?: boolean; name?: string; monogram?: string } {
-  const sample = { name: 'Sample', monogram: 'SA' };
+function sampleState(label: KeyLabel): { state: KeyCapState; open?: boolean; name?: string; shortcut?: Shortcut } {
   if (!isAssignable(label)) return { state: 'reserved' };
+  const at = 'YGCTNFL12KD'.indexOf(label);
+  if (at === -1) return { state: 'free' };
+  const shortcut = HUE_SAMPLES[at % HUE_SAMPLES.length] as Shortcut;
+  const sample = { shortcut, name: displayName(shortcut) };
   if (label === 'K') return { state: 'selected', open: true, ...sample };
   if (label === 'D') return { state: 'drop-target', ...sample };
-  if ('YGCTNFL12'.includes(label)) return { state: 'assigned', open: 'YN'.includes(label), ...sample };
-  return { state: 'free' };
+  return { state: 'assigned', open: 'YN'.includes(label), ...sample };
 }
 
 /** The popup mini keyboard: H picked, a few keys taken. */
@@ -95,20 +128,21 @@ function miniState(label: KeyLabel): KeyCapState {
 
 function Grids() {
   return (
-    <div className="flex flex-col gap-8 overflow-x-auto">
+    <div className="flex flex-col gap-8 overflow-x-auto p-2">
       {PLATFORMS.map((platform) => (
         <div key={platform} className="flex flex-col gap-4">
           <Caption>
             {platform}: {triggerLabel(platform)} · {chordLabel('K', platform)}
           </Caption>
-          <KeyboardGrid
-            size="lg"
-            platform={platform}
-            renderKey={(label) => <KeyCap size="lg" label={label} platform={platform} {...sampleState(label)} />}
-          />
+          {(['lg', 'compact'] as const).map((size) => (
+            <KeyboardGrid
+              key={size}
+              size={size}
+              renderKey={(label) => <KeyCap size={size} label={label} platform={platform} {...sampleState(label)} />}
+            />
+          ))}
           <KeyboardGrid
             size="sm"
-            platform={platform}
             renderKey={(label) => <KeyCap size="sm" label={label} platform={platform} state={miniState(label)} />}
           />
         </div>
@@ -159,12 +193,27 @@ function Variants() {
 
 function Monograms() {
   return (
-    <div className="flex items-center gap-4">
-      <Monogram shortcut={github} />
-      <Monogram shortcut={youtube} />
-      <Monogram shortcut={github} src="/icon/32.png" />
-      <Monogram shortcut={github} src="/missing.png" />
-      <Monogram shortcut={github} size="sm" />
+    <div className="flex flex-col gap-3">
+      {(['2xs', 'xs', 'sm', 'default', 'lg'] as const).map((size) => (
+        <div key={size} className="flex items-center gap-3">
+          <Caption>{size}</Caption>
+          {HUE_SAMPLES.map((shortcut) => (
+            <Monogram key={shortcut.link} shortcut={shortcut} size={size} />
+          ))}
+        </div>
+      ))}
+      <div className="flex items-center gap-3 rounded-lg bg-primary p-2">
+        <Caption>ringed, on primary</Caption>
+        {HUE_SAMPLES.map((shortcut) => (
+          <Monogram key={shortcut.link} shortcut={shortcut} size="xs" ringed />
+        ))}
+      </div>
+      <div className="flex items-center gap-3">
+        <Caption>hues</Caption>
+        {TILE_HUES.map((hue) => (
+          <Caption key={hue}>{hue}</Caption>
+        ))}
+      </div>
     </div>
   );
 }
@@ -474,7 +523,7 @@ function App() {
       <Section title="KeyCap: size × state (each without and with open)">
         <KeyCapMatrix />
       </Section>
-      <Section title="KeyboardGrid: lg and sm, per platform">
+      <Section title="KeyboardGrid: lg, compact and sm, per platform (no modifier row)">
         <Grids />
       </Section>
       <Section title="Options: keyboard card, per platform">
@@ -492,7 +541,7 @@ function App() {
       <Section title="Options: inspector states">
         <Inspectors />
       </Section>
-      <Section title="Monogram">
+      <Section title="Monogram: every hue at every size">
         <Monograms />
       </Section>
       <Section title="OverlayTile: every subline, per platform">

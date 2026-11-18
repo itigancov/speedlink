@@ -23,7 +23,7 @@ describe('neighbourKey', () => {
   });
 
   it('goes up and down to the nearest key across each stagger', () => {
-    // Row offsets of 0, 22, 36 and 58 px over a 64 px key pitch: each row sits a little right of the one above.
+    // Row offsets of 0, 28, 46 and 74 px over a 76 px key: each row sits a little right of the one above.
     expect(neighbourKey('Q', 'up')).toBe('1');
     expect(neighbourKey('1', 'down')).toBe('Q');
     expect(neighbourKey('T', 'up')).toBe('5');

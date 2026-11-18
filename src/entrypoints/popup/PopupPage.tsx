@@ -9,7 +9,6 @@ import { KeyCap, type KeyCapState } from '@/components/KeyCap';
 import { Monogram } from '@/components/Monogram';
 import { OverlayEmpty, OverlayTiles } from '@/components/OverlayTiles';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { keyFromCode, type PickedKey, type PickerModel, pickerModel } from '@/domain/assign-picker';
@@ -85,18 +84,14 @@ function Header({ onOpenKeymap }: { onOpenKeymap?: () => void }) {
 }
 
 function PageCard({ tab, model, platform }: { tab: PopupTab; model: PickerModel; platform: Platform }) {
-  const icon = tab.favIconUrl === '' ? undefined : tab.favIconUrl;
   return (
     <section className="flex items-center gap-3 rounded-xl border bg-card p-2.5">
       {model.usable ? (
-        <Monogram shortcut={model.shortcut} src={icon} size="default" />
+        <Monogram shortcut={model.shortcut} size="default" />
       ) : (
-        <Avatar shape="square">
-          {icon !== undefined && <AvatarImage src={icon} alt="" />}
-          <AvatarFallback className="bg-muted text-muted-foreground">
-            <BanIcon aria-hidden="true" className="size-4" />
-          </AvatarFallback>
-        </Avatar>
+        <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <BanIcon aria-hidden="true" className="size-4" />
+        </span>
       )}
       <div className="flex min-w-0 flex-col gap-0.5">
         <p className="truncate font-semibold text-ui">{tab.title}</p>
@@ -266,7 +261,6 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
 
         <KeyboardGrid
           size="sm"
-          platform={platform}
           renderKey={(label) => (
             <KeyCap
               size="sm"

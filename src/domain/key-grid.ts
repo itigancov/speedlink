@@ -12,10 +12,10 @@ export const ARROWS: Readonly<Record<string, GridDirection>> = {
 };
 
 /**
- * Each row's offset in key pitches (a key plus its gap). Mirrors KeyboardGrid's lg stagger of 0/22/36/58 px over a
- * 56 px key and an 8 px gap: change both together.
+ * Each row's offset in key widths. Mirrors KeyboardGrid's lg stagger of 0/28/46/74 px over a 76 px key: change both
+ * together. The compact stagger (0/20/34/54 px over 56 px) gives nearly the same fractions, so it shares these.
  */
-export const ROW_STAGGER: readonly number[] = [0, 22 / 64, 36 / 64, 58 / 64];
+export const ROW_STAGGER: readonly number[] = [0, 28 / 76, 46 / 76, 74 / 76];
 
 const centre = (row: number, column: number) => (ROW_STAGGER[row] ?? 0) + column;
 

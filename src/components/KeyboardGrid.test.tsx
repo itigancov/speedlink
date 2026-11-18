@@ -12,7 +12,6 @@ describe('KeyboardGrid', () => {
     const { container } = render(
       <KeyboardGrid
         size="lg"
-        platform="mac"
         renderKey={(label) => {
           seen.push(label);
           return renderKey(label);
@@ -30,26 +29,12 @@ describe('KeyboardGrid', () => {
     expect(seen.join('')).toBe('1234567890QWERTYUIOPASDFGHJKLZXCVBNM');
   });
 
-  it('shows the Mac modifier row with ⌥ highlighted', () => {
-    render(<KeyboardGrid size="lg" platform="mac" renderKey={renderKey} />);
-    expect(screen.getByText('fn')).toBeDefined();
-    expect(screen.getByText('⌥ option').getAttribute('data-highlighted')).toBe('true');
-    expect(screen.queryByText('Ctrl')).toBeNull();
-  });
-
-  it('shows the non-Mac modifier row with the first Alt highlighted', () => {
-    render(<KeyboardGrid size="sm" platform="other" renderKey={renderKey} />);
-    const [left, right] = screen.getAllByText('Alt');
-    expect(left?.getAttribute('data-highlighted')).toBe('true');
-    expect(right?.getAttribute('data-highlighted')).toBe('false');
-    expect(screen.getAllByText('Ctrl')).toHaveLength(2);
-    expect(screen.queryByText('fn')).toBeNull();
-  });
-
-  it('hides the modifier row from the accessibility tree', () => {
-    render(<KeyboardGrid size="lg" platform="other" renderKey={renderKey} />);
-    expect(screen.getByText('space').closest('[aria-hidden="true"]')).not.toBeNull();
-    expect(screen.queryByRole('button', { name: 'Ctrl' })).toBeNull();
-    expect(screen.getAllByRole('button')).toHaveLength(36);
+  it.each(['lg', 'compact', 'sm'] as const)('draws no modifier row at %s: only the 36 keys', (size) => {
+    const { container } = render(<KeyboardGrid size={size} renderKey={renderKey} />);
+    expect(container.querySelectorAll('[data-slot="keyboard-row"]')).toHaveLength(4);
+    expect(container.querySelector('[data-slot="keyboard-modifiers"]')).toBeNull();
+    expect(screen.queryByText('⌥ option')).toBeNull();
+    expect(screen.queryByText('space')).toBeNull();
+    expect(container.textContent).toBe('1234567890QWERTYUIOPASDFGHJKLZXCVBNM');
   });
 });

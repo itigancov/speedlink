@@ -83,37 +83,3 @@ export function triggerSymbol(platform: Platform = PLATFORM): string {
 export function triggerPlus(platform: Platform = PLATFORM): string {
   return i18n.t(TRIGGER_KEYS[platform].plus);
 }
-
-export interface ModifierKey {
-  label: string;
-  /** The trigger the user holds. */
-  highlighted: boolean;
-  /** The space bar. */
-  wide: boolean;
-}
-
-const modifier = (label: string, highlighted = false, wide = false): ModifierKey => ({ label, highlighted, wide });
-
-/** The decorative bottom row of the keyboard picture, left to right. */
-export function modifierRow(platform: Platform = PLATFORM): ModifierKey[] {
-  const space = modifier(i18n.t('platform.space'), false, true);
-  if (platform === 'mac') {
-    const command = modifier(i18n.t('platform.mac.command'));
-    return [
-      modifier(i18n.t('platform.mac.fn')),
-      modifier(i18n.t('platform.mac.control')),
-      modifier(i18n.t('platform.mac.option'), true),
-      command,
-      space,
-      command,
-    ];
-  }
-  const control = modifier(i18n.t('platform.other.control'));
-  return [
-    control,
-    modifier(i18n.t('platform.other.alt'), true),
-    space,
-    modifier(i18n.t('platform.other.alt')),
-    control,
-  ];
-}

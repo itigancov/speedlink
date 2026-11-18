@@ -34,10 +34,9 @@ export interface PopupTab {
   url: string;
   /** The tab title, '' when Chrome gives none. */
   title: string;
-  favIconUrl: string;
 }
 
-export const NO_TAB: PopupTab = { id: undefined, url: '', title: '', favIconUrl: '' };
+export const NO_TAB: PopupTab = { id: undefined, url: '', title: '' };
 
 /** The named tab, else the active tab of the current window; a missing one reads as `NO_TAB`. */
 export async function readPopupTab(tabId: number | undefined): Promise<PopupTab> {
@@ -46,7 +45,7 @@ export async function readPopupTab(tabId: number | undefined): Promise<PopupTab>
       ? (await browser.tabs.query({ active: true, currentWindow: true }))[0]
       : await browser.tabs.get(tabId);
   if (tab === undefined) return NO_TAB;
-  return { id: tab.id, url: tab.url ?? '', title: tab.title ?? '', favIconUrl: tab.favIconUrl ?? '' };
+  return { id: tab.id, url: tab.url ?? '', title: tab.title ?? '' };
 }
 
 /** Events closer together than this give one re-read. */
