@@ -31,7 +31,7 @@ test('has exactly the spec §13 top-level keys (no `key`, nothing extra)', () =>
 
 test('versions', () => {
   expect(manifest.manifest_version).toBe(3);
-  expect(manifest.version).toBe('4.1.0');
+  expect(manifest.version).toBe('4.1.1');
   expect(manifest.minimum_chrome_version).toBe('121');
 });
 
