@@ -20,7 +20,7 @@ function openTabs(...tabs: Tab[]) {
   );
 }
 
-const DEFAULTS = { openMode: 'smart', tabMatch: 'site', closeCurrent: false } as const;
+const DEFAULTS = { openMode: 'smart', tabMatch: 'page', closeCurrent: false } as const;
 const stored = async (key: string) => (await browser.storage.sync.get(`key.${key}`))[`key.${key}`];
 /** The stored undo record; undefined at runtime when there is none. */
 const undoRecord = async () => (await browser.storage.session.get('undo')).undo as UndoRecord;

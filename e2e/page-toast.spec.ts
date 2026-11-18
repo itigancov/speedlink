@@ -135,7 +135,7 @@ test.describe('assign with undo', () => {
       link: `${ORIGIN}/keys.html`,
       name: 'Fixture: keys',
       openMode: 'smart',
-      tabMatch: 'site',
+      tabMatch: 'page',
       closeCurrent: false,
     });
 

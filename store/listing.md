@@ -20,7 +20,7 @@ Put your favourite sites on keys. Hold ⌥ (Alt) and press a key: SpeedLink open
 HOW IT WORKS
 • Every letter and digit can hold a shortcut: a link, with a name and a way to open it.
 • The trigger is ⌥ Option on a Mac and Alt on Windows, Linux and ChromeOS. Hold it and press a key, on any page.
-• Smart switch, the default, jumps to a tab that already shows the site and opens a new one only when none does. You can also choose New tab, This tab or Background tab for each shortcut, and decide what counts as "already open": the exact link, the same page, or the same site.
+• Smart switch, the default, jumps to a tab that already shows the page and opens a new one only when none does. You can also choose New tab, This tab or Background tab for each shortcut, and decide what counts as "already open": the exact link, the same page, or the same site.
 • Hold ⇧ as well to open a shortcut in a new tab this once.
 
 SEE YOUR KEYS

@@ -1,8 +1,9 @@
-// Maps v1's `speedlink` sync item (CWS 1.6) to 4.0 shortcuts (product spec §10). Pure: the caller reads and writes.
+// Pure data migrations: v1's `speedlink` sync item (CWS 1.6) to 4.0 shortcuts (product spec §10), and the stored
+// `key.<K>` items of schema step 2. The caller reads and writes.
 import { type KeyUse, moveTarget } from './fitting-keys';
 import { isAssignable, type Key, type KeyLabel } from './keys';
 import type { LinkError } from './link';
-import { type OpenMode, type Shortcut, validateShortcut } from './shortcut';
+import { DEFAULT_TAB_MATCH, type OpenMode, parseShortcut, type Shortcut, validateShortcut } from './shortcut';
 
 export type V1SkipReason = 'invalid-key' | LinkError | 'too-large' | 'duplicate' | 'key-taken' | 'no-free-key';
 
@@ -81,7 +82,7 @@ function readRows(rows: readonly unknown[], openMode: OpenMode): { candidates: C
       link: typeof fields.url === 'string' ? fields.url : '',
       name: typeof fields.title === 'string' ? fields.title : undefined,
       openMode,
-      tabMatch: 'site',
+      tabMatch: DEFAULT_TAB_MATCH,
       closeCurrent: false,
     });
     if (!result.ok) {
@@ -143,4 +144,21 @@ export function planV1Import(raw: unknown, taken: ReadonlySet<Key>): V1Import {
 
   skipped.sort((a, b) => a.index - b.index);
   return { kind: 'import', shortcuts, report: { imported, skipped, ...(moved === undefined ? {} : { moved }) } };
+}
+
+/** Raw `key.<K>` values as storage holds them: anything, readable or not. */
+export type RawKeyItems = Partial<Record<Key, unknown>>;
+
+/**
+ * Schema step 2: every readable item on the old default tab match `site` moves to `page`, whatever its open mode.
+ * Only the moved items come back, each the stored object as is (unknown fields too) but for `tabMatch`.
+ * Unreadable items are left alone, so nothing a newer version could recover is touched.
+ */
+export function planSiteToPage(items: RawKeyItems): Partial<Record<Key, object>> {
+  const moved: Partial<Record<Key, object>> = {};
+  for (const [key, raw] of Object.entries(items) as [Key, unknown][]) {
+    if (!isRecord(raw) || raw.tabMatch !== 'site' || parseShortcut(raw) === null) continue;
+    moved[key] = { ...raw, tabMatch: DEFAULT_TAB_MATCH };
+  }
+  return moved;
 }

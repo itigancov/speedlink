@@ -28,7 +28,7 @@ describe('readKeymap', () => {
 
     expect(await readKeymap()).toEqual({
       Y: validShortcut({ link: 'https://youtube.com/', openMode: 'new', tabMatch: 'page', closeCurrent: true }),
-      1: validShortcut({ link: 'https://one.example/', name: 'One' }),
+      1: validShortcut({ link: 'https://one.example/', name: 'One', tabMatch: 'site' }),
     });
   });
 
@@ -36,7 +36,7 @@ describe('readKeymap', () => {
     await browser.storage.sync.set({ 'key.G': { link: 'https://github.com/' } });
 
     expect(await readKeymap()).toEqual({
-      G: validShortcut({ link: 'https://github.com/', openMode: 'smart', tabMatch: 'site', closeCurrent: false }),
+      G: validShortcut({ link: 'https://github.com/', openMode: 'smart', tabMatch: 'page', closeCurrent: false }),
     });
   });
 
@@ -71,7 +71,7 @@ describe('writeChange', () => {
 
     expect(await writeChange({ G: shortcut })).toEqual({ ok: true, value: undefined });
     expect(await browser.storage.sync.get(null)).toEqual({
-      'key.G': { link: 'https://github.com/', name: 'GitHub', openMode: 'bg', tabMatch: 'site', closeCurrent: false },
+      'key.G': { link: 'https://github.com/', name: 'GitHub', openMode: 'bg', tabMatch: 'page', closeCurrent: false },
     });
   });
 
@@ -87,7 +87,7 @@ describe('writeChange', () => {
         icon: 'octocat',
         future: { a: 1 },
         openMode: 'smart',
-        tabMatch: 'site',
+        tabMatch: 'page',
         closeCurrent: false,
       },
     });

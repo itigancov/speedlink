@@ -23,7 +23,7 @@ const stored = (link: string, name?: string) => ({
   link,
   ...(name === undefined ? {} : { name }),
   openMode: 'bg',
-  tabMatch: 'site',
+  tabMatch: 'page',
   closeCurrent: false,
 });
 
@@ -39,7 +39,7 @@ describe('registerStoragePreparation', () => {
 
     expect(await sync()).toEqual({
       speedlink,
-      meta: { schemaVersion: 1, v1Imported: true },
+      meta: { schemaVersion: 2, v1Imported: true },
       'key.1': stored('https://google.com/', 'Google'),
       'key.G': stored('https://github.com/'),
     });
@@ -72,12 +72,12 @@ describe('registerStoragePreparation', () => {
   it('imports when v1 data arrives through sync after start', async () => {
     registerStoragePreparation();
     await installed();
-    expect((await sync()).meta).toEqual({ schemaVersion: 1 });
+    expect((await sync()).meta).toEqual({ schemaVersion: 2 });
 
     await browser.storage.sync.set({ speedlink });
 
     expect(await sync()).toMatchObject({
-      meta: { schemaVersion: 1, v1Imported: true },
+      meta: { schemaVersion: 2, v1Imported: true },
       'key.1': stored('https://google.com/', 'Google'),
     });
   });
@@ -95,7 +95,7 @@ describe('registerStoragePreparation', () => {
   it('never overwrites a key holding a 4.0 item, readable or not, and keeps meta fields', async () => {
     await browser.storage.sync.set({
       speedlink,
-      meta: { schemaVersion: 1, future: 'field' },
+      meta: { schemaVersion: 2, future: 'field' },
       'key.1': { name: 'unreadable: no link' },
     });
     registerStoragePreparation();
@@ -104,14 +104,14 @@ describe('registerStoragePreparation', () => {
 
     expect(await sync()).toEqual({
       speedlink,
-      meta: { schemaVersion: 1, future: 'field', v1Imported: true },
+      meta: { schemaVersion: 2, future: 'field', v1Imported: true },
       'key.1': { name: 'unreadable: no link' },
       'key.G': stored('https://github.com/'),
     });
   });
 
   it('does nothing more once v1 is marked imported', async () => {
-    await browser.storage.sync.set({ speedlink, meta: { schemaVersion: 1, v1Imported: true } });
+    await browser.storage.sync.set({ speedlink, meta: { schemaVersion: 2, v1Imported: true } });
     registerStoragePreparation();
     const set = vi.spyOn(browser.storage.sync, 'set');
 
@@ -127,7 +127,7 @@ describe('registerStoragePreparation', () => {
 
     await installed();
 
-    expect(await sync()).toEqual({ meta: { schemaVersion: 1 } });
+    expect(await sync()).toEqual({ meta: { schemaVersion: 2 } });
     expect(console.info).not.toHaveBeenCalled();
   });
 
@@ -137,11 +137,11 @@ describe('registerStoragePreparation', () => {
 
     await installed();
 
-    expect(await sync()).toEqual({ speedlink: { shortcuts: 'broken' }, meta: { schemaVersion: 1, v1Imported: true } });
+    expect(await sync()).toEqual({ speedlink: { shortcuts: 'broken' }, meta: { schemaVersion: 2, v1Imported: true } });
   });
 
   it('marks nothing when the write fails, and imports on the next trigger', async () => {
-    await browser.storage.sync.set({ speedlink, meta: { schemaVersion: 1 } });
+    await browser.storage.sync.set({ speedlink, meta: { schemaVersion: 2 } });
     registerStoragePreparation();
     const set = vi
       .spyOn(browser.storage.sync, 'set')
@@ -149,14 +149,14 @@ describe('registerStoragePreparation', () => {
 
     await installed();
 
-    expect(await sync()).toEqual({ speedlink, meta: { schemaVersion: 1 } });
+    expect(await sync()).toEqual({ speedlink, meta: { schemaVersion: 2 } });
     expect(console.error).toHaveBeenCalledWith('SpeedLink: v1 import failed', 'quota-exceeded');
 
     set.mockRestore();
     await fakeBrowser.runtime.onStartup.trigger();
 
     expect(await sync()).toMatchObject({
-      meta: { schemaVersion: 1, v1Imported: true },
+      meta: { schemaVersion: 2, v1Imported: true },
       'key.G': stored('https://github.com/'),
     });
   });

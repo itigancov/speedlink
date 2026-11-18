@@ -52,17 +52,22 @@ test('updating from 1.6 opens the welcome tab once and migrates the keymap, S mo
     .poll(() => syncContents(worker))
     .toEqual({
       ...v1Data,
-      meta: { schemaVersion: 1, v1Imported: true },
+      meta: { schemaVersion: 2, v1Imported: true },
       'key.1': {
         link: 'https://docs.example.com/',
         name: 'Docs',
         openMode: 'smart',
-        tabMatch: 'site',
+        tabMatch: 'page',
         closeCurrent: false,
       },
-      'key.G': { link: 'https://github.example/', openMode: 'smart', tabMatch: 'site', closeCurrent: false },
+      'key.G': { link: 'https://github.example/', openMode: 'smart', tabMatch: 'page', closeCurrent: false },
     });
   // Give a second welcome tab every chance to open.
   await new Promise((resolve) => setTimeout(resolve, 500));
   expect(welcomeTabs(context)).toHaveLength(1);
+
+  // The imported keys count a tab as open only when it shows their page.
+  const options = await context.newPage();
+  await options.goto(`chrome-extension://${new URL(worker.url()).host}/options.html#key=1`);
+  await expect(options.getByRole('radio', { name: 'This page' })).toHaveAttribute('aria-checked', 'true');
 });

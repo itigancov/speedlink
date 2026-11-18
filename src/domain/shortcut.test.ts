@@ -25,6 +25,11 @@ describe('validateShortcut', () => {
     expect(blank.ok && 'name' in blank.value).toBe(false);
   });
 
+  it('keeps a site tab match', () => {
+    const result = validateShortcut({ link: 'github.com', openMode: 'smart', tabMatch: 'site', closeCurrent: false });
+    expect(result).toMatchObject({ ok: true, value: { tabMatch: 'site' } });
+  });
+
   it('passes the link error code through', () => {
     const base = { openMode: 'smart', tabMatch: 'site', closeCurrent: false } as const;
     expect(validateShortcut({ ...base, link: '' })).toEqual({ ok: false, error: 'empty' });
@@ -74,7 +79,7 @@ describe('parseShortcut', () => {
     expect(parseShortcut({ link: 'https://github.com/' })).toEqual({
       link: 'https://github.com/',
       openMode: 'smart',
-      tabMatch: 'site',
+      tabMatch: 'page',
       closeCurrent: false,
     });
   });
@@ -82,7 +87,12 @@ describe('parseShortcut', () => {
   it('defaults fields that hold unknown or mistyped values', () => {
     expect(
       parseShortcut({ link: 'https://github.com/', name: 42, openMode: 'popup', tabMatch: 3, closeCurrent: 'yes' }),
-    ).toEqual({ link: 'https://github.com/', openMode: 'smart', tabMatch: 'site', closeCurrent: false });
+    ).toEqual({ link: 'https://github.com/', openMode: 'smart', tabMatch: 'page', closeCurrent: false });
+  });
+
+  it('defaults an unknown tab match to page, and keeps a stored site', () => {
+    expect(parseShortcut({ link: 'https://a.com/', tabMatch: 'host' })?.tabMatch).toBe('page');
+    expect(parseShortcut({ link: 'https://a.com/', tabMatch: 'site' })?.tabMatch).toBe('site');
   });
 
   it('keeps known valid fields and drops a blank name', () => {
@@ -100,7 +110,7 @@ describe('parseShortcut', () => {
     expect(parseShortcut({ link: 'https://a.com/', color: 'red', groupId: 7 })).toEqual({
       link: 'https://a.com/',
       openMode: 'smart',
-      tabMatch: 'site',
+      tabMatch: 'page',
       closeCurrent: false,
       color: 'red',
       groupId: 7,

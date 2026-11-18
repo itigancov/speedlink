@@ -2,6 +2,7 @@
 
 import type { Keymap, KeymapChange } from '@/domain/keymap-ops';
 import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
+import type { RawKeyItems } from '@/domain/migrations';
 import type { Result } from '@/domain/result';
 import { parseShortcut, type Shortcut } from '@/domain/shortcut';
 import { readMeta } from './meta';
@@ -49,6 +50,20 @@ export function watchKeymap(callback: (keymap: Keymap) => void): () => void {
 export async function readTakenKeys(): Promise<Set<Key>> {
   const items = await browser.storage.sync.get(KEYBOARD_ORDER.map(itemName));
   return new Set(KEYBOARD_ORDER.filter((key) => items[itemName(key)] !== undefined));
+}
+
+/**
+ * For schema migrations only: reads every `key.<K>` item raw (unreadable ones and unknown fields included), and
+ * writes back what `rewrite` returns in one set. Nothing is written when it returns no items; errors propagate.
+ */
+export async function rewriteKeyItems(rewrite: (items: RawKeyItems) => Partial<Record<Key, object>>): Promise<void> {
+  const stored = await browser.storage.sync.get(KEYBOARD_ORDER.map(itemName));
+  const items: RawKeyItems = {};
+  for (const key of KEYBOARD_ORDER) if (stored[itemName(key)] !== undefined) items[key] = stored[itemName(key)];
+
+  const changed = Object.entries(rewrite(items)) as [Key, object][];
+  if (changed.length === 0) return;
+  await browser.storage.sync.set(Object.fromEntries(changed.map(([key, value]) => [itemName(key), value])));
 }
 
 export type WriteError = 'quota-exceeded' | 'write-failed';

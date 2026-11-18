@@ -22,8 +22,15 @@ const tab = (id: number, fields: Partial<PlanTab> = {}): PlanTab => ({
 
 const current = tab(1, { index: 0 });
 
+/** On site, so other pages of docs.example.com count as open. */
 const docs = (fields: Partial<ShortcutDraft> = {}) =>
-  validShortcut({ link: 'https://docs.example.com/guide', name: 'Docs', openMode: 'smart', ...fields });
+  validShortcut({
+    link: 'https://docs.example.com/guide',
+    name: 'Docs',
+    openMode: 'smart',
+    tabMatch: 'site',
+    ...fields,
+  });
 
 /** The one tile of a keymap holding `docs` on K. */
 const tileOf = (fields: Partial<ShortcutDraft>, tabs: PlanTab[], currentTab = current) =>

@@ -20,7 +20,8 @@ const tab = (id: number, fields: Partial<PlanTab> = {}): PlanTab => ({
   ...fields,
 });
 
-const shortcut = (fields: Partial<ShortcutDraft> = {}) => validShortcut({ link: LINK, ...fields });
+/** On site, so other pages of the link's site count as open. */
+const shortcut = (fields: Partial<ShortcutDraft> = {}) => validShortcut({ link: LINK, tabMatch: 'site', ...fields });
 
 const current = tab(1, { index: 3 });
 

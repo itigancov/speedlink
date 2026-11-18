@@ -1,4 +1,6 @@
 // Schema migrations keyed on `meta.schemaVersion` (product spec §3.2, ADR 0002). Only migrations rewrite data.
+import { planSiteToPage } from '@/domain/migrations';
+import { rewriteKeyItems } from './keymap-store';
 import { readMeta, updateMeta } from './meta';
 
 /** One step: rewrites stored data from schema version `to - 1` to `to`. */
@@ -8,7 +10,10 @@ export interface Migration {
 }
 
 /** Schema version 1 is the 4.0 baseline. Adding version n is adding `{ to: n, run }` here, in order. */
-export const MIGRATIONS: readonly Migration[] = [];
+export const MIGRATIONS: readonly Migration[] = [
+  // 4.1.1: the default tab match became page; keys stored on site, mostly by default, move to it.
+  { to: 2, run: () => rewriteKeyItems(planSiteToPage) },
+];
 
 const BASELINE_VERSION = 1;
 

@@ -12,7 +12,7 @@ describe('draftOf', () => {
       link: 'https://x.com/',
       name: '',
       openMode: 'smart',
-      tabMatch: 'site',
+      tabMatch: 'page',
       closeCurrent: false,
     });
   });
@@ -22,7 +22,7 @@ describe('draftOf', () => {
       link: '',
       name: '',
       openMode: 'smart',
-      tabMatch: 'site',
+      tabMatch: 'page',
       closeCurrent: false,
     });
   });
@@ -71,7 +71,7 @@ describe('checkDraft', () => {
   it('makes a free key’s draft a shortcut once its link is valid', () => {
     expect(checkDraft({ ...draftOf(undefined), link: 'github.com' }, undefined)).toEqual({
       kind: 'valid',
-      shortcut: { link: 'https://github.com/', openMode: 'smart', tabMatch: 'site', closeCurrent: false },
+      shortcut: { link: 'https://github.com/', openMode: 'smart', tabMatch: 'page', closeCurrent: false },
     });
   });
 
