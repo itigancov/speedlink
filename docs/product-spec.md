@@ -33,7 +33,7 @@ Cut from 4.0: Profiles, Defaults (a global default open mode), Import & export, 
 | `link` | string | required | normalized http(s) URL (§2.3) |
 | `name` | string? | none | without a name, the link's site is shown |
 | `openMode` | `smart` \| `new` \| `this` \| `bg` | `smart` | Smart switch / New tab / This tab / Background tab |
-| `tabMatch` | `exact` \| `page` \| `site` | `site` | always stored, used only by `smart` |
+| `tabMatch` | `exact` \| `page` \| `site` | `page` | always stored, used only by `smart` |
 | `closeCurrent` | boolean | `false` | ignored, and its checkbox disabled, when `openMode = this` |
 
 No timestamps, `canEdit`, `groupId` or stored favicon. The favicon is read live from the tab and never fetched from Google s2.
@@ -73,11 +73,11 @@ Case-insensitive substring search.
 
 ## 3. Storage
 
-### 3.1 Schema (schemaVersion 1)
+### 3.1 Schema (schemaVersion 2)
 | Area | Item | Value |
 |---|---|---|
 | `sync` | `key.<K>` (e.g. `key.Y`, `key.1`), one per occupied key | `{ link, name?, openMode, tabMatch, closeCurrent }` |
-| `sync` | `meta` | `{ schemaVersion: 1, v1Imported?: true }` |
+| `sync` | `meta` | `{ schemaVersion: 2, v1Imported?: true }` |
 | `session` | `undo` | `{ id, expiresAt, keys: { <K>: Shortcut \| null }, written: { <K>: Shortcut \| null } }` |
 
 - A free key has no `key.<K>` item. There is no `settings` item; a future setting becomes its own item, defaulted on read.
@@ -88,7 +88,8 @@ Case-insensitive substring search.
 ### 3.2 Rules
 - **Write strict**: an invalid shortcut is never written; the UI shows the error.
 - **Read tolerant**: invalid items are skipped (the key looks free) and **not deleted**; missing fields take their defaults; unknown fields survive a rewrite. Only migrations rewrite stored data.
-- **Migrations** run in the background on install, update and startup, keyed on `meta.schemaVersion`.
+- **Migrations** run in the background on install, update and startup, keyed on `meta.schemaVersion`. A missing `meta` is version 1 (the 4.0 baseline); a higher version is never lowered.
+  - **2** (4.1.1): every readable `key.<K>` item with `tabMatch: site`, whatever its open mode, becomes `page`; every other field is kept as stored. Unreadable items and other tab matches are not written. It runs once, so a `site` chosen later stays.
 - All surfaces see live keymap changes, including remote sync changes.
 
 ### 3.3 Undo record
@@ -241,7 +242,7 @@ Toasts render on the page, top frame only. Each is a dark pill: key chip + messa
 - **Default picked key**: the first chip, else the first free key in keyboard order.
 - A physical key press in the popup (`event.code`, no ⌥) picks that key; ↵ saves.
 
-**Opens as**: a `Select` with the 4 open modes. Tab match and close current are not in the popup. A new shortcut gets the defaults (smart / site / no close) plus the chosen open mode; it never inherits a replaced shortcut's settings.
+**Opens as**: a `Select` with the 4 open modes. Tab match and close current are not in the popup. A new shortcut gets the defaults (smart / page / no close) plus the chosen open mode; it never inherits a replaced shortcut's settings.
 
 **Primary button**: free key → "Save to ⌥K"; taken key → dark "Replace ⌥K".
 
@@ -401,7 +402,7 @@ The "Set ⌥S" line, per §5.3.
 - **Open mode** is the same for all of a user's shortcuts:
   - `smartTabs:true` → `smart`;
   - else by `postAction`: "Open in background" → `bg`, "Jump to tab" → `new`, "Close & Jump to tab" → `this`.
-- `tabMatch: site`, `closeCurrent: false`.
+- `tabMatch: page`, `closeCurrent: false`.
 - **Key**: `shortcut` A–Z / 0–9, upper-cased; other values are dropped. Duplicates: the last one in array order wins.
 - **Key S**: moves to its first fitting key, else to the first free key in keyboard order.
 - **Link**: the `url` goes through the 4.0 normalizer. Non-http(s), empty or unparseable links are not migrated.
