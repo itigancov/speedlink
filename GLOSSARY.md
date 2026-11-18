@@ -42,7 +42,7 @@ The optional label of a shortcut shown in the overlay and keymap. Without one, t
 _Avoid_: title
 
 **Monogram**:
-The one- or two-letter mark drawn for a shortcut, taken from its name or else its site.
+The one-letter mark drawn for a shortcut on a tile coloured by its site, taken from its name or else its site.
 
 ## Opening
 

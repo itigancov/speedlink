@@ -36,9 +36,10 @@ Cut from 4.0: Profiles, Defaults (a global default open mode), Import & export, 
 | `tabMatch` | `exact` \| `page` \| `site` | `page` | always stored, used only by `smart` |
 | `closeCurrent` | boolean | `false` | ignored, and its checkbox disabled, when `openMode = this` |
 
-No timestamps, `canEdit`, `groupId` or stored favicon. The favicon is read live from the tab and never fetched from Google s2.
+No timestamps, `canEdit`, `groupId`, favicon or colour.
 
-- **Monogram**: built from the name, else the site. Two or more words → the initials of the first two; one word → its first two characters; uppercased.
+- **Monogram**: one letter, the first letter of the name, else of the site, uppercased. It is drawn white on a tile coloured by the site.
+- **Tile colour**: derived, never stored. The link's site (§2.3: no leading `www.`, a non-default port kept, IDN hosts in punycode) is hashed with FNV-1a 32-bit over its UTF-8 bytes, mod 8, into red, amber, blue, teal, slate, purple, indigo, green, in that order. A link that doesn't parse or has no host (`file:`) is hashed whole. The same site gets the same colour on every surface, and a rename keeps it. The hash and the order are pinned by tests: changing either reshuffles every user's colours and needs an ADR.
 - **Open now** is derived from the open tabs by the shortcut's tab match and never stored. It is computed only for Smart shortcuts.
 ↳ rebuild map: issues/05-domain-model.md (domain model), issues/06-behavior-audit.md (behavior audit)
 
@@ -154,8 +155,9 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
 
 ### 4.7 Platform labels
 - One synchronous helper decides Mac vs non-Mac from `navigator.userAgent` and is used by every surface.
-- Mac: "⌥ Option", "⌥K …", modifier row `fn ⌃ ⌥ ⌘`.
-- Windows/Linux/ChromeOS: "Alt", "Alt+K …", row `Ctrl · Alt (highlighted) · space · Alt · Ctrl`.
+- Mac: "⌥ Option", "⌥K …".
+- Windows/Linux/ChromeOS: "Alt", "Alt+K …".
+- No keyboard picture draws a modifier row.
 - Every trigger string goes through this helper and an i18n placeholder.
 ↳ rebuild map: issues/13-keyboard-capture.md (keyboard capture)
 
@@ -231,7 +233,7 @@ Toasts render on the page, top frame only. Each is a dark pill: key chip + messa
 - **Footer tip**: "Tip: hold ⌥ on any page to see all keys".
 
 **Page card**
-- The favicon from the tab (monogram fallback), the tab title and the link.
+- The shortcut's coloured monogram tile (no favicon), the tab title and the link.
 - **Already on a key**: each shortcut is matched by its own tab match. The card says "Already on ⌥Y" (or "⌥Y, ⌥2"). Nothing is blocked: saving adds another key.
 
 **Key picker**
@@ -285,8 +287,8 @@ There is no left nav: only Keymap is left.
 - A view switch **Keyboard** (default) | **List**.
 
 **Keyboard view**
-- Keys: 4 staggered rows of 56 px keys plus a decorative modifier row (§4.7).
-- Key states: free, assigned (monogram chip), open now (green dot), selected, drop target, reserved S (lock).
+- Keys: 4 staggered rows of 76×64 keys (a compact 56×52 size exists for narrow windows), no modifier row.
+- Key states: free, assigned (label, monogram tile and the name on a bottom line), open now (green dot on the outer corner), selected (blue, the tile keeps its colour with a white ring), drop target, reserved S (lock).
 - A legend, plus "Drag a key onto another to swap".
 
 **List view**
@@ -533,11 +535,14 @@ One `theme.css` is shared by Options, Popup, Welcome and the HUD. In the shadow 
 - `highlight`: #F1ECF6 / #6A5480 / #D8CBE4
 - `inverse`: #1A1C1E, toast link #8FB6FF
 - `link`: #0050CC, hover #003A99
+- Neutrals: `foreground-subtle` #3E4250 (a key's name line) · `border-subtle` #EDEEF2 · `border-strong` #C9CDD8 · `edge-primary` #0047B3 (the edge under a blue key, `shadow-edge-primary`)
+- Tiles: `tile-red` #B3261E · `tile-amber` #A2540A · `tile-blue` #1A56DB · `tile-teal` #0E6E8C · `tile-slate` #3E4250 · `tile-purple` #7A3EB1 · `tile-indigo` #4B55C4 · `tile-green` #0B7A53, the same in every theme. A test checks that each has a token and that white on it is at least 4.5:1.
+- Near-primary tints are alpha forms of `primary`, not tokens: `primary/3`, `/4`, `/7`, `/20`, `/30`, `/40`.
 
 Key-state colors live inside `KeyCap`.
 
 **Scale**: snap to the token scale (±2 px). **No arbitrary values.**
-- Radius: `--radius: 10px` → sm 6 · md 8 · lg 10 · xl 14, plus `2xl` 20 and 12 for keys.
+- Radius: `--radius: 10px` → sm 6 · md 8 · lg 10 · xl 14, plus `2xl` 20 and 12 for keys. The canvas's 9, 16 and 22 snap to 10, 14 and 20.
 - Type: Tailwind defaults plus `3xs` 10 · `2xs` 11 · `ui` 13 · `md` 15.
 - Spacing: stock.
 
@@ -552,15 +557,18 @@ Key-state colors live inside `KeyCap`.
 - `Badge` + `highlight`, `accent`
 - `Alert` + `warning`
 - `Kbd` (2 px bottom border)
-- `Input`, `Label`/`Field`, `InputGroup`, `ToggleGroup`, `RadioGroup` choice cards, `Checkbox`, `Select`, `Card`, `Table`, square `Avatar`, `Tooltip`
+- `Input`, `Label`/`Field`, `InputGroup`, `ToggleGroup`, `RadioGroup` choice cards, `Checkbox`, `Select`, `Card`, `Table`, `Tooltip`
 - `Sonner`, on extension pages only
 - `Sidebar` is not used.
 - `cn` comes from the `cn` npm package (shadcn's registry imports it; there is no `lib/utils`). `shadcn init` fails on WXT, so `components.json` and tsconfig `paths` are hand-written.
 
 **Custom**
-- `KeyCap`: `size` lg 56 / xl 44 / md 40 / sm 28 × `state` free / assigned / selected / drop-target / reserved / taken / picked, plus an `open` flag; includes the monogram chip and the open dot.
-- `KeyboardGrid` (lg / sm, row stagger, platform modifier row).
-- `Monogram` (square `Avatar`; the favicon appears only on the popup page card).
+- `KeyCap`: `size` lg 76×64 / compact 56×52 / xl 44 / md 40 / sm 28×26 × `state` free / assigned / selected / drop-target / reserved / taken / picked / start / plain, plus an `open` flag and the `shortcut` it holds.
+  - lg: the label top left, a 20 px monogram tile top right, the name on a bottom line (11/500, ellipsized), the open dot on the outer top-right corner (10 px, white ring). Compact: the label, a 16 px tile and the outer dot, no name line. sm, xl, md: the label only, the open dot inside.
+  - `start` ("Start here"): 2 px dashed primary on `primary/4`, with the label. `plain`: a white keycap for overlay tiles, no blue tint and no dot.
+  - Reserved (lock), drop target (↔), taken and dimmed keep their colours at every size. On a selected key the tile keeps its colour with a 1 px white ring. Accessible names are the same at every size; the tile, name line and dot are hidden from assistive tech.
+- `KeyboardGrid` (lg / compact / sm, no modifier row): row stagger 0/28/46/74 px (lg), 0/20/34/54 (compact), 0/10/16/26 (sm). Arrow-key drag uses the lg fractions of a key width.
+- `Monogram`: a square tile with one white letter, coloured `--tile-<hue>` by the shortcut's site, wherever a shortcut is drawn. No favicon anywhere.
 - The picked-key drop zone, the "Saved" indicator, drag-to-swap via dnd-kit.
 
 ### 12.3 HUD constraints (from the spike)
