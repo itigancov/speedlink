@@ -1,15 +1,18 @@
 // The List view (product spec §8.1): the assigned keys in keyboard order, one row each. Selection is the page's.
 import { cn } from 'cn';
+import { type Ref, useImperativeHandle, useRef } from 'react';
 import { KeyCap } from '@/components/KeyCap';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { KEYBOARD_ORDER } from '@/domain/keys';
+import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
 import { siteOf } from '@/domain/link';
 import { displayName, type Shortcut } from '@/domain/shortcut';
-import type { KeymapViewProps } from './KeyboardCard';
+import type { KeyCapsHandle, KeymapViewProps } from './KeyboardCard';
 
 /** The same inputs as the Keyboard view; `matches` hides the rows outside a search instead of dimming them. */
-export type ListCardProps = KeymapViewProps;
+export interface ListCardProps extends KeymapViewProps {
+  ref?: Ref<KeyCapsHandle>;
+}
 
 function opensAs(shortcut: Shortcut): string {
   const mode = i18n.t(`options.openMode.${shortcut.openMode}.title`);
@@ -29,7 +32,9 @@ function Message({ children }: { children: string }) {
   );
 }
 
-export function ListCard({ keymap, openKeys, selected, matches = null, onSelect, platform }: ListCardProps) {
+export function ListCard({ keymap, openKeys, selected, matches = null, onSelect, platform, ref }: ListCardProps) {
+  const nodes = useRef(new Map<Key, HTMLElement>()).current;
+  useImperativeHandle(ref, () => ({ focusKey: (key) => nodes.get(key)?.focus() }), [nodes]);
   const assigned = KEYBOARD_ORDER.flatMap((key) => {
     const shortcut = keymap[key];
     return shortcut === undefined ? [] : [{ key, shortcut }];
@@ -66,6 +71,10 @@ export function ListCard({ keymap, openKeys, selected, matches = null, onSelect,
                 >
                   <TableCell className="w-12">
                     <KeyCap
+                      ref={(node: HTMLElement | null) => {
+                        if (node === null) nodes.delete(key);
+                        else nodes.set(key, node);
+                      }}
                       label={key}
                       size="sm"
                       state={isSelected ? 'selected' : 'assigned'}

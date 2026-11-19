@@ -1,4 +1,4 @@
-// The Options inspector's edit of one key (product spec §8.3, §8.4): raw field values, checked against the stored
+// The Options editor's edit of one key (product spec §8.3, §8.4): raw field values, checked against the stored
 // shortcut before autosave writes them, and merged with changes that arrive from storage.
 import { normalizeLink } from './link';
 import {
@@ -10,7 +10,7 @@ import {
   validateShortcut,
 } from './shortcut';
 
-/** The inspector's fields as typed: the link and name are raw text, an empty name means "show the site". */
+/** The editor's fields as typed: the link and name are raw text, an empty name means "show the site". */
 export interface KeyDraft {
   link: string;
   name: string;
@@ -65,7 +65,7 @@ export function mergeRemote(draft: KeyDraft, dirty: boolean, stored: Shortcut | 
   return dirty ? draft : draftOf(stored);
 }
 
-/** The inspector's status line after "⌥ Option + K ·". */
+/** The editor's status under its title. */
 export type KeyStatus = { kind: 'free' } | { kind: 'open' } | { kind: 'mode'; openMode: OpenMode };
 
 export function keyStatus(stored: Shortcut | undefined, openNow: boolean): KeyStatus {

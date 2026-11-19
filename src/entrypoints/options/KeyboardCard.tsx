@@ -1,5 +1,5 @@
-// The Keyboard view (product spec §8.1, §8.7): every key in its state, the legend, and drag-to-swap. Selection
-// and what a drop writes are the page's.
+// The Keyboard view (product spec §8.1, §8.7): every key in its state, the legend, and drag-to-swap. Selection, the
+// key editor dialog and what a drop writes are the page's.
 import {
   type Announcements,
   type CollisionDetection,
@@ -14,14 +14,23 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { cn } from 'cn';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import { KeyboardGrid } from '@/components/KeyboardGrid';
 import { KeyCap, type KeyCapState } from '@/components/KeyCap';
+import { Kbd } from '@/components/ui/kbd';
 import { ARROWS, neighbourKey } from '@/domain/key-grid';
 import type { Keymap } from '@/domain/keymap-ops';
-import { isAssignable, type Key, type KeyLabel } from '@/domain/keys';
+import { isAssignable, KEYBOARD_ORDER, type Key, type KeyLabel } from '@/domain/keys';
 import { displayName } from '@/domain/shortcut';
-import { chordLabel, type Platform } from '@/platform/platform-labels';
+import { chordLabel, type Platform, pasteLabel } from '@/platform/platform-labels';
 
 /** A drag in progress: the key being carried and the key it would land on, if any. */
 export interface DragFrame {
@@ -34,22 +43,34 @@ export interface KeymapViewProps {
   keymap: Keymap;
   /** Keys whose shortcut is open in a tab right now. */
   openKeys: ReadonlySet<Key>;
-  selected: Key;
+  /** The selected key, or null for none. */
+  selected: Key | null;
   /** The keys a search matches, or null with no search: every other key is dimmed. */
   matches?: ReadonlySet<Key> | null;
   onSelect: (key: Key) => void;
   platform?: Platform;
 }
 
+/** A view's way to put focus back on a key: the dialog returns it there on close. */
+export interface KeyCapsHandle {
+  focusKey(key: Key): void;
+}
+
 export interface KeyboardCardProps extends KeymapViewProps {
   /** A shortcut was dropped from one key onto another. */
   onDrop: (from: Key, to: Key) => void;
+  /** A drag started (true) or ended either way (false). */
+  onDragActiveChange?: (active: boolean) => void;
   /** Freezes the card mid-drag, for the gallery. */
   frozenDrag?: DragFrame;
+  ref?: Ref<KeyCapsHandle>;
 }
 
+/** The keyboard's tab stop with nothing selected. */
+const FIRST_KEY = KEYBOARD_ORDER[0] as Key;
+
 function Swatch({ className }: { className: string }) {
-  return <span aria-hidden="true" className={cn('size-3 rounded-sm border', className)} />;
+  return <span aria-hidden="true" className={cn('size-3.5 rounded-sm border', className)} />;
 }
 
 const KEYBOARD_CODES = { start: ['Space'], cancel: ['Escape'], end: ['Space', 'Enter'] };
@@ -136,12 +157,48 @@ export function KeyboardCard({
   matches = null,
   onSelect,
   onDrop,
+  onDragActiveChange,
   frozenDrag,
   platform,
+  ref,
 }: KeyboardCardProps) {
   const [liveDrag, setLiveDrag] = useState<DragFrame | null>(null);
   const drag = frozenDrag ?? liveDrag;
   const nodes = useRef(new Map<Key, HTMLElement>()).current;
+
+  useImperativeHandle(ref, () => ({ focusKey: (key) => nodes.get(key)?.focus() }), [nodes]);
+
+  // Space picks up and drops on keydown, and the focused button then clicks on keyup: that click would open the
+  // key's dialog over the drag, or after the drop. The pick-up's click lands mid-drag; the drop's is swallowed here
+  // until the key that ended the drag comes back up.
+  const swallowClick = useRef(false);
+  const swallowNextKeyUpClick = () => {
+    swallowClick.current = true;
+    window.addEventListener(
+      'keyup',
+      () => {
+        setTimeout(() => {
+          swallowClick.current = false;
+        });
+      },
+      { once: true, capture: true },
+    );
+  };
+  const onKeyClick = (label: Key) => {
+    if (drag !== null || swallowClick.current) return;
+    onSelect(label);
+  };
+
+  /** The arrows move focus key to key, passing over S, and leave the selection alone; a drag has them meanwhile. */
+  const onArrow = (label: Key, event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (drag !== null) return;
+    const direction = ARROWS[event.code];
+    if (direction === undefined) return;
+    event.preventDefault();
+    const next = neighbourKey(label, direction);
+    if (next !== null) nodes.get(next)?.focus();
+  };
+  const tabStop = selected ?? FIRST_KEY;
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { keyboardCodes: KEYBOARD_CODES, coordinateGetter: keyToKey }),
@@ -200,8 +257,13 @@ export function KeyboardCard({
         name={shortcut === undefined ? undefined : displayName(shortcut)}
         dimmed={drag?.source === label || (matches !== null && !matches.has(label))}
         platform={platform}
-        onClick={() => onSelect(label)}
+        tabIndex={label === tabStop ? 0 : -1}
+        onClick={() => onKeyClick(label)}
         {...extra}
+        onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) => {
+          (extra.onKeyDown as ((event: ReactKeyboardEvent<HTMLButtonElement>) => void) | undefined)?.(event);
+          onArrow(label, event);
+        }}
       />
     );
   };
@@ -250,40 +312,50 @@ export function KeyboardCard({
         screenReaderInstructions: { draggable: i18n.t('options.drag.instructions') },
         restoreFocus: false,
       }}
-      onDragStart={({ active }) => setLiveDrag({ source: active.id as Key, target: null })}
+      onDragStart={({ active }) => {
+        setLiveDrag({ source: active.id as Key, target: null });
+        onDragActiveChange?.(true);
+      }}
       onDragOver={({ active, over }) =>
         setLiveDrag({ source: active.id as Key, target: over === null ? null : (over.id as Key) })
       }
-      onDragCancel={() => setLiveDrag(null)}
+      onDragCancel={({ activatorEvent }) => {
+        setLiveDrag(null);
+        onDragActiveChange?.(false);
+        if (activatorEvent instanceof KeyboardEvent) swallowNextKeyUpClick();
+      }}
       onDragEnd={({ active, over, activatorEvent }) => {
         setLiveDrag(null);
+        onDragActiveChange?.(false);
+        if (activatorEvent instanceof KeyboardEvent) {
+          swallowNextKeyUpClick();
+          if (over !== null) nodes.get(over.id as Key)?.focus();
+        }
         if (over === null || over.id === active.id) return;
-        // Space on a focused button clicks it on keyup: move focus with the shortcut, so that click can't
-        // select the source again after the selection followed the drop.
-        if (activatorEvent instanceof KeyboardEvent) nodes.get(over.id as Key)?.focus();
         onDrop(active.id as Key, over.id as Key);
       }}
     >
-      <div className="flex flex-col gap-6 overflow-x-auto rounded-2xl border bg-card p-6">
-        <KeyboardGrid size="lg" renderKey={renderKey} />
-        <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 text-2xs text-muted-foreground">
-          <li className="flex items-center gap-1.5">
+      <div className="flex flex-col gap-5 rounded-2xl border bg-card p-6">
+        <div className="mx-auto w-fit">
+          <KeyboardGrid size="lg" renderKey={renderKey} />
+        </div>
+        <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 border-border-subtle border-t pt-4 text-muted-foreground text-xs">
+          <li className="flex items-center gap-2">
             <Swatch className="border-primary/20 bg-primary/7" />
             {i18n.t('options.legend.assigned')}
           </li>
-          <li className="flex items-center gap-1.5">
-            <Swatch className="border-primary bg-primary" />
-            {i18n.t('options.legend.selected')}
-          </li>
-          <li className="flex items-center gap-1.5">
+          <li className="flex items-center gap-2">
             <Swatch className="border-input bg-card" />
             {i18n.t('options.legend.free')}
           </li>
-          <li className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="size-1.5 rounded-full bg-success" />
+          <li className="flex items-center gap-2">
+            <span aria-hidden="true" className="size-2 rounded-full bg-success" />
             {i18n.t('options.legend.open')}
           </li>
-          <li className="ml-auto">{i18n.t('options.legend.drag')}</li>
+          <li data-slot="legend-hint" className="ml-auto">
+            {i18n.t('options.legend.select')} <span aria-hidden="true">·</span> <Kbd>{pasteLabel(platform)}</Kbd>{' '}
+            {i18n.t('options.legend.paste')} <span aria-hidden="true">·</span> {i18n.t('options.legend.drag')}
+          </li>
         </ul>
       </div>
       <DragOverlay dropAnimation={null}>{liveDrag === null ? null : lifted(liveDrag.source)}</DragOverlay>

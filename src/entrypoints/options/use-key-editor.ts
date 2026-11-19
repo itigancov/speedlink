@@ -1,5 +1,5 @@
-// The selected key and its draft (product spec §8.2, §8.4): selection from `#key=K`, mirrored back to the hash, and
-// remote changes merged into the draft.
+// The selected key and its draft (product spec §8.2, §8.4): selection from `#key=K` or none, mirrored back to the
+// hash, and remote changes merged into the draft.
 import { useCallback, useEffect, useState } from 'react';
 import { checkDraft, draftOf, type KeyDraft, mergeRemote } from '@/domain/key-draft';
 import type { Keymap } from '@/domain/keymap-ops';
@@ -23,11 +23,6 @@ export function keyFromHash(hash: string): Key | null {
   return KEYBOARD_ORDER.find((key) => key === label) ?? null;
 }
 
-/** `#key=K`, else the first assigned key in keyboard order, else `1`. */
-function initialKey(keymap: Keymap): Key {
-  return keyFromHash(window.location.hash) ?? KEYBOARD_ORDER.find((key) => keymap[key] !== undefined) ?? '1';
-}
-
 const editingOf = (key: Key, stored: Shortcut | undefined): Editing => ({
   key,
   draft: draftOf(stored),
@@ -35,12 +30,23 @@ const editingOf = (key: Key, stored: Shortcut | undefined): Editing => ({
   clearing: false,
 });
 
+/** The URL's hash: `#key=K` for a selection, none without one. */
+export function hashFor(key: Key | null): string {
+  const { pathname, search } = window.location;
+  return `${pathname}${search}${key === null ? '' : `#key=${key}`}`;
+}
+
 export interface KeyEditor {
-  key: Key;
-  draft: KeyDraft;
-  /** The key's shortcut as the inspector shows it: undefined while a Clear key is on its way to storage. */
+  /** The selected key, or null when nothing is selected: the dialog is open exactly while this is a key. */
+  key: Key | null;
+  /** The selected key's draft; null without a selection. */
+  draft: KeyDraft | null;
+  /** The selected key's shortcut as the editor shows it: undefined while a Clear key is on its way to storage. */
   stored: Shortcut | undefined;
+  /** Selects the key; already selected, it stays so. */
   select(key: Key): void;
+  /** Ends the selection. Like a key switch, autosave still writes a valid draft; an invalid one is dropped. */
+  close(): void;
   /** Selects the key with its draft reset to storage, even when it is already selected: after a drop writes it. */
   reselect(key: Key): void;
   setDraft(draft: KeyDraft): void;
@@ -49,26 +55,31 @@ export interface KeyEditor {
 }
 
 export function useKeyEditor(keymap: Keymap): KeyEditor {
-  const [editing, setEditing] = useState<Editing>(() => {
-    const key = initialKey(keymap);
-    return editingOf(key, keymap[key]);
+  const [editing, setEditing] = useState<Editing | null>(() => {
+    const key = keyFromHash(window.location.hash);
+    return key === null ? null : editingOf(key, keymap[key]);
   });
 
-  const actual = keymap[editing.key];
   let current = editing;
-  if (current.clearing && actual === undefined) current = { ...current, clearing: false };
-  const stored = current.clearing ? undefined : actual;
-  if (stored !== current.base) {
-    const dirty = checkDraft(current.draft, current.base).kind !== 'same';
-    current = { ...current, draft: mergeRemote(current.draft, dirty, stored), base: stored };
+  let stored: Shortcut | undefined;
+  if (current !== null) {
+    const actual = keymap[current.key];
+    if (current.clearing && actual === undefined) current = { ...current, clearing: false };
+    stored = current.clearing ? undefined : actual;
+    if (stored !== current.base) {
+      const dirty = checkDraft(current.draft, current.base).kind !== 'same';
+      current = { ...current, draft: mergeRemote(current.draft, dirty, stored), base: stored };
+    }
   }
   // Adjusting state while rendering: React re-renders at once, before the effects run.
   if (current !== editing) setEditing(current);
 
   const select = useCallback(
-    (key: Key) => setEditing((prev) => (prev.key === key ? prev : editingOf(key, keymap[key]))),
+    (key: Key) => setEditing((prev) => (prev?.key === key ? prev : editingOf(key, keymap[key]))),
     [keymap],
   );
+
+  const close = useCallback(() => setEditing(null), []);
 
   const reselect = useCallback((key: Key) => setEditing(editingOf(key, keymap[key])), [keymap]);
 
@@ -81,20 +92,24 @@ export function useKeyEditor(keymap: Keymap): KeyEditor {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, [select]);
 
+  const key = current?.key ?? null;
   useEffect(() => {
-    const { pathname, search } = window.location;
-    window.history.replaceState(window.history.state, '', `${pathname}${search}#key=${current.key}`);
-  }, [current.key]);
+    window.history.replaceState(window.history.state, '', hashFor(key));
+  }, [key]);
 
-  const setDraft = useCallback((draft: KeyDraft) => setEditing((prev) => ({ ...prev, draft })), []);
+  const setDraft = useCallback(
+    (draft: KeyDraft) => setEditing((prev) => (prev === null ? prev : { ...prev, draft })),
+    [],
+  );
 
   const markCleared = () => {
-    const { key } = current;
-    setEditing((prev) => ({ ...prev, draft: draftOf(undefined), base: undefined, clearing: true }));
+    setEditing((prev) =>
+      prev === null ? prev : { ...prev, draft: draftOf(undefined), base: undefined, clearing: true },
+    );
     return {
-      failed: () => setEditing((prev) => (prev.key === key ? { ...prev, clearing: false } : prev)),
+      failed: () => setEditing((prev) => (prev !== null && prev.key === key ? { ...prev, clearing: false } : prev)),
     };
   };
 
-  return { key: current.key, draft: current.draft, stored, select, reselect, setDraft, markCleared };
+  return { key, draft: current?.draft ?? null, stored, select, close, reselect, setDraft, markCleared };
 }

@@ -96,7 +96,7 @@ export interface ProtocolMap {
   // SpeedLink's own pages → bg
 
   /**
-   * Try ⌥K, and ⌥+key on Options or welcome: open the key as if pressed on the SpeedLink page (sender.tab), which is
+   * Options' Test, and ⌥+key on Options or welcome: open the key as if pressed on the SpeedLink page (sender.tab), which is
    * never replaced or closed. `force` is Force new tab. A free key replies `free`, with no toast (nothing to show it).
    */
   tryKey(data: { key: Key; force?: boolean }): OpenKeyReply;

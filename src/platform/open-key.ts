@@ -18,7 +18,7 @@ export interface OpenKeyRequest {
   force: boolean;
   /** The popup's tab; ignored when a content script asks, since its own tab is the sender's. The popup names it. */
   tabId?: number;
-  /** Options' Try ⌥K: opened through `trialShortcut`, so the Options tab is never replaced or closed. */
+  /** Options' Test: opened through `trialShortcut`, so the Options tab is never replaced or closed. */
   trial?: boolean;
 }
 
@@ -40,7 +40,7 @@ export function createOpenKey(): OpenKey {
       const [keymap, tabs] = await Promise.all([readKeymap(), readPlanTabs()]);
       const stored = keymap[key];
       if (stored === undefined) {
-        // Options and welcome (Try) have no content script to show it; their page acts on the reply.
+        // Options and welcome (Test) have no content script to show it; their page acts on the reply.
         if (!trial) sendToast(tabId, { kind: 'free', key });
         return { kind: 'free' };
       }
