@@ -151,7 +151,7 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
 ### 4.6 Where ⌥+key does not work
 ⌥+key does nothing on restricted pages (chrome://, the NTP, the Web Store, the PDF viewer, view-source) and in the popup's own page. It also does nothing while focus is inside an `about:blank`, `srcdoc` or `data:` child frame (no `match_about_blank` / `match_origin_as_fallback`). Only ⌥S has a fallback there (§5.3), and the popup becomes a launcher on a restricted page (§7).
 
-**Extension pages** (Options, welcome) have no content script, so each page runs the same keydown decision itself (§4.2, §4.3: trigger check, AltGr, IME, repeat, editable target, per-OS browser keys) and ⌥+key works there with Try semantics (§8.5): `tryKey{key, force}` opens the shortcut and the SpeedLink page is never replaced or closed. ⇧ = Force new tab. No Peek and no overlay appear on these pages. A free key and ⌥S act on the page: §8.9 for Options, §9 for welcome. A free key replies `free` with no toast.
+**Extension pages** (Options, welcome) have no content script, so each page runs the same keydown decision itself (§4.2, §4.3: trigger check, AltGr, IME, repeat, editable target, per-OS browser keys) and ⌥+key works there with Test semantics (§8.5): `tryKey{key, force}` opens the shortcut and the SpeedLink page is never replaced or closed. ⇧ = Force new tab. No Peek and no overlay appear on these pages. A free key and ⌥S act on the page: §8.9 for Options, §9 for welcome. A free key replies `free` with no toast.
 
 ### 4.7 Platform labels
 - One synchronous helper decides Mac vs non-Mac from `navigator.userAgent` and is used by every surface.
@@ -256,7 +256,7 @@ Toasts render on the page, top frame only. Each is a dark pill: key chip + messa
 **Unusable page** (any non-http(s) or restricted page): the popup is a **launcher**, so it is never a dead end.
 - Under the header, a short line "This page can't be put on a key" and an "Open keymap" link. The picker, Save and Opens as are not shown.
 - Then the overlay's tiles for this tab (§5.4: keycap, name or site, "Open · tab N" subline, green dot), from `getOverlayModel{tabId}`, 2 columns at this width; past 12 tiles the area scrolls inside the popup. No pencil and no search.
-- A bare key, ⌥+key or a tile click opens that key's shortcut through `openKey{key, force, tabId}` with the restricted tab as the current tab (normal semantics, not Try): This tab replaces the new tab page, close current closes it. ⇧ (or ⇧+click) = Force new tab. The keys are read by `event.code`; S is ignored.
+- A bare key, ⌥+key or a tile click opens that key's shortcut through `openKey{key, force, tabId}` with the restricted tab as the current tab (normal semantics, not Test): This tab replaces the new tab page, close current closes it. ⇧ (or ⇧+click) = Force new tab. The keys are read by `event.code`; S is ignored.
 - An `opened` / `noop` reply closes the popup. A free key stays open with "⌥K is free" under the tiles; a `failed` reply shows "Couldn't open ⌥K".
 - Empty keymap: "No keys yet" + "Open keymap".
 - ⌥S on a restricted page still opens Options (§5.3).
@@ -275,12 +275,12 @@ Toasts render on the page, top frame only. Each is a dark pill: key chip + messa
 ## 8. Options · Keymap
 
 ### 8.1 Layout
-There is no left nav: only Keymap is left.
+There is no left nav: only Keymap is left. The page is one centred column (header, heading, the keys card); there is no Inspector aside, so the keys card has the full width.
 
 **Header**
 - Logo + "SpeedLink".
-- A search field "Find a link, site or key…" with a `/` keycap.
-- The hint "Hold **⌥ Option** anywhere to see your keys".
+- A 44 px search field "Find a link, site or key…" with a `/` keycap.
+- In the right slot, the hint "Hold **⌥ Option** anywhere to see your keys".
 
 **Heading**
 - "Keymap" + the subline "Press **⌥ + key** on any page to open its link. N of 35 keys in use."
@@ -289,59 +289,69 @@ There is no left nav: only Keymap is left.
 **Keyboard view**
 - Keys: 4 staggered rows of 76×64 keys (a compact 56×52 size exists for narrow windows), no modifier row.
 - Key states: free, assigned (label, monogram tile and the name on a bottom line), open now (green dot on the outer corner), selected (blue, the tile keeps its colour with a white ring), drop target, reserved S (lock).
-- A legend, plus "Drag a key onto another to swap".
+- The selected key's editor opens under it (§8.3).
+- A legend: Assigned · Free · ● Open in a tab now, and on the right "Press a key to select it · **⌘V** pastes a link onto it · Drag to swap" (Ctrl+V on Windows and Linux).
 
 **List view**
 - Columns Key · Name · Link · Opens as ("· closes current" when set, never for This tab, where it is ignored).
-- Only assigned keys, in keyboard order, with no sorting. A row click selects.
+- Only assigned keys, in keyboard order, with no sorting.
+- A row click switches to the Keyboard view, selects that key and opens its editor; the List view has no editor of its own. The selected key's row is highlighted.
 - The Key cell shows the open-now dot. Name falls back to the site, shown muted. The Link is truncated to one line, with the full link in a tooltip.
 - Empty → "No keys yet — pick one in Keyboard view" (it wins over a query). A query that matches no assigned key, including one that matches only free keys, shows "No keys match".
 
 ### 8.2 Selection
-- Exactly one key is always selected.
-- `#key=K` selects K. It is used by the overlay pencil and by ⌥S on restricted pages. It is read on load and on `hashchange`; S is never selected.
-- Otherwise the first assigned key in keyboard order is selected; with an empty keymap, the first free key.
-- The selection is mirrored to `#key=K` with `history.replaceState`.
+- At most one key is selected; the selection may be empty. A selected key has its editor open (in the Keyboard view).
+- `#key=K` selects K and opens its editor. It is used by the overlay pencil and by ⌥S on restricted pages. It is read on load and on `hashchange`; S is never selected.
+- Without `#key=K`, nothing is selected on load.
+- The selection is mirrored to `#key=K` with `history.replaceState`; with nothing selected, the hash is cleared.
+- A click on a key selects it; a click on another key moves the editor there.
+- The editor closes with ×, Done, Esc and a second click (or ↵ / Space) on the selected key. Esc closes it when focus is outside a field, or in Link or Name while the draft equals storage; in a field with an unsaved change, the first Esc only leaves the field (nothing is reverted) and the next one closes. Esc in the search keeps its own meaning (§8.6). A click outside (the page background, the header, the card) leaves it open.
+- Closing settles the draft as a key switch does: a valid one is saved, an invalid one is discarded (§8.4).
+- Focus: a click selection keeps focus on the key; closing returns it to the key. The arrow keys move focus between keys (passing over `S`) without selecting. Only the selected key, or the first key with nothing selected, is in the tab order, and the editor follows it, so Tab from the selected key enters the editor.
 
-### 8.3 Inspector ("Key details")
+### 8.3 Editor at the key ("Edit key")
+A non-modal dialog named "Edit key", 380 px wide, with no focus trap. It sits under the selected key's row with a 14 px arrow at the key's centre, overlapping the rows below; it never flips above, and it is clamped horizontally to the keyboard's width. It follows its key on resize and scroll, and the page scrolls to show all of it when it opens (a bottom-row key, a short window, a load with `#key=K`). It fades and scales in from the arrow, without animation under reduced motion. The keys outside it stay clickable.
+
 **Header**
-- A key tile.
+- A key chip "⌥K".
 - Title = the name (or site), or "Free key".
-- Status line "⌥ Option + K · {open in a tab now | open mode label | paste a link to assign}".
+- Status "Open in a tab now" | the open mode | "Paste a link to assign it".
+- A × button.
 
 **Link**
-- Placeholder "Paste a link or type a site", plus a **Use current tab** icon button.
+- Placeholder "Paste a link or type a site", plus a **Use current tab** icon button inside the field.
 - Use current tab takes the most recently used (`lastAccessed`) http(s) tab in a normal, non-incognito window, never an extension page; the tooltip names its title. Without one, the button is disabled with the tooltip "No web page open".
 - It fills Link, and Name if Name is empty (tab title).
 
-**Name**: "— shown in the overlay", placeholder "Taken from the page title".
+**Name**: "— optional", placeholder "Taken from the page title".
 
-**When I press it**: 4 radio cards. Smart switch carries a "Recommended" badge. Copy per card:
-- Smart switch: "Jump to the tab if it's already open, otherwise open it in a new tab."
-- New tab: "Always open a fresh tab next to this one."
-- This tab: "Replace the page you're looking at."
-- Background tab: "Open quietly and stay where you are."
+**Opens as**: a 4-way segmented control, Smart · New tab · This tab · Background, each segment named by its full term ("Smart switch", "Background tab") for assistive tech. No badge. The chosen mode's description shows under it:
+- Smart switch: "Jumps to the tab if it's already open, otherwise opens a new one."
+- New tab: "Always opens a fresh tab next to the current one."
+- This tab: "Replaces the page you're looking at."
+- Background tab: "Opens quietly and you stay where you are."
 
-**Tab match** (shown only for Smart)
-- Prompt: "Count a tab as "already open" when it shows".
-- Choices: **This exact link** | **This page** | **Any page of the site**.
-- Live hints:
+**Tab-strip preview**: under the description, a decorative before → after row of tabs (hidden from assistive tech), drawn with the shortcut's own name and tile, following the draft live. Before: "Docs" (active), the shortcut's tab, "Mail". After: Smart → its tab active; New tab → a new tab of it, active; This tab → it replaces the active tab; Background → a new tinted tab, "Docs" still active. With close current, the source tab shows as a dashed "closed" chip.
+
+**More options**: a disclosure, collapsed on open and on every key switch, and open by itself when the key stores a non-default tab match or close current. It holds:
+- **Tab match** (shown only for Smart): the prompt "Count a tab as "already open" when it shows"; choices **This exact link** | **This page** | **Any page of the site**; live hints:
   - exact: "Only a tab with exactly {link} is reused."
   - page: "Reuses a tab on {link}, ignoring ?query and #anchors."
   - site: "Reuses any tab on {site} — e.g. a video you left open."
+- **Close current**: the checkbox "Close the tab I'm on afterwards", disabled with This tab.
 
-**Close current**: the checkbox "Close the tab I'm on afterwards", disabled with This tab.
+**Footer**: **Clear key** (destructive text button; no confirm, no undo; the editor stays open on the now-free key) · the save line ("Saved" on an assigned key with nothing pending, "Saving…", "Couldn't save"; empty on an untouched free key) · **Test** (outline, §8.5) · **Done** (closes the editor). Clear key and Test are disabled on a free key.
 
-**Footer**: **Clear key** (destructive outline; no confirm, no undo) · the "Saved" indicator · **Try ⌥K** (primary).
+While a drag runs (§8.7) the editor fades out and lets the pointer through.
 
 ### 8.4 Autosave and validation
 - Changes save automatically, debounced ~400 ms.
 - An invalid link → an inline error under the field. Nothing is written, the stored value stays the last valid one, and "Saved" is hidden.
 - A free key becomes assigned only once its link is valid.
-- Switching keys discards an unsaved invalid draft.
-- Remote (sync) changes appear live.
+- Switching keys or closing the editor discards an unsaved invalid draft and saves a valid one.
+- Remote (sync) changes appear live, in the open editor too; a draft being edited is kept.
 
-### 8.5 Try ⌥K
+### 8.5 Test
 - Opens the shortcut as if its key were pressed with Options as the current tab, but it never replaces or closes Options:
   - Smart → switch or new tab;
   - New / This → new tab;
@@ -353,17 +363,17 @@ There is no left nav: only Keymap is left.
 ### 8.6 `/` search
 - `/` focuses the search and selects its text; it matches per §2.7. `/` is ignored in editable fields (inputs, textareas, contenteditable) and with ⌘, Ctrl or ⌥ held.
 - Filtering is live on every keystroke. Keyboard view dims non-matching keys; List view hides non-matching rows.
-- ↵ selects the exact key-label match first, otherwise the first match in keyboard order; in List view, the first visible row. It moves focus to Link and keeps the query. ↵ with no match does nothing.
+- ↵ selects the exact key-label match first, otherwise the first match in keyboard order; in List view, the first visible row, and it switches to the Keyboard view as a row click does. It opens the key's editor, moves focus to Link and keeps the query. ↵ with no match does nothing.
 - Esc clears the query; a second Esc on an empty field leaves it. Esc only applies while the search field has focus.
-- Typing never changes the selection. The query is shared by both views, not persisted, and empty on load.
+- Typing never changes the selection, and a dimmed selected key keeps its editor open. The query is shared by both views, not persisted, and empty on load.
 - No match → all keys dimmed / "No keys match".
 
 ### 8.7 Drag-to-swap
 - Dropping onto an assigned key swaps; dropping onto a free key moves. `S` is never a target.
 - It also works with the keyboard (dnd-kit keyboard sensor).
-- The selection follows the dragged shortcut. No undo.
+- While a drag runs, an open editor hides so the keys under it stay reachable. After a drop it reopens on the key the dragged shortcut moved to, whichever key was selected before; with the editor closed, nothing is selected after the drop. No undo.
 - Only keys that hold a shortcut can be dragged. A pointer drag starts after a 5 px move, so a click still selects.
-- From the keyboard, Space picks up, the arrows jump key to key across the staggered rows (passing over `S`), Space or ↵ drops and Esc cancels. ↵ on a key that isn't being dragged still just selects it.
+- From the keyboard, Space picks up, the arrows jump key to key across the staggered rows (passing over `S`), Space or ↵ drops and Esc cancels (and does not close the editor). ↵ on a key that isn't being dragged still acts as a click.
 - Dropping a key on itself, or outside any key, changes nothing. Dimmed (search) keys stay targets.
 - A valid pending draft is saved first and an invalid one is discarded, as on switching keys.
 - "Saved" shows after the drop, as after an autosave. There is no toast.
@@ -373,8 +383,8 @@ There is no left nav: only Keymap is left.
 The "Set ⌥S" line, per §5.3.
 
 ### 8.9 ⌥+key on Options
-- ⌥+key follows §4.6: an assigned key opens as Try does (§8.5), ⌥⇧+key forces a new tab. A pending draft is left alone.
-- ⌥ + a free key selects that key in the editor, as a click does, so a draft is saved or discarded as on any key switch (§8.4).
+- ⌥+key follows §4.6: an assigned key opens as Test does (§8.5), ⌥⇧+key forces a new tab. A pending draft is left alone.
+- ⌥ + a free key selects that key and opens its editor with focus in Link (switching to the Keyboard view), so a draft is saved or discarded as on any key switch (§8.4).
 - ⌥S focuses the search and selects its text, as `/` does (§8.6). It arrives either from the page's own listener, or from the `toggle-overlay` command, which sets `#search` (§5.3); the page reacts as it does to `#key=K` (no reload) and puts `#key=K` back.
 - Typing in a field (Link, Name, the search) is the field's: ⌥+key there is not ours. On Windows and Linux the browser's own Alt keys on free keys keep working (§4.3). Repeats send once.
 - No Peek: the keymap is already in view.
