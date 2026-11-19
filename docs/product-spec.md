@@ -289,28 +289,28 @@ There is no left nav: only Keymap is left. The page is one centred column (heade
 **Keyboard view**
 - Keys: 4 staggered rows of 76×64 keys (a compact 56×52 size exists for narrow windows), no modifier row.
 - Key states: free, assigned (label, monogram tile and the name on a bottom line), open now (green dot on the outer corner), selected (blue, the tile keeps its colour with a white ring), drop target, reserved S (lock).
-- The selected key's editor opens under it (§8.3).
-- A legend: Assigned · Free · ● Open in a tab now, and on the right "Press a key to select it · **⌘V** pastes a link onto it · Drag to swap" (Ctrl+V on Windows and Linux).
+- A click (or ↵ / Space) on a key opens its editor dialog (§8.3).
+- A legend: Assigned · Free · ● Open in a tab now, and on the right "Press a key to edit it · **⌘V** pastes a link onto it · Drag to swap" (Ctrl+V on Windows and Linux).
 
 **List view**
 - Columns Key · Name · Link · Opens as ("· closes current" when set, never for This tab, where it is ignored).
 - Only assigned keys, in keyboard order, with no sorting.
-- A row click switches to the Keyboard view, selects that key and opens its editor; the List view has no editor of its own. The selected key's row is highlighted.
+- A row click selects that key and opens its editor dialog over the List view; the view does not switch. The selected key's row is highlighted.
 - The Key cell shows the open-now dot. Name falls back to the site, shown muted. The Link is truncated to one line, with the full link in a tooltip.
 - Empty → "No keys yet — pick one in Keyboard view" (it wins over a query). A query that matches no assigned key, including one that matches only free keys, shows "No keys match".
 
 ### 8.2 Selection
-- At most one key is selected; the selection may be empty. A selected key has its editor open (in the Keyboard view).
-- `#key=K` selects K and opens its editor. It is used by the overlay pencil and by ⌥S on restricted pages. It is read on load and on `hashchange`; S is never selected.
+- At most one key is selected; the selection may be empty. The editor dialog (§8.3) is open exactly while a key is selected, over whichever view is shown.
+- `#key=K` selects K and opens its dialog. It is used by the overlay pencil and by ⌥S on restricted pages. It is read on load and on `hashchange` (which also switches an open dialog to K); S is never selected.
 - Without `#key=K`, nothing is selected on load.
 - The selection is mirrored to `#key=K` with `history.replaceState`; with nothing selected, the hash is cleared.
-- A click on a key selects it; a click on another key moves the editor there.
-- The editor closes with ×, Done, Esc and a second click (or ↵ / Space) on the selected key. Esc closes it when focus is outside a field, or in Link or Name while the draft equals storage; in a field with an unsaved change, the first Esc only leaves the field (nothing is reverted) and the next one closes. Esc in the search keeps its own meaning (§8.6). A click outside (the page background, the header, the card) leaves it open.
+- A click on a key selects it and opens its dialog. With the dialog open the keys are behind its scrim, so another key is reached by closing it first (or with ⌥ + a free key, §8.9).
+- The dialog closes with ×, Done, a click on the scrim and Esc. Esc closes it when focus is outside a field, or in Link or Name while the draft equals storage; in a field with an unsaved change, the first Esc only leaves the field for the dialog (nothing is reverted) and the next one closes.
 - Closing settles the draft as a key switch does: a valid one is saved, an invalid one is discarded (§8.4).
-- Focus: a click selection keeps focus on the key; closing returns it to the key. The arrow keys move focus between keys (passing over `S`) without selecting. Only the selected key, or the first key with nothing selected, is in the tab order, and the editor follows it, so Tab from the selected key enters the editor.
+- Focus: a free key opens with focus in Link; an assigned key opens with focus on the dialog itself, no field active. ↵ from the search (§8.6) and ⌥ + a free key (§8.9) focus Link whatever the key. Closing returns focus to the key, or to the List row's key it was opened from. The arrow keys move focus between keys (passing over `S`) without selecting. Only the selected key, or the first key with nothing selected, is in the tab order.
 
-### 8.3 Editor at the key ("Edit key")
-A non-modal dialog named "Edit key", 380 px wide, with no focus trap. It sits under the selected key's row with a 14 px arrow at the key's centre, overlapping the rows below; it never flips above, and it is clamped horizontally to the keyboard's width. It follows its key on resize and scroll, and the page scrolls to show all of it when it opens (a bottom-row key, a short window, a load with `#key=K`). It fades and scales in from the arrow, without animation under reduced motion. The keys outside it stay clickable.
+### 8.3 Key editor dialog ("Edit key")
+A modal dialog named "Edit key": a scrim over the page, focus kept inside (Tab cycles through the dialog), the page behind it does not scroll and is hidden from assistive tech. It is centred at every window size, `max-w-md` (448 px) wide, and in a narrow window the window's width minus a margin; in a short window its content scrolls inside it. It never follows the key; the selected key stays highlighted under the scrim. It fades and zooms in, without animation under reduced motion. Radix `Dialog` is allowed here: the no-portal, no-focus-trap rule is for the HUD (§12.3).
 
 **Header**
 - A key chip "⌥K".
@@ -333,23 +333,23 @@ A non-modal dialog named "Edit key", 380 px wide, with no focus trap. It sits un
 
 **Tab-strip preview**: under the description, a decorative before → after row of tabs (hidden from assistive tech), drawn with the shortcut's own name and tile, following the draft live. Before: "Docs" (active), the shortcut's tab, "Mail". After: Smart → its tab active; New tab → a new tab of it, active; This tab → it replaces the active tab; Background → a new tinted tab, "Docs" still active. With close current, the source tab shows as a dashed "closed" chip.
 
-**More options**: a disclosure, collapsed on open and on every key switch, and open by itself when the key stores a non-default tab match or close current. It holds:
+**More options**: a disclosure, collapsed each time the dialog opens and on every key switch, and open by itself when the key stores a non-default tab match or close current. It holds:
 - **Tab match** (shown only for Smart): the prompt "Count a tab as "already open" when it shows"; choices **This exact link** | **This page** | **Any page of the site**; live hints:
   - exact: "Only a tab with exactly {link} is reused."
   - page: "Reuses a tab on {link}, ignoring ?query and #anchors."
   - site: "Reuses any tab on {site} — e.g. a video you left open."
 - **Close current**: the checkbox "Close the tab I'm on afterwards", disabled with This tab.
 
-**Footer**: **Clear key** (destructive text button; no confirm, no undo; the editor stays open on the now-free key) · the save line ("Saved" on an assigned key with nothing pending, "Saving…", "Couldn't save"; empty on an untouched free key) · **Test** (outline, §8.5) · **Done** (closes the editor). Clear key and Test are disabled on a free key.
+**Footer**: **Clear key** (destructive text button; no confirm, no undo; the dialog stays open on the now-free key) · the save line ("Saved" on an assigned key with nothing pending, "Saving…", "Couldn't save"; empty on an untouched free key) · **Test** (outline, §8.5) · **Done** (closes the dialog). Clear key and Test are disabled on a free key.
 
-While a drag runs (§8.7) the editor fades out and lets the pointer through.
+While the dialog is open, `/` does nothing (§8.6), and ⌥S and `#search` leave focus in it (§8.9).
 
 ### 8.4 Autosave and validation
 - Changes save automatically, debounced ~400 ms.
 - An invalid link → an inline error under the field. Nothing is written, the stored value stays the last valid one, and "Saved" is hidden.
 - A free key becomes assigned only once its link is valid.
-- Switching keys or closing the editor discards an unsaved invalid draft and saves a valid one.
-- Remote (sync) changes appear live, in the open editor too; a draft being edited is kept.
+- Switching keys or closing the dialog discards an unsaved invalid draft and saves a valid one.
+- Remote (sync) changes appear live, in the open dialog too; a draft being edited is kept.
 
 ### 8.5 Test
 - Opens the shortcut as if its key were pressed with Options as the current tab, but it never replaces or closes Options:
@@ -361,19 +361,19 @@ While a drag runs (§8.7) the editor fades out and lets the pointer through.
 - ⌥+key on the page (§8.9) opens through the same path; ⇧ forces a new tab.
 
 ### 8.6 `/` search
-- `/` focuses the search and selects its text; it matches per §2.7. `/` is ignored in editable fields (inputs, textareas, contenteditable) and with ⌘, Ctrl or ⌥ held.
+- `/` focuses the search and selects its text; it matches per §2.7. `/` is ignored in editable fields (inputs, textareas, contenteditable), with ⌘, Ctrl or ⌥ held, and while the dialog is open (the search is behind its scrim).
 - Filtering is live on every keystroke. Keyboard view dims non-matching keys; List view hides non-matching rows.
-- ↵ selects the exact key-label match first, otherwise the first match in keyboard order; in List view, the first visible row, and it switches to the Keyboard view as a row click does. It opens the key's editor, moves focus to Link and keeps the query. ↵ with no match does nothing.
+- ↵ selects the exact key-label match first, otherwise the first match in keyboard order; in List view, the first visible row, as a row click does (the dialog opens over the list). It opens the key's dialog, moves focus to Link and keeps the query. ↵ with no match does nothing.
 - Esc clears the query; a second Esc on an empty field leaves it. Esc only applies while the search field has focus.
-- Typing never changes the selection, and a dimmed selected key keeps its editor open. The query is shared by both views, not persisted, and empty on load.
+- Typing never changes the selection, and a dimmed selected key keeps its dialog open. The query is shared by both views, not persisted, and empty on load.
 - No match → all keys dimmed / "No keys match".
 
 ### 8.7 Drag-to-swap
 - Dropping onto an assigned key swaps; dropping onto a free key moves. `S` is never a target.
 - It also works with the keyboard (dnd-kit keyboard sensor).
-- While a drag runs, an open editor hides so the keys under it stay reachable. After a drop it reopens on the key the dragged shortcut moved to, whichever key was selected before; with the editor closed, nothing is selected after the drop. No undo.
-- Only keys that hold a shortcut can be dragged. A pointer drag starts after a 5 px move, so a click still selects.
-- From the keyboard, Space picks up, the arrows jump key to key across the staggered rows (passing over `S`), Space or ↵ drops and Esc cancels (and does not close the editor). ↵ on a key that isn't being dragged still acts as a click.
+- A drag happens only with the dialog closed (the keys are behind its scrim otherwise), and a drop leaves nothing selected: no dialog opens. No undo.
+- Only keys that hold a shortcut can be dragged. A pointer drag starts after a 5 px move, so a click still opens the key.
+- From the keyboard, Space picks up, the arrows jump key to key across the staggered rows (passing over `S`), Space or ↵ drops and Esc cancels; none of these opens a dialog. ↵ on a key that isn't being dragged still acts as a click.
 - Dropping a key on itself, or outside any key, changes nothing. Dimmed (search) keys stay targets.
 - A valid pending draft is saved first and an invalid one is discarded, as on switching keys.
 - "Saved" shows after the drop, as after an autosave. There is no toast.
@@ -384,8 +384,8 @@ The "Set ⌥S" line, per §5.3.
 
 ### 8.9 ⌥+key on Options
 - ⌥+key follows §4.6: an assigned key opens as Test does (§8.5), ⌥⇧+key forces a new tab. A pending draft is left alone.
-- ⌥ + a free key selects that key and opens its editor with focus in Link (switching to the Keyboard view), so a draft is saved or discarded as on any key switch (§8.4).
-- ⌥S focuses the search and selects its text, as `/` does (§8.6). It arrives either from the page's own listener, or from the `toggle-overlay` command, which sets `#search` (§5.3); the page reacts as it does to `#key=K` (no reload) and puts `#key=K` back.
+- ⌥ + a free key selects that key and opens its dialog with focus in Link, over the current view; with the dialog open it switches the dialog to that key. A draft is saved or discarded as on any key switch (§8.4).
+- ⌥S focuses the search and selects its text, as `/` does (§8.6). It arrives either from the page's own listener, or from the `toggle-overlay` command, which sets `#search` (§5.3); the page reacts as it does to `#key=K` (no reload) and puts `#key=K` back (or an empty hash). With the dialog open, the search is behind its scrim: focus stays in the dialog.
 - Typing in a field (Link, Name, the search) is the field's: ⌥+key there is not ours. On Windows and Linux the browser's own Alt keys on free keys keep working (§4.3). Repeats send once.
 - No Peek: the keymap is already in view.
 ↳ rebuild map: issues/06-behavior-audit.md (behavior audit), issues/08-theme-and-components.md (theme and components)
