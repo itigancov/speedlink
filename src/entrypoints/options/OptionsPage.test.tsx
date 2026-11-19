@@ -53,8 +53,10 @@ async function renderPage(hash = '') {
 /** The trigger word in key names: the test environment's platform. */
 const T = triggerWord();
 
-const keyButton = (key: string) => screen.getByRole('button', { name: new RegExp(`^${T} ${key}:`) });
-const selectedKey = () => screen.queryByRole('button', { pressed: true })?.getAttribute('aria-label') ?? null;
+/** A key, found even while the dialog's scrim hides the page from assistive tech. */
+const keyButton = (key: string) => screen.getByRole('button', { name: new RegExp(`^${T} ${key}:`), hidden: true });
+const selectedKey = () =>
+  screen.queryByRole('button', { pressed: true, hidden: true })?.getAttribute('aria-label') ?? null;
 
 const editor = () => screen.queryByRole('dialog', { name: 'Edit key' });
 const inEditor = () => within(screen.getByRole('dialog', { name: 'Edit key' }));
@@ -73,8 +75,27 @@ const linkField = () => screen.getByLabelText('Link') as HTMLInputElement;
 const nameField = () => screen.getByLabelText('Name — optional') as HTMLInputElement;
 const type = (field: HTMLInputElement, value: string) => act(() => fireEvent.change(field, { target: { value } }));
 const saved = () => screen.queryByText('Saved');
-const searchField = () => screen.getByRole('searchbox', { name: 'Find a link, site or key' }) as HTMLInputElement;
+const searchField = () =>
+  screen.getByRole('searchbox', { name: 'Find a link, site or key', hidden: true }) as HTMLInputElement;
 const press = (target: Element, key: string) => act(() => fireEvent.keyDown(target, { key, code: key }));
+/** A new `#key=K` while the page is open: the way, besides ⌥ + a free key, to switch an open dialog's key. */
+const goToKey = (key: string) =>
+  act(async () => {
+    window.location.hash = `#key=${key}`;
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
+const closeButton = () => inEditor().getByRole('button', { name: 'Close editor' });
+/** A press on the scrim, as Radix sees an outside click. */
+const clickScrim = async () => {
+  const scrim = document.querySelector('[data-slot="dialog-overlay"]') as HTMLElement;
+  await advance();
+  act(() => {
+    fireEvent.pointerDown(scrim);
+    fireEvent.pointerUp(scrim);
+    fireEvent.click(scrim);
+  });
+  await advance();
+};
 
 beforeEach(() => {
   fakeBrowser.reset();
@@ -102,7 +123,7 @@ afterEach(() => {
 });
 
 describe('selection', () => {
-  it('selects nothing and shows no editor without a hash', async () => {
+  it('selects nothing and shows no dialog without a hash', async () => {
     await store('G');
     await renderPage();
     expect(selectedKey()).toBeNull();
@@ -110,7 +131,7 @@ describe('selection', () => {
     expect(window.location.hash).toBe('');
   });
 
-  it('opens the editor on the key in #key=K', async () => {
+  it('opens the dialog on the key in #key=K', async () => {
     await store('G');
     await store('Y');
     await renderPage('#key=Y');
@@ -132,21 +153,12 @@ describe('selection', () => {
     expect((keyButton('S') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('opens the editor on a clicked key and mirrors it to the hash', async () => {
+  it('opens the dialog on a clicked key and mirrors it to the hash', async () => {
     await renderPage();
     act(() => keyButton('K').click());
     expect(selectedKey()).toBe(`${T} K: free`);
     expect(chip()).toBe(chordLabel('K'));
     expect(window.location.hash).toBe('#key=K');
-  });
-
-  it('a click on another key moves the editor there', async () => {
-    await store('G', { name: 'GitHub' });
-    await renderPage('#key=K');
-    act(() => keyButton('G').click());
-    expect(chip()).toBe(chordLabel('G'));
-    expect(title()).toBe('GitHub');
-    expect(screen.getAllByRole('dialog')).toHaveLength(1);
   });
 
   it('closing clears the hash', async () => {
@@ -166,12 +178,41 @@ describe('selection', () => {
     expect(selectedKey()).toBe(`${T} J: free`);
     expect(chip()).toBe(chordLabel('J'));
   });
+
+  it('switches an open dialog to the key in a new #key', async () => {
+    await store('G', { name: 'GitHub' });
+    await renderPage('#key=K');
+    await act(async () => {
+      window.location.hash = '#key=G';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+    expect(title()).toBe('GitHub');
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  });
 });
 
-describe('closing the editor', () => {
+describe('the dialog', () => {
+  it('is a modal dialog named "Edit key" that hides the page behind it from assistive tech', async () => {
+    await renderPage('#key=K');
+    expect(editor()?.getAttribute('aria-modal')).toBe('true');
+    expect(screen.queryByRole('searchbox')).toBeNull();
+    expect(screen.queryByRole('button', { name: new RegExp(`^${T} K:`) })).toBeNull();
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+  });
+
+  it('gives the page back once it closes', async () => {
+    await renderPage('#key=K');
+    act(() => doneButton().click());
+    await advance();
+    expect(screen.getByRole('searchbox')).toBeDefined();
+    expect(screen.getByRole('button', { name: new RegExp(`^${T} K:`) })).toBeDefined();
+  });
+});
+
+describe('closing the dialog', () => {
   it('× closes it', async () => {
     await renderPage('#key=K');
-    act(() => screen.getByRole('button', { name: 'Close editor' }).click());
+    act(() => closeButton().click());
     expect(editor()).toBeNull();
   });
 
@@ -181,33 +222,17 @@ describe('closing the editor', () => {
     expect(editor()).toBeNull();
   });
 
-  it('a second click on the selected key closes it', async () => {
+  it('a click on the scrim closes it', async () => {
     await renderPage('#key=K');
-    act(() => keyButton('K').click());
+    await clickScrim();
     expect(editor()).toBeNull();
-    expect(selectedKey()).toBeNull();
-  });
-
-  it('↵ on the selected key closes it, as a second click does', async () => {
-    await renderPage();
-    act(() => keyButton('K').focus());
-    act(() => keyButton('K').click());
-    // A button turns ↵ into a click; happy-dom doesn't, so the click stands for it.
-    fireEvent.keyDown(keyButton('K'), { key: 'Enter', code: 'Enter' });
-    act(() => keyButton('K').click());
-    expect(editor()).toBeNull();
+    expect(window.location.hash).toBe('');
   });
 
   it('Esc outside a field closes it', async () => {
-    await renderPage('#key=K');
-    press(document.body, 'Escape');
-    expect(editor()).toBeNull();
-  });
-
-  it('Esc on the selected key closes it', async () => {
-    await renderPage('#key=K');
-    act(() => keyButton('K').focus());
-    press(keyButton('K'), 'Escape');
+    await renderPage('#key=G');
+    act(() => doneButton().focus());
+    press(doneButton(), 'Escape');
     expect(editor()).toBeNull();
   });
 
@@ -234,21 +259,6 @@ describe('closing the editor', () => {
     expect(editor()).toBeNull();
   });
 
-  it('Esc in the search keeps its own meaning', async () => {
-    await renderPage('#key=K');
-    act(() => searchField().focus());
-    press(searchField(), 'Escape');
-    expect(editor()).not.toBeNull();
-  });
-
-  it('a click on the header, the background or the card leaves it open', async () => {
-    await renderPage('#key=K');
-    act(() => screen.getByRole('banner').click());
-    act(() => screen.getByRole('heading', { level: 1 }).click());
-    act(() => document.body.click());
-    expect(editor()).not.toBeNull();
-  });
-
   it('saves a valid draft once on close', async () => {
     await store('G');
     await renderPage('#key=G');
@@ -259,6 +269,15 @@ describe('closing the editor', () => {
     await advance(1000);
 
     expect(set).toHaveBeenCalledTimes(1);
+    expect((await readItem('G'))?.name).toBe('Code');
+  });
+
+  it('a scrim click keeps a valid edit too', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    await type(nameField(), 'Code');
+    await clickScrim();
+    await advance(1000);
     expect((await readItem('G'))?.name).toBe('Code');
   });
 
@@ -278,11 +297,28 @@ describe('closing the editor', () => {
 });
 
 describe('focus', () => {
-  it('a click keeps focus on the key', async () => {
+  it('a free key opens with focus in Link', async () => {
     await renderPage();
     act(() => keyButton('K').focus());
     act(() => keyButton('K').click());
-    expect(document.activeElement).toBe(keyButton('K'));
+    await advance();
+    expect(document.activeElement).toBe(linkField());
+  });
+
+  it('an assigned key opens with focus on the dialog, no field active', async () => {
+    await store('G');
+    await renderPage();
+    act(() => keyButton('G').focus());
+    act(() => keyButton('G').click());
+    await advance();
+    expect(document.activeElement).toBe(editor());
+  });
+
+  it('opening on #key focuses the dialog the same way', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    await advance();
+    expect(document.activeElement).toBe(editor());
   });
 
   it('closing returns focus to the key', async () => {
@@ -293,14 +329,19 @@ describe('focus', () => {
     expect(document.activeElement).toBe(keyButton('K'));
   });
 
-  it('Tab from the selected key reaches the editor: it is the only key in the tab order, right before it', async () => {
-    await renderPage('#key=K');
-    const tabbable = Array.from(document.querySelectorAll<HTMLElement>('button, input, a, [tabindex]')).filter(
-      (element) => element.tabIndex >= 0 && !(element as HTMLButtonElement).disabled,
-    );
-    const at = tabbable.indexOf(keyButton('K'));
-    expect(tabbable.filter((element) => element.dataset.slot === 'key-cap')).toEqual([keyButton('K')]);
-    expect(tabbable[at + 1]).toBe(screen.getByRole('button', { name: 'Close editor' }));
+  it('Esc and a scrim click return focus to the key too', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    await advance();
+    press(editor() as HTMLElement, 'Escape');
+    await advance();
+    expect(document.activeElement).toBe(keyButton('G'));
+
+    act(() => keyButton('G').click());
+    await advance();
+    await clickScrim();
+    await advance();
+    expect(document.activeElement).toBe(keyButton('G'));
   });
 
   it('with nothing selected, the first key is the keyboard’s tab stop', async () => {
@@ -383,17 +424,24 @@ describe('More options', () => {
     await store('K', { tabMatch: 'page' });
     await renderPage('#key=G');
     expect(moreOptions().getAttribute('aria-expanded')).toBe('true');
+    act(() => doneButton().click());
     act(() => keyButton('Y').click());
     expect(moreOptions().getAttribute('aria-expanded')).toBe('true');
+    act(() => doneButton().click());
     act(() => keyButton('K').click());
     expect(moreOptions().getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('collapses again on a key switch', async () => {
+  it('collapses again each time the dialog opens, and on a key switch', async () => {
     await store('G', { tabMatch: 'page' });
     await renderPage('#key=G');
     act(() => moreOptions().click());
-    act(() => keyButton('K').click());
+    act(() => doneButton().click());
+    act(() => keyButton('G').click());
+    expect(moreOptions().getAttribute('aria-expanded')).toBe('false');
+
+    act(() => moreOptions().click());
+    await goToKey('K');
     expect(moreOptions().getAttribute('aria-expanded')).toBe('false');
   });
 });
@@ -416,6 +464,7 @@ describe('the editor footer', () => {
     await store('G');
     await renderPage('#key=G');
     expect(within(inEditor().getByRole('status')).getByText('Saved')).toBeDefined();
+    act(() => doneButton().click());
     act(() => keyButton('K').click());
     expect(inEditor().getByRole('status').textContent).toBe('');
   });
@@ -447,7 +496,7 @@ describe('the header and legend', () => {
     expect(pasteLabel(_platform)).toBe(paste);
     await renderPage();
     expect(document.querySelector('[data-slot="legend-hint"]')?.textContent).toBe(
-      `Press a key to select it · ${pasteLabel()} pastes a link onto it · Drag to swap`,
+      `Press a key to edit it · ${pasteLabel()} pastes a link onto it · Drag to swap`,
     );
   });
 });
@@ -516,7 +565,7 @@ describe('autosave', () => {
     await renderPage('#key=G');
 
     await type(nameField(), 'Code');
-    act(() => keyButton('K').click());
+    await goToKey('K');
     await advance();
 
     expect((await readItem('G'))?.name).toBe('Code');
@@ -529,9 +578,9 @@ describe('autosave', () => {
     const set = vi.spyOn(browser.storage.sync, 'set');
 
     await type(linkField(), 'mailto:x@y.z');
-    act(() => keyButton('K').click());
+    await goToKey('K');
     await advance(1000);
-    act(() => keyButton('G').click());
+    await goToKey('G');
 
     expect(set).not.toHaveBeenCalled();
     expect(linkField().value).toBe('https://github.com/');
@@ -830,7 +879,7 @@ describe('/ search', () => {
   it('dims the keys that do not match in Keyboard view, free keys matched by label included', async () => {
     await store('Y', { link: 'https://youtube.com/', name: 'YouTube' });
     await store('G', { link: 'https://github.com/pulls', name: 'Pull requests' });
-    await renderPage('#key=G');
+    await renderPage();
     expect(dimmed()).toEqual([]);
 
     await type(searchField(), 'tube');
@@ -845,7 +894,7 @@ describe('/ search', () => {
 
   it('dims every key when nothing matches, and leaves S reserved', async () => {
     await store('G');
-    await renderPage('#key=G');
+    await renderPage();
     await type(searchField(), 'zzz');
     expect(dimmed()).toHaveLength(35);
     const s = keyButton('S');
@@ -853,27 +902,42 @@ describe('/ search', () => {
     expect(s.getAttribute('aria-label')).toBe(`${T} S: reserved for the overlay`);
   });
 
-  it('never changes the selection while typing; the selected key stays marked though dimmed', async () => {
+  it('never changes the selection while typing', async () => {
     await store('G');
     await store('Y', { link: 'https://youtube.com/' });
-    await renderPage('#key=G');
+    await renderPage();
     await type(searchField(), 'youtube');
-    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+    expect(selectedKey()).toBeNull();
+    expect(editor()).toBeNull();
+  });
+
+  it('keeps the dialog open on a key the search dims, the key still marked', async () => {
+    await store('G');
+    await store('Y', { link: 'https://youtube.com/' });
+    await renderPage();
+    await type(searchField(), 'youtube');
+    act(() => keyButton('G').click());
     expect(keyButton('G').dataset.dimmed).toBe('true');
+    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
     expect(chip()).toBe(chordLabel('G'));
-    expect(window.location.hash).toBe('#key=G');
+
+    await act(() => store('Y', { link: 'https://example.com/' }));
+    await act(() => store('G', { link: 'https://youtube.com/x' }));
+    await act(() => store('G', { link: 'https://github.com/' }));
+    await advance();
+    expect(chip()).toBe(chordLabel('G'));
   });
 
   it('leaves the used count alone', async () => {
     await store('G');
-    await renderPage('#key=G');
+    await renderPage();
     await type(searchField(), 'zzz');
     expect(screen.getByText(/1 of 35 keys in use\./)).toBeDefined();
   });
 
   it('updates the dimming when a shortcut changes elsewhere', async () => {
     await store('G');
-    await renderPage('#key=G');
+    await renderPage();
     await type(searchField(), 'docs');
     expect(keyButton('K').dataset.dimmed).toBe('true');
 
@@ -890,18 +954,32 @@ describe('/ search', () => {
     }
   });
 
-  it('/ on a checkbox or radio still jumps to the search', async () => {
+  it('/ on a radio still jumps to the search', async () => {
+    await renderPage();
+    const keyboard = screen.getByRole('radio', { name: 'Keyboard' });
+    act(() => keyboard.focus());
+    slash(keyboard);
+    expect(document.activeElement).toBe(searchField());
+  });
+
+  it('/ does nothing while the dialog is open', async () => {
     await renderPage('#key=K');
     act(() => moreOptions().click());
     const close = screen.getByRole('checkbox', { name: 'Close the tab I’m on afterwards' });
     act(() => close.focus());
-    slash(close);
-    expect(document.activeElement).toBe(searchField());
+    const event = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
+    act(() => {
+      close.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(close);
+    expect(editor()).not.toBeNull();
   });
 
   it('/ in Link, Name or the search field is not taken over', async () => {
-    await renderPage('#key=K');
-    for (const field of [linkField(), nameField(), searchField()]) {
+    await renderPage();
+    act(() => keyButton('K').click());
+    for (const field of [linkField(), nameField()]) {
       act(() => field.focus());
       const event = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
       act(() => {
@@ -910,6 +988,13 @@ describe('/ search', () => {
       expect(event.defaultPrevented).toBe(false);
       expect(document.activeElement).toBe(field);
     }
+    act(() => doneButton().click());
+    act(() => searchField().focus());
+    const event = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
+    act(() => {
+      searchField().dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(false);
   });
 });
 
@@ -918,7 +1003,7 @@ describe('List view', () => {
   /** Body rows as their cells' text: Key, Name, Link, Opens as. */
   const rows = () =>
     screen
-      .getAllByRole('row')
+      .getAllByRole('row', { hidden: true })
       .slice(1)
       .map((row) => Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent));
   const row = (key: string) => keyButton(key).closest('tr') as HTMLTableRowElement;
@@ -927,7 +1012,7 @@ describe('List view', () => {
     await store('G', { name: 'GitHub', openMode: 'new' });
     await store('Y', { link: 'https://youtube.com/watch', openMode: 'bg' });
     await store('1', { link: 'http://localhost:3000/', name: 'Dev', openMode: 'this' });
-    await renderPage('#key=G');
+    await renderPage();
     showList();
 
     expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
@@ -946,14 +1031,14 @@ describe('List view', () => {
   it('adds "· closes current" when set, never for This tab', async () => {
     await store('G', { closeCurrent: true });
     await store('T', { closeCurrent: true, openMode: 'this' });
-    await renderPage('#key=G');
+    await renderPage();
     showList();
     expect(rows().map((cells) => cells[3])).toEqual(['This tab', 'Smart switch · closes current']);
   });
 
   it('shows the open-now dot on the key, following the tabs', async () => {
     await store('G');
-    await renderPage('#key=G');
+    await renderPage();
     showList();
     expect(keyButton('G').getAttribute('aria-label')).toBe(`${T} G: github.com`);
 
@@ -963,7 +1048,7 @@ describe('List view', () => {
     expect(keyButton('G').getAttribute('aria-label')).toBe(`${T} G: github.com, open in a tab`);
   });
 
-  it('a click anywhere on a row switches to the Keyboard view with that key’s editor open', async () => {
+  it('a click anywhere on a row opens that key’s dialog over the list', async () => {
     await store('G');
     await store('Y', { link: 'https://youtube.com/' });
     await renderPage();
@@ -971,42 +1056,43 @@ describe('List view', () => {
 
     act(() => (row('Y').querySelectorAll('td')[2] as HTMLElement).click());
     await advance();
-    expect(screen.getByRole('radio', { name: 'Keyboard' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: 'List', hidden: true }).getAttribute('aria-checked')).toBe('true');
     expect(chip()).toBe(chordLabel('Y'));
     expect(title()).toBe('youtube.com');
-    expect(selectedKey()).toMatch(new RegExp(`^${T} Y:`));
+    expect(row('Y').getAttribute('aria-selected')).toBe('true');
+    expect(row('G').getAttribute('aria-selected')).toBe('false');
     expect(window.location.hash).toBe('#key=Y');
-    expect(document.activeElement).toBe(keyButton('Y'));
+    expect(document.activeElement).toBe(editor());
   });
 
-  it('keeps the selection when switching views: the row is marked, no editor, and back reopens it', async () => {
-    await store('G');
+  it('closing returns focus to the row’s key, with the list still shown', async () => {
     await store('Y', { link: 'https://youtube.com/' });
-    await renderPage('#key=G');
+    await renderPage();
     showList();
-    expect(editor()).toBeNull();
-    expect(row('G').getAttribute('aria-selected')).toBe('true');
-    expect(row('Y').getAttribute('aria-selected')).toBe('false');
-    expect(window.location.hash).toBe('#key=G');
-
-    act(() => screen.getByRole('radio', { name: 'Keyboard' }).click());
-    expect(chip()).toBe(chordLabel('G'));
+    act(() => row('Y').click());
+    await advance();
+    act(() => doneButton().click());
+    await advance();
+    expect(document.activeElement).toBe(keyButton('Y'));
+    expect(screen.getByRole('radio', { name: 'List' }).getAttribute('aria-checked')).toBe('true');
   });
 
-  it('shows edits and Clear key made in the editor', async () => {
+  it('shows edits and Clear key made in the dialog', async () => {
     await store('G', { name: 'GitHub' });
     await store('Y', { link: 'https://youtube.com/' });
-    await renderPage('#key=G');
+    await renderPage();
+    showList();
 
+    act(() => row('G').click());
     await type(nameField(), 'Code');
     await advance(400);
-    showList();
     expect(rows()[1]?.[1]).toBe('Code');
 
-    act(() => screen.getByRole('radio', { name: 'Keyboard' }).click());
     act(() => inEditor().getByRole('button', { name: 'Clear key' }).click());
     await advance();
-    showList();
+    expect(title()).toBe('Free key');
+    act(() => doneButton().click());
+    await advance();
     expect(rows().map((cells) => cells[0])).toEqual(['Y']);
   });
 
@@ -1022,7 +1108,7 @@ describe('List view', () => {
     await store('G', { name: 'GitHub' });
     await store('Y', { link: 'https://youtube.com/' });
     await store('M', { link: 'https://mail.google.com/' });
-    await renderPage('#key=G');
+    await renderPage();
     showList();
     await type(searchField(), 'GOOGLE');
     expect(rows().map((cells) => cells[0])).toEqual(['M']);
@@ -1030,7 +1116,7 @@ describe('List view', () => {
 
   it('says "No keys match" for no match, and for a query matching only a free key', async () => {
     await store('G');
-    await renderPage('#key=G');
+    await renderPage();
     showList();
     await type(searchField(), 'zzz');
     expect(rows()).toEqual([['No keys match']]);
@@ -1041,7 +1127,7 @@ describe('List view', () => {
   it('keeps the query across a view switch', async () => {
     await store('G');
     await store('Y', { link: 'https://youtube.com/' });
-    await renderPage('#key=G');
+    await renderPage();
     await type(searchField(), 'tube');
     showList();
     expect(rows().map((cells) => cells[0])).toEqual(['Y']);
@@ -1052,7 +1138,7 @@ describe('List view', () => {
 
   it('updates the matching rows when a shortcut changes elsewhere', async () => {
     await store('G');
-    await renderPage('#key=G');
+    await renderPage();
     showList();
     await type(searchField(), 'docs');
     expect(rows()).toEqual([['No keys match']]);
@@ -1067,10 +1153,11 @@ describe('↵ and Esc in the search field', () => {
   it('↵ selects the key named exactly over an earlier link match, focuses Link and keeps the query', async () => {
     await store('Y', { link: 'https://youtube.com/' });
     await store('M', { link: 'https://mail.google.com/' });
-    await renderPage('#key=Y');
+    await renderPage();
     act(() => searchField().focus());
     await type(searchField(), 'm');
     press(searchField(), 'Enter');
+    await advance();
 
     expect(selectedKey()).toMatch(new RegExp(`^${T} M:`));
     expect(window.location.hash).toBe('#key=M');
@@ -1082,17 +1169,18 @@ describe('↵ and Esc in the search field', () => {
   it('↵ picks the first match in keyboard order, a free key by its label in Keyboard view', async () => {
     await store('G', { link: 'https://github.com/' });
     await store('M', { link: 'https://gmail.com/' });
-    await renderPage('#key=M');
+    await renderPage();
     await type(searchField(), '.com');
     press(searchField(), 'Enter');
     expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+    act(() => doneButton().click());
 
     await type(searchField(), 'w');
     press(searchField(), 'Enter');
     expect(selectedKey()).toBe(`${T} W: free`);
   });
 
-  it('↵ in List view acts as a click on the first visible row: Keyboard view, editor open, focus in Link', async () => {
+  it('↵ in List view acts as a row click on the first visible row, over the list, with focus in Link', async () => {
     await store('G', { name: 'Pull requests' });
     await store('Y', { link: 'https://youtube.com/' });
     await renderPage();
@@ -1102,7 +1190,7 @@ describe('↵ and Esc in the search field', () => {
     press(searchField(), 'Enter');
     await advance();
 
-    expect(screen.getByRole('radio', { name: 'Keyboard' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: 'List', hidden: true }).getAttribute('aria-checked')).toBe('true');
     expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
     expect(title()).toBe('Pull requests');
     expect(document.activeElement).toBe(linkField());
@@ -1116,33 +1204,22 @@ describe('↵ and Esc in the search field', () => {
     await type(searchField(), 'w');
     press(searchField(), 'Enter');
     expect(selectedKey()).toBeNull();
-    expect(screen.getByRole('radio', { name: 'List' }).getAttribute('aria-checked')).toBe('true');
+    expect(editor()).toBeNull();
   });
 
   it('↵ with no match changes nothing', async () => {
     await store('G');
-    await renderPage('#key=G');
+    await renderPage();
     act(() => searchField().focus());
     await type(searchField(), 'zzz');
     press(searchField(), 'Enter');
-    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+    expect(selectedKey()).toBeNull();
     expect(document.activeElement).toBe(searchField());
-  });
-
-  it('↵ saves a pending valid draft to the old key, as a click does', async () => {
-    await store('G');
-    await store('Y', { link: 'https://youtube.com/' });
-    await renderPage('#key=G');
-    await type(nameField(), 'Code');
-    await type(searchField(), 'y');
-    press(searchField(), 'Enter');
-    await advance();
-    expect((await readItem('G'))?.name).toBe('Code');
   });
 
   it('Esc clears the query and keeps focus; a second Esc leaves the field', async () => {
     await store('G');
-    await renderPage('#key=G');
+    await renderPage();
     act(() => searchField().focus());
     await type(searchField(), 'zzz');
 
@@ -1155,12 +1232,15 @@ describe('↵ and Esc in the search field', () => {
     expect(document.activeElement).not.toBe(searchField());
   });
 
-  it('Esc in Link leaves the query alone', async () => {
+  it('Esc in Link closes the dialog and leaves the query alone', async () => {
     await store('G');
-    await renderPage('#key=G');
+    await renderPage();
+    act(() => searchField().focus());
     await type(searchField(), 'git');
-    act(() => linkField().focus());
+    press(searchField(), 'Enter');
+    await advance();
     press(linkField(), 'Escape');
+    expect(editor()).toBeNull();
     expect(searchField().value).toBe('git');
   });
 });
@@ -1186,7 +1266,9 @@ describe('drag-to-swap', () => {
   /** Presses keys on the focused element, letting the drag and storage settle after each. */
   async function pressKeys(...codes: string[]) {
     for (const code of codes) {
-      fireEvent.keyDown(document.activeElement ?? document.body, { code, key: KEY_OF_CODE[code] ?? code });
+      const init = { code, key: KEY_OF_CODE[code] ?? code };
+      fireEvent.keyDown(document.activeElement ?? document.body, init);
+      fireEvent.keyUp(document.activeElement ?? document.body, init);
       await advance();
     }
   }
@@ -1211,11 +1293,11 @@ describe('drag-to-swap', () => {
     layOutKeys();
   });
 
-  it('swaps two shortcuts with every field intact; the selection and hash follow the dragged key', async () => {
+  it('swaps two shortcuts with every field intact, and leaves nothing selected', async () => {
     await store('Y', youtube);
     await store('K', kagi);
     await store('G');
-    await renderPage('#key=G');
+    await renderPage();
 
     await pickUp('Y');
     await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
@@ -1223,14 +1305,14 @@ describe('drag-to-swap', () => {
 
     expect(await readItem('K')).toEqual(youtube);
     expect(await readItem('Y')).toEqual(kagi);
-    expect(selectedKey()).toBe(`${T} K: YouTube`);
-    expect(window.location.hash).toBe('#key=K');
-    expect(saved()).not.toBeNull();
+    expect(selectedKey()).toBeNull();
+    expect(editor()).toBeNull();
+    expect(window.location.hash).toBe('');
   });
 
   it('moves onto a free key and frees the old one', async () => {
     await store('Y', youtube);
-    await renderPage('#key=Y');
+    await renderPage();
 
     await pickUp('Y');
     await pressKeys('ArrowLeft', 'Space');
@@ -1238,14 +1320,36 @@ describe('drag-to-swap', () => {
 
     expect(await readItem('T')).toEqual(youtube);
     expect(await readItem('Y')).toBeUndefined();
-    expect(selectedKey()).toBe(`${T} T: YouTube`);
-    expect(window.location.hash).toBe('#key=T');
+    expect(keyButton('T').getAttribute('aria-label')).toBe(`${T} T: YouTube`);
     expect(keyButton('Y').getAttribute('aria-label')).toBe(`${T} Y: free`);
+  });
+
+  it('the click a Space press leaves behind opens no dialog, at the pick-up or the drop', async () => {
+    await store('Y', youtube);
+    await renderPage();
+
+    await pickUp('Y');
+    // A button clicks on Space's keyup; happy-dom doesn't, so the click stands for it.
+    act(() => keyButton('Y').click());
+    expect(editor()).toBeNull();
+    await pressKeys('ArrowLeft');
+    // The drop renders before its key comes up, as a discrete keydown does in the browser.
+    act(() => fireEvent.keyDown(document.activeElement as HTMLElement, { code: 'Space', key: ' ' }));
+    act(() => {
+      const focused = document.activeElement as HTMLElement;
+      fireEvent.keyUp(focused, { code: 'Space', key: ' ' });
+      focused.click();
+    });
+    expect(editor()).toBeNull();
+    await advance();
+
+    act(() => keyButton('T').click());
+    expect(chip()).toBe(chordLabel('T'));
   });
 
   it('passes over S with the arrows', async () => {
     await store('A');
-    await renderPage('#key=A');
+    await renderPage();
 
     await pickUp('A');
     await pressKeys('ArrowRight');
@@ -1258,12 +1362,13 @@ describe('drag-to-swap', () => {
     expect(await readItem('A')).toBeUndefined();
   });
 
-  it('saves a valid edit made within the debounce first, and moves it with the shortcut', async () => {
+  it('a valid edit made within the debounce is saved first, and moves with the shortcut', async () => {
     await store('Y', youtube);
     await store('K', kagi);
     await renderPage('#key=Y');
 
     await type(nameField(), 'Videos');
+    act(() => doneButton().click());
     await pickUp('Y');
     await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
     await advance(1000);
@@ -1278,13 +1383,13 @@ describe('drag-to-swap', () => {
     await renderPage('#key=K');
 
     await type(nameField(), 'Search');
+    act(() => doneButton().click());
     await pickUp('Y');
     await pressKeys('ArrowDown', 'ArrowRight', 'ArrowRight', 'Space');
     await advance(1000);
 
     expect(await readItem('Y')).toEqual({ ...kagi, name: 'Search' });
     expect(await readItem('K')).toEqual(youtube);
-    expect(nameField().value).toBe('YouTube');
   });
 
   it('discards an invalid draft and moves the stored shortcut', async () => {
@@ -1292,19 +1397,20 @@ describe('drag-to-swap', () => {
     await renderPage('#key=Y');
 
     await type(linkField(), 'mailto:me@example.com');
+    act(() => doneButton().click());
     await pickUp('Y');
     await pressKeys('ArrowLeft', 'Space');
     await advance(1000);
 
     expect(await readItem('T')).toEqual(youtube);
+    act(() => keyButton('T').click());
+    expect(linkField().value).toBe('https://youtube.com/');
     expect(screen.queryByRole('alert')).toBeNull();
-    act(() => keyButton('Y').click());
-    expect(linkField().value).toBe('');
   });
 
-  it('Esc cancels without a write', async () => {
+  it('Esc cancels without a write, and opens no dialog', async () => {
     await store('Y', youtube);
-    await renderPage('#key=Y');
+    await renderPage();
     const set = vi.spyOn(browser.storage.sync, 'set');
 
     await pickUp('Y');
@@ -1314,41 +1420,13 @@ describe('drag-to-swap', () => {
     expect(set).not.toHaveBeenCalled();
     expect(announced()).toContain('Cancelled. Nothing changed.');
     expect(keyButton('T').dataset.state).toBe('free');
-    expect(selectedKey()).toBe(`${T} Y: YouTube`);
-    expect(chip()).toBe(chordLabel('Y'));
-  });
-
-  it('with the editor closed, a drop leaves nothing selected', async () => {
-    await store('Y', youtube);
-    await renderPage();
-
-    await pickUp('Y');
-    await pressKeys('ArrowLeft', 'Space');
-    await advance();
-
-    expect(await readItem('T')).toEqual(youtube);
     expect(selectedKey()).toBeNull();
     expect(editor()).toBeNull();
-    expect(window.location.hash).toBe('');
-  });
-
-  it('with the editor open on another key, it reopens on the key the dragged shortcut moved to', async () => {
-    await store('Y', youtube);
-    await store('G');
-    await renderPage('#key=G');
-
-    await pickUp('Y');
-    await pressKeys('ArrowLeft', 'Space');
-    await advance();
-
-    expect(chip()).toBe(chordLabel('T'));
-    expect(title()).toBe('YouTube');
-    expect(window.location.hash).toBe('#key=T');
   });
 
   it('dropping a key back on itself changes nothing', async () => {
     await store('Y', youtube);
-    await renderPage('#key=Y');
+    await renderPage();
     const set = vi.spyOn(browser.storage.sync, 'set');
 
     await pickUp('Y');
@@ -1362,7 +1440,7 @@ describe('drag-to-swap', () => {
 
   it('cannot pick up a free key', async () => {
     await store('Y', youtube);
-    await renderPage('#key=Y');
+    await renderPage();
     const set = vi.spyOn(browser.storage.sync, 'set');
 
     await pickUp('T');
@@ -1377,7 +1455,7 @@ describe('drag-to-swap', () => {
     await store('Y', youtube);
     await store('K', kagi);
     await store('G');
-    await renderPage('#key=G');
+    await renderPage();
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(browser.storage.sync, 'set').mockRejectedValue(new Error('MAX_WRITE_OPERATIONS_PER_MINUTE'));
 
@@ -1387,14 +1465,14 @@ describe('drag-to-swap', () => {
 
     expect(await readItem('Y')).toEqual(youtube);
     expect(await readItem('K')).toEqual(kagi);
-    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+    expect(selectedKey()).toBeNull();
     expect(error).toHaveBeenCalledWith('SpeedLink: could not drop', 'Y', 'K', 'quota-exceeded');
   });
 
   it('announces each step with the platform trigger', async () => {
     await store('Y', youtube);
     await store('K', kagi);
-    await renderPage('#key=Y');
+    await renderPage();
 
     await pickUp('Y');
     expect(announced()).toContain(`Picked up ${chord('Y')}, YouTube.`);
@@ -1415,7 +1493,7 @@ describe('drag-to-swap', () => {
 
   it('tells each draggable key how to drag it', async () => {
     await store('Y', youtube);
-    await renderPage('#key=Y');
+    await renderPage();
     expect(keyButton('Y').getAttribute('aria-describedby')).not.toBeNull();
     const instructions = document.getElementById(keyButton('Y').getAttribute('aria-describedby') ?? '');
     expect(instructions?.textContent).toBe(
@@ -1426,7 +1504,7 @@ describe('drag-to-swap', () => {
 
   it('a remote change that frees the dragged key cancels the drag', async () => {
     await store('Y', youtube);
-    await renderPage('#key=Y');
+    await renderPage();
 
     await pickUp('Y');
     await pressKeys('ArrowLeft');
@@ -1442,7 +1520,7 @@ describe('drag-to-swap', () => {
 
   it('keys dimmed by a search still accept a drop', async () => {
     await store('Y', youtube);
-    await renderPage('#key=Y');
+    await renderPage();
     await type(searchField(), 'youtube');
     expect(keyButton('T').dataset.dimmed).toBe('true');
 
@@ -1560,6 +1638,16 @@ describe('⌥ + key on Options', () => {
     expect(sent).toEqual([]);
   });
 
+  it('⌥ + the free key the dialog is already on moves focus to Link', async () => {
+    await renderPage('#key=K');
+    act(() => doneButton().focus());
+
+    altKey('KeyK');
+    await advance();
+
+    expect(document.activeElement).toBe(linkField());
+  });
+
   it('acts on a free reply: the key was freed since the page last saw it', async () => {
     // webext-core sends with a callback, so the reply goes through it.
     vi.spyOn(browser.runtime, 'sendMessage').mockImplementation(((_message: unknown, callback: (r: unknown) => void) =>
@@ -1608,6 +1696,17 @@ describe('⌥ + key on Options', () => {
     expect(searchField().selectionEnd).toBe(3);
   });
 
+  it('⌥S with the dialog open leaves focus in the dialog', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    await advance();
+
+    const event = altKey('KeyS');
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(editor());
+  });
+
   it('types as usual inside the Link field', async () => {
     await store('G');
     await store('Y');
@@ -1651,9 +1750,9 @@ describe('#search', () => {
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
 
-  it('focuses the search without a reload, and goes back to the selected key', async () => {
+  it('focuses the search without a reload and selects its text', async () => {
     await store('G');
-    await renderPage('#key=G');
+    await renderPage();
     await type(searchField(), 'git');
     act(() => searchField().blur());
 
@@ -1661,8 +1760,19 @@ describe('#search', () => {
 
     expect(document.activeElement).toBe(searchField());
     expect(searchField().selectionEnd).toBe(3);
+    expect(window.location.hash).toBe('');
+  });
+
+  it('with the dialog open, goes back to the selected key and leaves focus in the dialog', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    await advance();
+
+    await goTo('#search');
+
     expect(window.location.hash).toBe('#key=G');
-    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+    expect(chip()).toBe(chordLabel('G'));
+    expect(document.activeElement).toBe(editor());
   });
 
   it('focuses the search when the page opens on it, leaving the hash empty with nothing selected', async () => {

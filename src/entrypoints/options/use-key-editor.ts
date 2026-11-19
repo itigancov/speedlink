@@ -37,7 +37,7 @@ export function hashFor(key: Key | null): string {
 }
 
 export interface KeyEditor {
-  /** The selected key, or null when nothing is selected and the editor is closed. */
+  /** The selected key, or null when nothing is selected: the dialog is open exactly while this is a key. */
   key: Key | null;
   /** The selected key's draft; null without a selection. */
   draft: KeyDraft | null;
@@ -45,8 +45,6 @@ export interface KeyEditor {
   stored: Shortcut | undefined;
   /** Selects the key; already selected, it stays so. */
   select(key: Key): void;
-  /** A click on a key: selects it, or closes the editor when it is the selected key. */
-  toggle(key: Key): void;
   /** Ends the selection. Like a key switch, autosave still writes a valid draft; an invalid one is dropped. */
   close(): void;
   /** Selects the key with its draft reset to storage, even when it is already selected: after a drop writes it. */
@@ -78,11 +76,6 @@ export function useKeyEditor(keymap: Keymap): KeyEditor {
 
   const select = useCallback(
     (key: Key) => setEditing((prev) => (prev?.key === key ? prev : editingOf(key, keymap[key]))),
-    [keymap],
-  );
-
-  const toggle = useCallback(
-    (key: Key) => setEditing((prev) => (prev?.key === key ? null : editingOf(key, keymap[key]))),
     [keymap],
   );
 
@@ -118,5 +111,5 @@ export function useKeyEditor(keymap: Keymap): KeyEditor {
     };
   };
 
-  return { key, draft: current?.draft ?? null, stored, select, toggle, close, reselect, setDraft, markCleared };
+  return { key, draft: current?.draft ?? null, stored, select, close, reselect, setDraft, markCleared };
 }

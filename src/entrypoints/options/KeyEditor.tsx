@@ -1,6 +1,6 @@
-// "Edit key" (product spec §8.3): the selected key's draft, edited in a non-modal dialog anchored under the key.
-// Presentational: the page owns the draft, the autosave and the actions, and the keyboard card places it, so the
-// gallery can show every state.
+// "Edit key" (product spec §8.3): the selected key's draft, the content of the page's modal dialog.
+// Presentational: the page owns the dialog, the draft, the autosave and the actions, so the gallery can show every
+// state inline.
 import { cn } from 'cn';
 import { AppWindowIcon, ArrowRightIcon, CheckIcon, ChevronDownIcon, XIcon } from 'lucide-react';
 import { type Ref, useId, useState } from 'react';
@@ -34,18 +34,9 @@ export interface WebPage {
   title: string;
 }
 
-/** Where the editor sits, in px from the keyboard's top left; `arrow` is the key's centre from the editor's left. */
-export interface EditorPlacement {
-  top: number;
-  left: number;
-  arrow: number;
-}
-
-/** The editor's width (w-95) and its arrow's (size-3.5), for placing it. */
-export const EDITOR_WIDTH = 380;
-const ARROW_SIZE = 14;
-/** The dialog's border: its children are placed from inside it. */
-const BORDER = 1;
+/** The editor's frame: the dialog's on the page, an inline panel's in the gallery. */
+export const EDITOR_PANEL =
+  'flex flex-col gap-3.5 rounded-xl border border-border-strong bg-popover p-4.5 text-popover-foreground shadow-xl';
 
 export interface KeyEditorProps {
   keyLabel: Key;
@@ -63,10 +54,6 @@ export interface KeyEditorProps {
   onClose: () => void;
   /** The Link field, for the page to move focus to it. */
   linkRef?: Ref<HTMLInputElement>;
-  /** Anchored under its key; without one it sits in the flow with the arrow centred (the gallery). */
-  placement?: EditorPlacement;
-  /** Faded out and click-through, while a drag runs. */
-  hidden?: boolean;
   platform?: Platform;
 }
 
@@ -234,8 +221,6 @@ export function KeyEditor({
   onTest,
   onClose,
   linkRef,
-  placement,
-  hidden = false,
   platform = PLATFORM,
 }: KeyEditorProps) {
   const id = useId();
@@ -260,31 +245,9 @@ export function KeyEditor({
   };
   const useTabLabel =
     webPage === undefined ? i18n.t('options.editor.noWebPage') : i18n.t('options.editor.useTab', [webPage.title]);
-  const arrow = placement?.arrow ?? EDITOR_WIDTH / 2;
 
   return (
-    <div
-      role="dialog"
-      aria-label={i18n.t('options.editor.label')}
-      tabIndex={-1}
-      data-hidden={hidden || undefined}
-      style={
-        placement === undefined
-          ? { transformOrigin: `${arrow}px 0` }
-          : { top: placement.top, left: placement.left, transformOrigin: `${arrow}px 0` }
-      }
-      className={cn(
-        'z-10 flex w-95 flex-col gap-3.5 rounded-xl border border-border-strong bg-popover p-4.5 text-popover-foreground shadow-xl outline-none transition-opacity duration-150 motion-safe:animate-editor-in',
-        placement === undefined ? 'relative' : 'absolute',
-        hidden && 'pointer-events-none opacity-0',
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className="absolute -top-2 size-3.5 rotate-45 border-border-strong border-t border-l bg-popover"
-        style={{ left: arrow - ARROW_SIZE / 2 - BORDER }}
-      />
-
+    <>
       <div className="flex items-center gap-3">
         <span
           data-slot="editor-chip"
@@ -446,6 +409,6 @@ export function KeyEditor({
           <span className="text-ui">{i18n.t('options.editor.done')}</span>
         </Button>
       </footer>
-    </div>
+    </>
   );
 }

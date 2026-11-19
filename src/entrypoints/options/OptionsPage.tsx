@@ -1,7 +1,9 @@
-// Options · Keymap (product spec §8): the `/` search, the Keyboard or List view and the editor at the selected key.
+// Options · Keymap (product spec §8): the `/` search, the Keyboard or List view and the selected key's editor dialog.
+import { cn } from 'cn';
 import { SearchIcon } from 'lucide-react';
 import { type KeyboardEvent, type Ref, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { Brand } from '@/components/Brand';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Kbd } from '@/components/ui/kbd';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -21,8 +23,8 @@ import { isEditableTarget } from '@/platform/key-capture';
 import { readKeymap, writeChange } from '@/platform/keymap-store';
 import { sendMessage } from '@/platform/messaging';
 import { chordLabel, triggerLabel, triggerPlusKey } from '@/platform/platform-labels';
-import { type EditorFrame, KeyboardCard, type KeyboardCardHandle } from './KeyboardCard';
-import { KeyEditor } from './KeyEditor';
+import { KeyboardCard, type KeyCapsHandle } from './KeyboardCard';
+import { EDITOR_PANEL, KeyEditor } from './KeyEditor';
 import { ListCard } from './ListCard';
 import { hashFor, useKeyEditor } from './use-key-editor';
 
@@ -68,11 +70,15 @@ function focusSearch(input: RefObject<HTMLInputElement | null>) {
   input.current?.select();
 }
 
-/** `/` anywhere on the page, outside a field and without ⌘, Ctrl or ⌥, jumps to the search and selects its text. */
-function useSlashFocus(input: RefObject<HTMLInputElement | null>) {
+/**
+ * `/` anywhere on the page, outside a field and without ⌘, Ctrl or ⌥, jumps to the search and selects its text. With
+ * the dialog open it does nothing: the search is behind the scrim.
+ */
+function useSlashFocus(input: RefObject<HTMLInputElement | null>, dialogOpen: RefObject<boolean>) {
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (
+        dialogOpen.current ||
         event.key !== '/' ||
         event.metaKey ||
         event.ctrlKey ||
@@ -85,13 +91,13 @@ function useSlashFocus(input: RefObject<HTMLInputElement | null>) {
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [input]);
+  }, [input, dialogOpen]);
 }
 
 /**
  * `#search` (the page opened on it, or `toggle-overlay` sent this tab there, §5.3) focuses the search as `/` does,
  * without a reload, and gives the hash back to the selected key (or none), so the next `#search` is a hash change
- * again.
+ * again. With the dialog open, the search is behind the scrim, so focus stays in the dialog.
  */
 function useSearchHash(input: RefObject<HTMLInputElement | null>, selected: Key | null) {
   const selectedRef = useRef(selected);
@@ -101,7 +107,7 @@ function useSearchHash(input: RefObject<HTMLInputElement | null>, selected: Key 
   useEffect(() => {
     const go = () => {
       window.history.replaceState(window.history.state, '', hashFor(selectedRef.current));
-      focusSearch(input);
+      if (selectedRef.current === null) focusSearch(input);
     };
     if (openedOnSearch) go();
     const onHashChange = () => {
@@ -134,83 +140,49 @@ function CommandHint() {
   );
 }
 
-/** Where focus goes once the next render is in: Link, or a key. */
-type FocusTarget = 'link' | Key;
-
-/**
- * Esc closes the editor (product spec §8.2), from anywhere but the search, which keeps its own Esc (§8.6). In Link
- * or Name with an unsaved change it only leaves the field for the dialog, so the change isn't lost to one Esc; the
- * next Esc closes. It listens on the window's capture phase, ahead of dnd-kit, so the Esc that cancels a drag is
- * never also taken as a close.
- */
-function useEditorEscape(state: { open: boolean; dirty: boolean; onClose: () => void }, dragging: RefObject<boolean>) {
-  const latest = useRef(state);
-  latest.current = state;
-  useEffect(() => {
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      const { open, dirty, onClose } = latest.current;
-      if (event.key !== 'Escape' || !open || dragging.current) return;
-      const target = event.composedPath()[0];
-      if (isEditableTarget(target)) {
-        const dialog = target instanceof Element ? target.closest<HTMLElement>('[role="dialog"]') : null;
-        if (dialog === null) return;
-        if (dirty) {
-          dialog.focus();
-          return;
-        }
-      }
-      onClose();
-    };
-    window.addEventListener('keydown', onKeyDown, { capture: true });
-    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
-  }, [dragging]);
-}
-
 function KeymapView({ keymap }: { keymap: Keymap }) {
   const [view, setView] = useState<View>('keyboard');
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const linkRef = useRef<HTMLInputElement>(null);
-  const keyboardRef = useRef<KeyboardCardHandle>(null);
-  const dragging = useRef(false);
-  const pendingFocus = useRef<FocusTarget | null>(null);
-  useSlashFocus(searchRef);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const keyboardRef = useRef<KeyCapsHandle>(null);
+  const listRef = useRef<KeyCapsHandle>(null);
+  /** Focus goes to Link once the dialog, or its new key, has rendered: ↵ from the search, ⌥ + a free key. */
+  const focusLink = useRef(false);
+  /** The key the dialog was last open on: focus goes back to it on close. */
+  const lastKey = useRef<Key | null>(null);
   const tabs = useOpenTabs();
   const editor = useKeyEditor(keymap);
   const { key, draft, stored } = editor;
+  const dialogOpen = useRef(false);
+  dialogOpen.current = key !== null;
+  useSlashFocus(searchRef, dialogOpen);
   useSearchHash(searchRef, key);
   const autosave = useAutosave({ key, draft, stored });
 
-  /** Selects a key in the Keyboard view, where its editor opens, and moves focus once it has rendered. */
-  const openAt = (target: Key, focus: FocusTarget) => {
+  /** Selects a key, which opens its dialog over the current view; a pending draft is settled as on any key switch. */
+  const openAt = (target: Key, link: boolean) => {
     editor.select(target);
-    setView('keyboard');
-    pendingFocus.current = focus;
+    // The key already open renders nothing new, so no effect would move focus: move it now.
+    if (link && target === key) linkRef.current?.focus();
+    else focusLink.current = link;
   };
-  // ⌥ + a free key selects it through the same path as a click, so a pending draft is settled as on any key switch.
-  usePageKeys({ keymap, onFree: (free) => openAt(free, 'link'), onReserved: () => focusSearch(searchRef) });
-
-  const editorOpen = view === 'keyboard' && key !== null;
-  const closeEditor = () => {
-    if (key === null) return;
-    pendingFocus.current = key;
-    editor.close();
-  };
-  useEditorEscape(
-    {
-      open: editorOpen,
-      dirty: draft !== null && checkDraft(draft, stored).kind !== 'same',
-      onClose: closeEditor,
+  usePageKeys({
+    keymap,
+    onFree: (free) => openAt(free, true),
+    onReserved: () => {
+      if (!dialogOpen.current) focusSearch(searchRef);
     },
-    dragging,
-  );
+  });
 
   useEffect(() => {
-    const target = pendingFocus.current;
-    if (target === null) return;
-    pendingFocus.current = null;
-    if (target === 'link') linkRef.current?.focus();
-    else keyboardRef.current?.focusKey(target);
+    if (key !== null) lastKey.current = key;
+  }, [key]);
+  useEffect(() => {
+    if (!focusLink.current || linkRef.current === null) return;
+    focusLink.current = false;
+    linkRef.current.focus();
   });
 
   const openKeys = useMemo(() => {
@@ -233,7 +205,7 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
     if (event.key === 'Enter') {
       event.preventDefault();
       const target = enterTarget(keymap, query, { assignedOnly: view === 'list' });
-      if (target !== null) openAt(target, 'link');
+      if (target !== null) openAt(target, true);
     } else if (event.key === 'Escape') {
       event.preventDefault();
       if (query === '') event.currentTarget.blur();
@@ -252,21 +224,16 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
     });
   };
 
-  // A drop (product spec §8.7): the selected key's draft is settled first, and the change is built from storage
-  // after that, since the rendered keymap may not have the flushed write yet. An open editor follows the dragged
-  // shortcut; a closed one stays closed.
+  // A drop (product spec §8.7) happens with the dialog closed and leaves nothing selected. A draft is still settled
+  // first, and the change is built from storage after that, since the rendered keymap may not have the flushed
+  // write yet.
   const onDrop = async (from: Key, to: Key) => {
-    const wasOpen = key !== null;
     if (key !== null && autosave.state === 'invalid') editor.reselect(key);
     await autosave.flush();
     const change = dropChange(await readKeymap(), from, to);
     if (change === null) return;
     const result = await writeChange(change);
-    if (!result.ok) {
-      console.error('SpeedLink: could not drop', from, to, result.error);
-      return;
-    }
-    if (wasOpen) editor.reselect(to);
+    if (!result.ok) console.error('SpeedLink: could not drop', from, to, result.error);
   };
 
   const onTest = async (tested: Key) => {
@@ -279,26 +246,7 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
     }
   };
 
-  const renderEditor =
-    key === null || draft === null
-      ? undefined
-      : ({ placement, hidden }: EditorFrame) => (
-          <KeyEditor
-            keyLabel={key}
-            stored={stored}
-            draft={draft}
-            onDraftChange={editor.setDraft}
-            openNow={openKeys.has(key) && stored !== undefined}
-            webPage={webTab}
-            saveState={autosave.state}
-            onClear={() => onClear(key)}
-            onTest={() => void onTest(key)}
-            onClose={closeEditor}
-            linkRef={linkRef}
-            placement={placement}
-            hidden={hidden}
-          />
-        );
+  const dirty = draft !== null && checkDraft(draft, stored).kind !== 'same';
 
   return (
     <>
@@ -333,24 +281,73 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
             openKeys={openKeys}
             selected={key}
             matches={matches}
-            onSelect={editor.toggle}
+            onSelect={(clicked) => openAt(clicked, false)}
             onDrop={(from, to) => void onDrop(from, to)}
-            onDragActiveChange={(active) => {
-              dragging.current = active;
-            }}
-            editor={renderEditor}
           />
         ) : (
           <ListCard
+            ref={listRef}
             keymap={keymap}
             openKeys={openKeys}
             selected={key}
             matches={matches}
-            onSelect={(row) => openAt(row, row)}
+            onSelect={(row) => openAt(row, false)}
           />
         )}
         <CommandHint />
       </main>
+      {/* The key editor (§8.3): modal, so a key is chosen with the dialog closed and the page waits behind it. */}
+      <Dialog
+        open={key !== null}
+        onOpenChange={(open) => {
+          if (!open) editor.close();
+        }}
+      >
+        <DialogContent
+          ref={dialogRef}
+          aria-modal="true"
+          aria-describedby={undefined}
+          className={cn(EDITOR_PANEL, 'w-md')}
+          // A free key is there to be filled: Link. An assigned one opens quiet, so Esc closes and nothing types.
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            if (focusLink.current || stored === undefined) {
+              focusLink.current = false;
+              linkRef.current?.focus();
+            } else dialogRef.current?.focus();
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            if (lastKey.current !== null) (view === 'list' ? listRef : keyboardRef).current?.focusKey(lastKey.current);
+          }}
+          // In Link or Name with an unsaved change, the first Esc only leaves the field; nothing is reverted.
+          onEscapeKeyDown={(event) => {
+            if (!dirty || !isEditableTarget(event.target ?? undefined)) return;
+            event.preventDefault();
+            dialogRef.current?.focus();
+          }}
+        >
+          {/* The accessible name; the visible header stays as drawn, the key chip and the shortcut's title. */}
+          <DialogTitle asChild>
+            <span className="sr-only">{i18n.t('options.editor.label')}</span>
+          </DialogTitle>
+          {key !== null && draft !== null && (
+            <KeyEditor
+              keyLabel={key}
+              stored={stored}
+              draft={draft}
+              onDraftChange={editor.setDraft}
+              openNow={openKeys.has(key) && stored !== undefined}
+              webPage={webTab}
+              saveState={autosave.state}
+              onClear={() => onClear(key)}
+              onTest={() => void onTest(key)}
+              onClose={editor.close}
+              linkRef={linkRef}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

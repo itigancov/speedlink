@@ -2,6 +2,7 @@
 // check by eye. A wxt.config.ts hook drops it from production builds. Later items add their own sections here.
 // Its own labels are developer-facing identifiers (sizes, states, variants), not user-facing strings.
 import '@/assets/theme.css';
+import { cn } from 'cn';
 import { type ReactNode, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { KeyboardGrid } from '@/components/KeyboardGrid';
@@ -23,7 +24,7 @@ import { validShortcut } from '@/domain/test-shortcut';
 import type { SaveState } from '@/hooks/use-autosave';
 import { chordLabel, type Platform, triggerLabel } from '@/platform/platform-labels';
 import { KeyboardCard } from '../options/KeyboardCard';
-import { KeyEditor } from '../options/KeyEditor';
+import { EDITOR_PANEL, KeyEditor } from '../options/KeyEditor';
 import { ListCard } from '../options/ListCard';
 
 const SIZES: KeyCapSize[] = ['lg', 'compact', 'xl', 'md', 'sm'];
@@ -457,56 +458,21 @@ function Editors() {
         {EDITORS.map(({ caption, stored, draft, saveState = 'saved', openNow = false, webPage = false }) => (
           <div key={caption} className="flex flex-col gap-4">
             <Caption>{caption}</Caption>
-            <KeyEditor
-              keyLabel="G"
-              stored={stored}
-              draft={{ ...draftOf(stored), ...draft }}
-              onDraftChange={noop}
-              openNow={openNow}
-              webPage={webPage ? { url: 'https://docs.example.com/', title: 'Docs' } : undefined}
-              saveState={saveState}
-              onClear={noop}
-              onTest={noop}
-              onClose={noop}
-            />
-          </div>
-        ))}
-      </div>
-    </TooltipProvider>
-  );
-}
-
-/** The keyboard card with the editor anchored at a key: left edge, right edge and the bottom row. */
-function AnchoredEditors() {
-  return (
-    <TooltipProvider>
-      <div className="flex flex-col gap-4">
-        {(['1', 'P', 'M'] as const).map((key) => (
-          <div key={key} className="flex min-h-200 flex-col gap-2">
-            <Caption>{`editor at ${key}`}</Caption>
-            <KeyboardCard
-              keymap={sampleKeymap}
-              openKeys={new Set<Key>(['Y', 'K'])}
-              selected={key}
-              onSelect={noop}
-              onDrop={noop}
-              editor={({ placement, hidden }) => (
-                <KeyEditor
-                  keyLabel={key}
-                  stored={sampleKeymap[key]}
-                  draft={draftOf(sampleKeymap[key])}
-                  onDraftChange={noop}
-                  openNow={false}
-                  webPage={undefined}
-                  saveState="saved"
-                  onClear={noop}
-                  onTest={noop}
-                  onClose={noop}
-                  placement={placement}
-                  hidden={hidden}
-                />
-              )}
-            />
+            {/* The dialog's frame, inline: every state fits one page. */}
+            <div className={cn(EDITOR_PANEL, 'w-md')}>
+              <KeyEditor
+                keyLabel="G"
+                stored={stored}
+                draft={{ ...draftOf(stored), ...draft }}
+                onDraftChange={noop}
+                openNow={openNow}
+                webPage={webPage ? { url: 'https://docs.example.com/', title: 'Docs' } : undefined}
+                saveState={saveState}
+                onClear={noop}
+                onTest={noop}
+                onClose={noop}
+              />
+            </div>
           </div>
         ))}
       </div>
@@ -594,9 +560,6 @@ function App() {
       </Section>
       <Section title="Options: editor states">
         <Editors />
-      </Section>
-      <Section title="Options: editor anchored at a key">
-        <AnchoredEditors />
       </Section>
       <Section title="Monogram: every hue at every size">
         <Monograms />

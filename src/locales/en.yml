@@ -125,7 +125,7 @@ options:
     assigned: Assigned
     free: Free
     open: Open in a tab now
-    select: Press a key to select it
+    select: Press a key to edit it
     paste: pastes a link onto it
     drag: Drag to swap
   drag:
