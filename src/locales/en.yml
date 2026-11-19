@@ -9,6 +9,7 @@ platform:
     plusKey: ⌥ + key
     plus: ⌥ +
     symbol: ⌥
+    paste: ⌘V
   other:
     trigger: Alt
     triggerWord: Alt
@@ -16,6 +17,7 @@ platform:
     plusKey: Alt + key
     plus: Alt +
     symbol: Alt
+    paste: Ctrl+V
 keyCap:
   assigned: "$1 $2: $3"
   free: "$1 $2: free"
@@ -121,10 +123,11 @@ options:
     noMatch: No keys match
   legend:
     assigned: Assigned
-    selected: Selected
     free: Free
-    open: Open in a tab right now
-    drag: Drag a key onto another to swap
+    open: Open in a tab now
+    select: Press a key to select it
+    paste: pastes a link onto it
+    drag: Drag to swap
   drag:
     instructions: Press Space to pick up this key, the arrow keys to move it to another key, Space or Enter to drop it there, and Escape to cancel.
     pickedUp: Picked up $1, $2.
@@ -135,40 +138,52 @@ options:
     moved: Moved to $1.
     unchanged: Dropped. Nothing changed.
     cancelled: Cancelled. Nothing changed.
-  inspector:
-    label: Key details
+  editor:
+    label: Edit key
+    close: Close editor
     freeKey: Free key
-    status: $1 + $2 · $3
-    statusOpen: open in a tab now
-    statusFree: paste a link to assign
+    statusOpen: Open in a tab now
+    statusFree: Paste a link to assign it
     link: Link
     linkPlaceholder: Paste a link or type a site
     linkError: Enter a web address, like github.com or https://example.com.
     useTab: Use $1
     noWebPage: No web page open
-    name: Name — shown in the overlay
+    name: Name
+    optional: — optional
     namePlaceholder: Taken from the page title
-    whenPressed: When I press it
-    recommended: Recommended
+    opensAs: Opens as
+    moreOptions: More options
     tabMatchPrompt: Count a tab as “already open” when it shows
     closeCurrent: Close the tab I’m on afterwards
     clear: Clear key
     saved: Saved
+    saving: Saving…
     saveError: Couldn’t save
-    try: Try $1
+    test: Test
+    done: Done
+    preview:
+      docs: Docs
+      mail: Mail
+      closed: closed
+      link: Link
   openMode:
     smart:
       title: Smart switch
-      description: Jump to the tab if it’s already open, otherwise open it in a new tab.
+      short: Smart
+      description: Jumps to the tab if it’s already open, otherwise opens a new one.
     new:
       title: New tab
-      description: Always open a fresh tab next to this one.
+      short: New tab
+      description: Always opens a fresh tab next to the current one.
     this:
       title: This tab
-      description: Replace the page you’re looking at.
+      short: This tab
+      description: Replaces the page you’re looking at.
     bg:
       title: Background tab
-      description: Open quietly and stay where you are.
+      short: Background
+      description: Opens quietly and you stay where you are.
   tabMatch:
     exact:
       title: This exact link

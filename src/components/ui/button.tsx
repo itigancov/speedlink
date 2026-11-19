@@ -18,6 +18,7 @@ const buttonVariants = cva(
         link: 'text-primary underline-offset-4 hover:underline',
         inverse: 'bg-inverse text-inverse-foreground hover:bg-inverse/90',
         'warning-outline': 'border border-warning-button bg-warning text-warning-foreground hover:bg-warning-border/40',
+        'destructive-ghost': 'text-destructive hover:bg-destructive/5 focus-visible:ring-destructive/20',
         'destructive-outline':
           'border border-destructive/40 bg-card text-destructive hover:bg-destructive/5 focus-visible:ring-destructive/20',
       },

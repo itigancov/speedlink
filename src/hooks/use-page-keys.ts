@@ -18,7 +18,7 @@ export interface PageKeys {
 }
 
 /**
- * Registers one `keydown` listener on the document. An assigned key opens as Try ⌥K does (`tryKey`, so the page is
+ * Registers one `keydown` listener on the document. An assigned key opens as Options' Test does (`tryKey`, so the page is
  * never replaced or closed; ⇧ is Force new tab); a `free` reply, from a stale keymap, is handled as a free key. The
  * page's own fields, AltGr, IME and the browser's own Alt keys keep their meaning, since the domain's classification
  * is the same one the content script uses.

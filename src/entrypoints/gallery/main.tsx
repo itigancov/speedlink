@@ -22,8 +22,8 @@ import { displayName, type Shortcut, TILE_HUES } from '@/domain/shortcut';
 import { validShortcut } from '@/domain/test-shortcut';
 import type { SaveState } from '@/hooks/use-autosave';
 import { chordLabel, type Platform, triggerLabel } from '@/platform/platform-labels';
-import { Inspector } from '../options/Inspector';
 import { KeyboardCard } from '../options/KeyboardCard';
+import { KeyEditor } from '../options/KeyEditor';
 import { ListCard } from '../options/ListCard';
 
 const SIZES: KeyCapSize[] = ['lg', 'compact', 'xl', 'md', 'sm'];
@@ -414,7 +414,7 @@ function ListCards() {
   );
 }
 
-interface InspectorSample {
+interface EditorSample {
   caption: string;
   stored: Shortcut | undefined;
   draft?: Partial<KeyDraft>;
@@ -423,26 +423,41 @@ interface InspectorSample {
   webPage?: boolean;
 }
 
-const INSPECTORS: InspectorSample[] = [
-  { caption: 'assigned, open now, saved', stored: github, openNow: true, webPage: true },
+const EDITORS: EditorSample[] = [
+  { caption: 'assigned, saved', stored: github, webPage: true },
+  { caption: 'open now', stored: github, openNow: true, webPage: true },
   { caption: 'free', stored: undefined, webPage: true },
   { caption: 'free, no web page open', stored: undefined },
+  { caption: 'free, typing a link', stored: undefined, draft: { link: 'docs.example.com' }, saveState: 'pending' },
   { caption: 'invalid link', stored: github, draft: { link: 'mailto:me@example.com' }, saveState: 'invalid' },
   { caption: "couldn't save", stored: github, draft: { name: 'Code' }, saveState: 'error' },
-  { caption: 'This tab', stored: validShortcut({ link: 'https://github.com/', openMode: 'this', closeCurrent: true }) },
-  { caption: 'Smart, exact', stored: validShortcut({ link: 'https://notion.so/roadmap', tabMatch: 'exact' }) },
-  { caption: 'Smart, page', stored: validShortcut({ link: 'https://linear.app/my-issues', tabMatch: 'page' }) },
-  { caption: 'Smart, site', stored: youtube },
+  {
+    caption: 'More options open: Smart, exact',
+    stored: validShortcut({ link: 'https://notion.so/roadmap', tabMatch: 'exact' }),
+  },
+  {
+    caption: 'preview: New tab',
+    stored: validShortcut({ link: 'https://github.com/', name: 'GitHub', openMode: 'new' }),
+  },
+  {
+    caption: 'preview: This tab, close current kept but off',
+    stored: validShortcut({ link: 'https://github.com/', openMode: 'this', closeCurrent: true }),
+  },
+  { caption: 'preview: Background', stored: validShortcut({ link: 'https://youtube.com/', openMode: 'bg' }) },
+  {
+    caption: 'preview: Smart, close current',
+    stored: validShortcut({ link: 'https://github.com/', name: 'GitHub', closeCurrent: true }),
+  },
 ];
 
-function Inspectors() {
+function Editors() {
   return (
     <TooltipProvider>
-      <div className="flex flex-wrap items-start gap-6">
-        {INSPECTORS.map(({ caption, stored, draft, saveState = 'saved', openNow = false, webPage = false }) => (
-          <div key={caption} className="flex w-full max-w-md flex-col gap-2">
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-8">
+        {EDITORS.map(({ caption, stored, draft, saveState = 'saved', openNow = false, webPage = false }) => (
+          <div key={caption} className="flex flex-col gap-4">
             <Caption>{caption}</Caption>
-            <Inspector
+            <KeyEditor
               keyLabel="G"
               stored={stored}
               draft={{ ...draftOf(stored), ...draft }}
@@ -451,7 +466,46 @@ function Inspectors() {
               webPage={webPage ? { url: 'https://docs.example.com/', title: 'Docs' } : undefined}
               saveState={saveState}
               onClear={noop}
-              onTry={noop}
+              onTest={noop}
+              onClose={noop}
+            />
+          </div>
+        ))}
+      </div>
+    </TooltipProvider>
+  );
+}
+
+/** The keyboard card with the editor anchored at a key: left edge, right edge and the bottom row. */
+function AnchoredEditors() {
+  return (
+    <TooltipProvider>
+      <div className="flex flex-col gap-4">
+        {(['1', 'P', 'M'] as const).map((key) => (
+          <div key={key} className="flex min-h-200 flex-col gap-2">
+            <Caption>{`editor at ${key}`}</Caption>
+            <KeyboardCard
+              keymap={sampleKeymap}
+              openKeys={new Set<Key>(['Y', 'K'])}
+              selected={key}
+              onSelect={noop}
+              onDrop={noop}
+              editor={({ placement, hidden }) => (
+                <KeyEditor
+                  keyLabel={key}
+                  stored={sampleKeymap[key]}
+                  draft={draftOf(sampleKeymap[key])}
+                  onDraftChange={noop}
+                  openNow={false}
+                  webPage={undefined}
+                  saveState="saved"
+                  onClear={noop}
+                  onTest={noop}
+                  onClose={noop}
+                  placement={placement}
+                  hidden={hidden}
+                />
+              )}
             />
           </div>
         ))}
@@ -538,8 +592,11 @@ function App() {
       <Section title="Options: list view">
         <ListCards />
       </Section>
-      <Section title="Options: inspector states">
-        <Inspectors />
+      <Section title="Options: editor states">
+        <Editors />
+      </Section>
+      <Section title="Options: editor anchored at a key">
+        <AnchoredEditors />
       </Section>
       <Section title="Monogram: every hue at every size">
         <Monograms />

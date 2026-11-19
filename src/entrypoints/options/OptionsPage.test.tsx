@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
 import type { Browser } from 'wxt/browser';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { ROW_STAGGER } from '@/domain/key-grid';
 import { KEYBOARD_ROWS, type Key, type KeyLabel } from '@/domain/keys';
-import { chordLabel, triggerWord } from '@/platform/platform-labels';
+import { chordLabel, pasteLabel, triggerWord } from '@/platform/platform-labels';
 import { installTabsOnReplaced } from '@/test/fake-replaced';
 import { OptionsPage } from './OptionsPage';
 
@@ -54,15 +54,27 @@ async function renderPage(hash = '') {
 const T = triggerWord();
 
 const keyButton = (key: string) => screen.getByRole('button', { name: new RegExp(`^${T} ${key}:`) });
-const selectedKey = () => screen.getByRole('button', { pressed: true }).getAttribute('aria-label');
+const selectedKey = () => screen.queryByRole('button', { pressed: true })?.getAttribute('aria-label') ?? null;
+
+const editor = () => screen.queryByRole('dialog', { name: 'Edit key' });
+const inEditor = () => within(screen.getByRole('dialog', { name: 'Edit key' }));
+/** The editor's key chip, "⌥K" or "Alt+K". */
+const chip = () => editor()?.querySelector('[data-slot="editor-chip"]')?.textContent ?? null;
+const title = () => inEditor().getByRole('heading', { level: 2 }).textContent;
+const doneButton = () => inEditor().getByRole('button', { name: 'Done' });
+const moreOptions = () => inEditor().getByRole('button', { name: 'More options' });
+/** An Opens as segment, by its full name. */
+const mode = (name: string) => inEditor().getByRole('radio', { name });
 
 const readItem = async (key: string): Promise<{ link?: string; name?: string } | undefined> =>
   (await browser.storage.sync.get(`key.${key}`))[`key.${key}`] as never;
 
 const linkField = () => screen.getByLabelText('Link') as HTMLInputElement;
-const nameField = () => screen.getByLabelText('Name — shown in the overlay') as HTMLInputElement;
+const nameField = () => screen.getByLabelText('Name — optional') as HTMLInputElement;
 const type = (field: HTMLInputElement, value: string) => act(() => fireEvent.change(field, { target: { value } }));
 const saved = () => screen.queryByText('Saved');
+const searchField = () => screen.getByRole('searchbox', { name: 'Find a link, site or key' }) as HTMLInputElement;
+const press = (target: Element, key: string) => act(() => fireEvent.keyDown(target, { key, code: key }));
 
 beforeEach(() => {
   fakeBrowser.reset();
@@ -90,29 +102,29 @@ afterEach(() => {
 });
 
 describe('selection', () => {
-  it('selects the key in #key=K', async () => {
+  it('selects nothing and shows no editor without a hash', async () => {
+    await store('G');
+    await renderPage();
+    expect(selectedKey()).toBeNull();
+    expect(editor()).toBeNull();
+    expect(window.location.hash).toBe('');
+  });
+
+  it('opens the editor on the key in #key=K', async () => {
     await store('G');
     await store('Y');
     await renderPage('#key=Y');
     expect(selectedKey()).toMatch(new RegExp(`^${T} Y:`));
+    expect(editor()).not.toBeNull();
+    expect(chip()).toBe(chordLabel('Y'));
   });
 
-  it('selects the first assigned key in keyboard order without a hash', async () => {
-    await store('G');
-    await store('W');
-    await renderPage();
-    expect(selectedKey()).toMatch(new RegExp(`^${T} W:`));
-  });
-
-  it('selects 1 on an empty keymap', async () => {
-    await renderPage();
-    expect(selectedKey()).toBe(`${T} 1: free`);
-  });
-
-  it('ignores #key=S and selects as without a hash', async () => {
+  it('ignores #key=S: nothing is selected', async () => {
     await store('G');
     await renderPage('#key=S');
-    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+    expect(selectedKey()).toBeNull();
+    expect(editor()).toBeNull();
+    expect(window.location.hash).toBe('');
   });
 
   it('never selects S by a click', async () => {
@@ -120,17 +132,29 @@ describe('selection', () => {
     expect((keyButton('S') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('selects a clicked key and mirrors it to the hash', async () => {
+  it('opens the editor on a clicked key and mirrors it to the hash', async () => {
     await renderPage();
     act(() => keyButton('K').click());
     expect(selectedKey()).toBe(`${T} K: free`);
+    expect(chip()).toBe(chordLabel('K'));
     expect(window.location.hash).toBe('#key=K');
   });
 
-  it('mirrors the initial selection to the hash', async () => {
-    await store('G');
-    await renderPage();
-    expect(window.location.hash).toBe('#key=G');
+  it('a click on another key moves the editor there', async () => {
+    await store('G', { name: 'GitHub' });
+    await renderPage('#key=K');
+    act(() => keyButton('G').click());
+    expect(chip()).toBe(chordLabel('G'));
+    expect(title()).toBe('GitHub');
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  });
+
+  it('closing clears the hash', async () => {
+    await renderPage('#key=K');
+    act(() => doneButton().click());
+    expect(editor()).toBeNull();
+    expect(selectedKey()).toBeNull();
+    expect(window.location.hash).toBe('');
   });
 
   it('switches on hashchange', async () => {
@@ -140,6 +164,291 @@ describe('selection', () => {
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
     expect(selectedKey()).toBe(`${T} J: free`);
+    expect(chip()).toBe(chordLabel('J'));
+  });
+});
+
+describe('closing the editor', () => {
+  it('× closes it', async () => {
+    await renderPage('#key=K');
+    act(() => screen.getByRole('button', { name: 'Close editor' }).click());
+    expect(editor()).toBeNull();
+  });
+
+  it('Done closes it', async () => {
+    await renderPage('#key=K');
+    act(() => doneButton().click());
+    expect(editor()).toBeNull();
+  });
+
+  it('a second click on the selected key closes it', async () => {
+    await renderPage('#key=K');
+    act(() => keyButton('K').click());
+    expect(editor()).toBeNull();
+    expect(selectedKey()).toBeNull();
+  });
+
+  it('↵ on the selected key closes it, as a second click does', async () => {
+    await renderPage();
+    act(() => keyButton('K').focus());
+    act(() => keyButton('K').click());
+    // A button turns ↵ into a click; happy-dom doesn't, so the click stands for it.
+    fireEvent.keyDown(keyButton('K'), { key: 'Enter', code: 'Enter' });
+    act(() => keyButton('K').click());
+    expect(editor()).toBeNull();
+  });
+
+  it('Esc outside a field closes it', async () => {
+    await renderPage('#key=K');
+    press(document.body, 'Escape');
+    expect(editor()).toBeNull();
+  });
+
+  it('Esc on the selected key closes it', async () => {
+    await renderPage('#key=K');
+    act(() => keyButton('K').focus());
+    press(keyButton('K'), 'Escape');
+    expect(editor()).toBeNull();
+  });
+
+  it('Esc in a field without a change closes it', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    act(() => nameField().focus());
+    press(nameField(), 'Escape');
+    expect(editor()).toBeNull();
+  });
+
+  it('Esc in a changed field only leaves the field, keeping the text; a second Esc closes', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    act(() => nameField().focus());
+    await type(nameField(), 'Code');
+
+    press(nameField(), 'Escape');
+    expect(editor()).not.toBeNull();
+    expect(nameField().value).toBe('Code');
+    expect(document.activeElement).toBe(editor());
+
+    press(editor() as HTMLElement, 'Escape');
+    expect(editor()).toBeNull();
+  });
+
+  it('Esc in the search keeps its own meaning', async () => {
+    await renderPage('#key=K');
+    act(() => searchField().focus());
+    press(searchField(), 'Escape');
+    expect(editor()).not.toBeNull();
+  });
+
+  it('a click on the header, the background or the card leaves it open', async () => {
+    await renderPage('#key=K');
+    act(() => screen.getByRole('banner').click());
+    act(() => screen.getByRole('heading', { level: 1 }).click());
+    act(() => document.body.click());
+    expect(editor()).not.toBeNull();
+  });
+
+  it('saves a valid draft once on close', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    const set = vi.spyOn(browser.storage.sync, 'set');
+
+    await type(nameField(), 'Code');
+    act(() => doneButton().click());
+    await advance(1000);
+
+    expect(set).toHaveBeenCalledTimes(1);
+    expect((await readItem('G'))?.name).toBe('Code');
+  });
+
+  it('discards an invalid draft on close', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    const set = vi.spyOn(browser.storage.sync, 'set');
+
+    await type(linkField(), 'mailto:x@y.z');
+    act(() => doneButton().click());
+    await advance(1000);
+    act(() => keyButton('G').click());
+
+    expect(set).not.toHaveBeenCalled();
+    expect(linkField().value).toBe('https://github.com/');
+  });
+});
+
+describe('focus', () => {
+  it('a click keeps focus on the key', async () => {
+    await renderPage();
+    act(() => keyButton('K').focus());
+    act(() => keyButton('K').click());
+    expect(document.activeElement).toBe(keyButton('K'));
+  });
+
+  it('closing returns focus to the key', async () => {
+    await renderPage('#key=K');
+    act(() => doneButton().focus());
+    act(() => doneButton().click());
+    await advance();
+    expect(document.activeElement).toBe(keyButton('K'));
+  });
+
+  it('Tab from the selected key reaches the editor: it is the only key in the tab order, right before it', async () => {
+    await renderPage('#key=K');
+    const tabbable = Array.from(document.querySelectorAll<HTMLElement>('button, input, a, [tabindex]')).filter(
+      (element) => element.tabIndex >= 0 && !(element as HTMLButtonElement).disabled,
+    );
+    const at = tabbable.indexOf(keyButton('K'));
+    expect(tabbable.filter((element) => element.dataset.slot === 'key-cap')).toEqual([keyButton('K')]);
+    expect(tabbable[at + 1]).toBe(screen.getByRole('button', { name: 'Close editor' }));
+  });
+
+  it('with nothing selected, the first key is the keyboard’s tab stop', async () => {
+    await renderPage();
+    expect(keyButton('1').tabIndex).toBe(0);
+    expect(keyButton('K').tabIndex).toBe(-1);
+  });
+
+  it('the arrows move focus between keys, passing over S, and select nothing', async () => {
+    await renderPage();
+    act(() => keyButton('A').focus());
+    press(keyButton('A'), 'ArrowRight');
+    expect(document.activeElement).toBe(keyButton('D'));
+    press(keyButton('D'), 'ArrowUp');
+    expect(document.activeElement).toBe(keyButton('E'));
+    expect(selectedKey()).toBeNull();
+  });
+});
+
+describe('Opens as', () => {
+  it('is four segments with short labels, each named by its full term; the choice writes the open mode', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    const segments = within(inEditor().getByRole('group', { name: 'Opens as' })).getAllByRole('radio');
+    expect(segments.map((segment) => segment.getAttribute('aria-label'))).toEqual([
+      'Smart switch',
+      'New tab',
+      'This tab',
+      'Background tab',
+    ]);
+    expect(segments.map((segment) => segment.textContent)).toEqual(['Smart', 'New tab', 'This tab', 'Background']);
+    expect(mode('Smart switch').getAttribute('aria-checked')).toBe('true');
+
+    act(() => mode('Background tab').click());
+    expect(mode('Background tab').getAttribute('aria-checked')).toBe('true');
+    await advance(400);
+    expect(await readItem('G')).toMatchObject({ openMode: 'bg' });
+  });
+
+  it('describes the chosen mode under the control, with no Recommended badge', async () => {
+    await renderPage('#key=K');
+    expect(inEditor().getByText('Jumps to the tab if it’s already open, otherwise opens a new one.')).toBeDefined();
+    act(() => mode('This tab').click());
+    expect(inEditor().getByText('Replaces the page you’re looking at.')).toBeDefined();
+    expect(screen.queryByText('Recommended')).toBeNull();
+  });
+
+  it('draws a tab-strip preview hidden from assistive tech, following the draft', async () => {
+    await store('G', { name: 'Code', tabMatch: 'page' });
+    await renderPage('#key=G');
+    const preview = editor()?.querySelector('[data-slot="tab-strip-preview"]');
+    expect(preview?.getAttribute('aria-hidden')).toBe('true');
+    expect(preview?.textContent).toContain('Code');
+    expect(preview?.textContent).not.toContain('closed');
+
+    act(() => moreOptions().click());
+    act(() => screen.getByRole('checkbox', { name: 'Close the tab I’m on afterwards' }).click());
+    expect(preview?.textContent).toContain('closed');
+  });
+});
+
+describe('More options', () => {
+  const tabMatch = () => screen.queryByRole('group', { name: 'Count a tab as “already open” when it shows' });
+
+  it('is collapsed by default, hiding the tab match and close current', async () => {
+    await store('G', { tabMatch: 'page' });
+    await renderPage('#key=G');
+    expect(moreOptions().getAttribute('aria-expanded')).toBe('false');
+    expect(tabMatch()).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Close the tab I’m on afterwards' })).toBeNull();
+
+    act(() => moreOptions().click());
+    expect(moreOptions().getAttribute('aria-expanded')).toBe('true');
+    expect(tabMatch()).not.toBeNull();
+  });
+
+  it('opens by itself on a key with a non-default tab match or close current', async () => {
+    await store('G', { tabMatch: 'exact' });
+    await store('Y', { closeCurrent: true, tabMatch: 'page' });
+    await store('K', { tabMatch: 'page' });
+    await renderPage('#key=G');
+    expect(moreOptions().getAttribute('aria-expanded')).toBe('true');
+    act(() => keyButton('Y').click());
+    expect(moreOptions().getAttribute('aria-expanded')).toBe('true');
+    act(() => keyButton('K').click());
+    expect(moreOptions().getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('collapses again on a key switch', async () => {
+    await store('G', { tabMatch: 'page' });
+    await renderPage('#key=G');
+    act(() => moreOptions().click());
+    act(() => keyButton('K').click());
+    expect(moreOptions().getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+describe('the editor footer', () => {
+  const clearButton = () => inEditor().getByRole('button', { name: 'Clear key' }) as HTMLButtonElement;
+
+  it('Clear key frees the key at once and leaves the editor open on the free key', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    act(() => clearButton().click());
+    await advance();
+    expect(await readItem('G')).toBeUndefined();
+    expect(title()).toBe('Free key');
+    expect(chip()).toBe(chordLabel('G'));
+    expect(clearButton().disabled).toBe(true);
+  });
+
+  it('shows Saved on an assigned key and nothing on an untouched free key', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    expect(within(inEditor().getByRole('status')).getByText('Saved')).toBeDefined();
+    act(() => keyButton('K').click());
+    expect(inEditor().getByRole('status').textContent).toBe('');
+  });
+});
+
+describe('focus into Link', () => {
+  it('↵ from the search focuses Link of the key it opens', async () => {
+    await store('G', { name: 'GitHub' });
+    await renderPage();
+    act(() => searchField().focus());
+    await type(searchField(), 'git');
+    press(searchField(), 'Enter');
+    await advance();
+    expect(chip()).toBe(chordLabel('G'));
+    expect(document.activeElement).toBe(linkField());
+  });
+});
+
+describe('the header and legend', () => {
+  it('hints at Peek in the header', async () => {
+    await renderPage();
+    expect(within(screen.getByRole('banner')).getByText(/anywhere to see your keys/)).toBeDefined();
+  });
+
+  it.each([
+    ['mac', '⌘V'],
+    ['other', 'Ctrl+V'],
+  ] as const)('reads the legend with the %s paste key', async (_platform, paste) => {
+    expect(pasteLabel(_platform)).toBe(paste);
+    await renderPage();
+    expect(document.querySelector('[data-slot="legend-hint"]')?.textContent).toBe(
+      `Press a key to select it · ${pasteLabel()} pastes a link onto it · Drag to swap`,
+    );
   });
 });
 
@@ -338,11 +647,11 @@ describe('live updates', () => {
     expect(keyButton('G').getAttribute('aria-label')).toBe(`${T} G: github.com`);
   });
 
-  it('says "open in a tab now" in the status line of an open key', async () => {
+  it('says "Open in a tab now" in the status of an open key', async () => {
     await store('G');
     openTabs = [...openTabs, tab(2, { url: 'https://github.com/' })];
     await renderPage('#key=G');
-    expect(screen.getByText(/· open in a tab now$/)).toBeDefined();
+    expect(inEditor().getByText('Open in a tab now')).toBeDefined();
   });
 });
 
@@ -383,8 +692,8 @@ describe('Use current tab', () => {
   });
 });
 
-describe('Try', () => {
-  const tryButton = () => screen.getByRole('button', { name: /^Try / }) as HTMLButtonElement;
+describe('Test', () => {
+  const tryButton = () => inEditor().getByRole('button', { name: 'Test' }) as HTMLButtonElement;
   let sent: { type: string; data: unknown; stored: unknown }[];
 
   beforeEach(() => {
@@ -426,14 +735,16 @@ describe('Try', () => {
     ]);
   });
 
-  it('is labelled with the platform chord', async () => {
+  it('leaves the editor open on its key', async () => {
     await store('G');
     await renderPage('#key=G');
-    expect(tryButton().textContent).toMatch(/^Try (⌥G|Alt\+G)$/);
+    await act(async () => tryButton().click());
+    await advance();
+    expect(chip()).toBe(chordLabel('G'));
   });
 });
 
-describe('the inspector fields', () => {
+describe('the editor fields', () => {
   it('leaves the link as typed while focused and shows it normalized on blur', async () => {
     await store('G');
     await renderPage('#key=G');
@@ -449,12 +760,14 @@ describe('the inspector fields', () => {
   it('shows the tab match and its live hint only for Smart switch', async () => {
     await store('G', { tabMatch: 'page' });
     await renderPage('#key=G');
+    act(() => moreOptions().click());
+    expect(moreOptions().getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByText('Reuses a tab on https://github.com/, ignoring ?query and #anchors.')).toBeDefined();
 
     act(() => screen.getByRole('radio', { name: 'Any page of the site' }).click());
     expect(screen.getByText('Reuses any tab on github.com — e.g. a video you left open.')).toBeDefined();
 
-    act(() => screen.getByRole('radio', { name: /^New tab/ }).click());
+    act(() => mode('New tab').click());
     expect(screen.queryByText(/Reuses/)).toBeNull();
   });
 
@@ -464,31 +777,29 @@ describe('the inspector fields', () => {
     const close = () => screen.getByRole('checkbox', { name: 'Close the tab I’m on afterwards' });
     expect(close().getAttribute('aria-checked')).toBe('true');
 
-    act(() => screen.getByRole('radio', { name: /^This tab/ }).click());
+    act(() => mode('This tab').click());
     expect(close().getAttribute('aria-checked')).toBe('false');
     expect(close().hasAttribute('disabled')).toBe(true);
     await advance(400);
     expect(await readItem('G')).toMatchObject({ openMode: 'this', closeCurrent: true });
 
-    act(() => screen.getByRole('radio', { name: /^Smart switch/ }).click());
+    act(() => mode('Smart switch').click());
     expect(close().getAttribute('aria-checked')).toBe('true');
   });
 
-  it('reads the status line from the open mode', async () => {
+  it('reads the status from the open mode, with the name or site as the title', async () => {
     await store('G', { openMode: 'bg' });
     await renderPage('#key=G');
-    expect(screen.getByText(/ \+ G · Background tab$/)).toBeDefined();
+    expect(title()).toBe('github.com');
+    expect(inEditor().getByText('Background tab')).toBeDefined();
   });
 
-  it('reads "Free key" and "paste a link to assign" on a free key', async () => {
+  it('reads "Free key" and "Paste a link to assign it" on a free key', async () => {
     await renderPage('#key=K');
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Free key');
-    expect(screen.getByText(/ \+ K · paste a link to assign$/)).toBeDefined();
+    expect(title()).toBe('Free key');
+    expect(inEditor().getByText('Paste a link to assign it')).toBeDefined();
   });
 });
-
-const searchField = () => screen.getByRole('searchbox', { name: 'Find a link, site or key' }) as HTMLInputElement;
-const press = (target: Element, key: string) => act(() => fireEvent.keyDown(target, { key }));
 
 describe('/ search', () => {
   const slash = (target: Element, init: KeyboardEventInit = {}) =>
@@ -549,6 +860,7 @@ describe('/ search', () => {
     await type(searchField(), 'youtube');
     expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
     expect(keyButton('G').dataset.dimmed).toBe('true');
+    expect(chip()).toBe(chordLabel('G'));
     expect(window.location.hash).toBe('#key=G');
   });
 
@@ -580,6 +892,7 @@ describe('/ search', () => {
 
   it('/ on a checkbox or radio still jumps to the search', async () => {
     await renderPage('#key=K');
+    act(() => moreOptions().click());
     const close = screen.getByRole('checkbox', { name: 'Close the tab I’m on afterwards' });
     act(() => close.focus());
     slash(close);
@@ -650,43 +963,50 @@ describe('List view', () => {
     expect(keyButton('G').getAttribute('aria-label')).toBe(`${T} G: github.com, open in a tab`);
   });
 
-  it('selects a key by a click anywhere on its row, marks the row selected and mirrors the hash', async () => {
+  it('a click anywhere on a row switches to the Keyboard view with that key’s editor open', async () => {
     await store('G');
     await store('Y', { link: 'https://youtube.com/' });
-    await renderPage('#key=G');
+    await renderPage();
     showList();
-    expect(row('G').getAttribute('aria-selected')).toBe('true');
-    expect(row('Y').getAttribute('aria-selected')).toBe('false');
 
     act(() => (row('Y').querySelectorAll('td')[2] as HTMLElement).click());
-    expect(row('Y').getAttribute('aria-selected')).toBe('true');
-    expect(row('G').getAttribute('aria-selected')).toBe('false');
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('youtube.com');
+    await advance();
+    expect(screen.getByRole('radio', { name: 'Keyboard' }).getAttribute('aria-checked')).toBe('true');
+    expect(chip()).toBe(chordLabel('Y'));
+    expect(title()).toBe('youtube.com');
+    expect(selectedKey()).toMatch(new RegExp(`^${T} Y:`));
     expect(window.location.hash).toBe('#key=Y');
+    expect(document.activeElement).toBe(keyButton('Y'));
   });
 
-  it('keeps the selection when switching views', async () => {
+  it('keeps the selection when switching views: the row is marked, no editor, and back reopens it', async () => {
     await store('G');
     await store('Y', { link: 'https://youtube.com/' });
     await renderPage('#key=G');
     showList();
-    act(() => keyButton('Y').click());
+    expect(editor()).toBeNull();
+    expect(row('G').getAttribute('aria-selected')).toBe('true');
+    expect(row('Y').getAttribute('aria-selected')).toBe('false');
+    expect(window.location.hash).toBe('#key=G');
+
     act(() => screen.getByRole('radio', { name: 'Keyboard' }).click());
-    expect(selectedKey()).toMatch(new RegExp(`^${T} Y:`));
+    expect(chip()).toBe(chordLabel('G'));
   });
 
-  it('shows edits and Clear key live', async () => {
+  it('shows edits and Clear key made in the editor', async () => {
     await store('G', { name: 'GitHub' });
     await store('Y', { link: 'https://youtube.com/' });
     await renderPage('#key=G');
-    showList();
 
     await type(nameField(), 'Code');
     await advance(400);
+    showList();
     expect(rows()[1]?.[1]).toBe('Code');
 
-    act(() => screen.getByRole('button', { name: 'Clear key' }).click());
+    act(() => screen.getByRole('radio', { name: 'Keyboard' }).click());
+    act(() => inEditor().getByRole('button', { name: 'Clear key' }).click());
     await advance();
+    showList();
     expect(rows().map((cells) => cells[0])).toEqual(['Y']);
   });
 
@@ -772,20 +1092,31 @@ describe('↵ and Esc in the search field', () => {
     expect(selectedKey()).toBe(`${T} W: free`);
   });
 
-  it('↵ in List view picks the first visible row, never a free key', async () => {
+  it('↵ in List view acts as a click on the first visible row: Keyboard view, editor open, focus in Link', async () => {
     await store('G', { name: 'Pull requests' });
     await store('Y', { link: 'https://youtube.com/' });
-    await renderPage('#key=Y');
+    await renderPage();
     act(() => screen.getByRole('radio', { name: 'List' }).click());
+    act(() => searchField().focus());
     await type(searchField(), 'q');
     press(searchField(), 'Enter');
-    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+    await advance();
 
-    // W is free, so the list shows "No keys match" and ↵ keeps G, which the list now hides.
+    expect(screen.getByRole('radio', { name: 'Keyboard' }).getAttribute('aria-checked')).toBe('true');
+    expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
+    expect(title()).toBe('Pull requests');
+    expect(document.activeElement).toBe(linkField());
+  });
+
+  it('↵ in List view never picks a free key', async () => {
+    await store('G', { name: 'Pull requests' });
+    await renderPage();
+    act(() => screen.getByRole('radio', { name: 'List' }).click());
+    // W is free, so the list shows "No keys match" and ↵ does nothing.
     await type(searchField(), 'w');
     press(searchField(), 'Enter');
-    expect(window.location.hash).toBe('#key=G');
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Pull requests');
+    expect(selectedKey()).toBeNull();
+    expect(screen.getByRole('radio', { name: 'List' }).getAttribute('aria-checked')).toBe('true');
   });
 
   it('↵ with no match changes nothing', async () => {
@@ -984,6 +1315,35 @@ describe('drag-to-swap', () => {
     expect(announced()).toContain('Cancelled. Nothing changed.');
     expect(keyButton('T').dataset.state).toBe('free');
     expect(selectedKey()).toBe(`${T} Y: YouTube`);
+    expect(chip()).toBe(chordLabel('Y'));
+  });
+
+  it('with the editor closed, a drop leaves nothing selected', async () => {
+    await store('Y', youtube);
+    await renderPage();
+
+    await pickUp('Y');
+    await pressKeys('ArrowLeft', 'Space');
+    await advance();
+
+    expect(await readItem('T')).toEqual(youtube);
+    expect(selectedKey()).toBeNull();
+    expect(editor()).toBeNull();
+    expect(window.location.hash).toBe('');
+  });
+
+  it('with the editor open on another key, it reopens on the key the dragged shortcut moved to', async () => {
+    await store('Y', youtube);
+    await store('G');
+    await renderPage('#key=G');
+
+    await pickUp('Y');
+    await pressKeys('ArrowLeft', 'Space');
+    await advance();
+
+    expect(chip()).toBe(chordLabel('T'));
+    expect(title()).toBe('YouTube');
+    expect(window.location.hash).toBe('#key=T');
   });
 
   it('dropping a key back on itself changes nothing', async () => {
@@ -1094,6 +1454,17 @@ describe('drag-to-swap', () => {
   });
 });
 
+describe('loading', () => {
+  it('says it is loading until the keymap arrives, with no keyboard yet', async () => {
+    vi.spyOn(browser.storage.sync, 'get').mockImplementation(() => new Promise(() => {}));
+    window.history.replaceState(null, '', '/options.html');
+    render(<OptionsPage />);
+    await advance();
+    expect(screen.getByRole('status').textContent).toBe('Loading your keys…');
+    expect(screen.queryByRole('button', { name: new RegExp(`^${T} K:`) })).toBeNull();
+  });
+});
+
 describe('the ⌥S hint', () => {
   const hint = () => screen.queryByRole('link', { name: `Set ${chordLabel('S')} for pages where SpeedLink can’t run` });
 
@@ -1184,6 +1555,8 @@ describe('⌥ + key on Options', () => {
 
     expect(selectedKey()).toBe(`${T} K: free`);
     expect(window.location.hash).toBe('#key=K');
+    expect(chip()).toBe(chordLabel('K'));
+    expect(document.activeElement).toBe(linkField());
     expect(sent).toEqual([]);
   });
 
@@ -1292,11 +1665,19 @@ describe('#search', () => {
     expect(selectedKey()).toMatch(new RegExp(`^${T} G:`));
   });
 
-  it('focuses the search when the page opens on it', async () => {
+  it('focuses the search when the page opens on it, leaving the hash empty with nothing selected', async () => {
     await store('G');
     await renderPage('#search');
 
     expect(document.activeElement).toBe(searchField());
-    expect(window.location.hash).toBe('#key=G');
+    expect(window.location.hash).toBe('');
+    expect(editor()).toBeNull();
+  });
+
+  it('with nothing selected, takes the hash back to none', async () => {
+    await renderPage();
+    await goTo('#search');
+    expect(document.activeElement).toBe(searchField());
+    expect(window.location.hash).toBe('');
   });
 });

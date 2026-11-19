@@ -43,6 +43,7 @@ const TRIGGER_KEYS = {
     plusKey: 'platform.mac.plusKey',
     plus: 'platform.mac.plus',
     symbol: 'platform.mac.symbol',
+    paste: 'platform.mac.paste',
   },
   other: {
     label: 'platform.other.trigger',
@@ -51,6 +52,7 @@ const TRIGGER_KEYS = {
     plusKey: 'platform.other.plusKey',
     plus: 'platform.other.plus',
     symbol: 'platform.other.symbol',
+    paste: 'platform.other.paste',
   },
 } as const;
 
@@ -82,4 +84,9 @@ export function triggerSymbol(platform: Platform = PLATFORM): string {
 /** "⌥ +" or "Alt +", before a picked key's keycap. */
 export function triggerPlus(platform: Platform = PLATFORM): string {
   return i18n.t(TRIGGER_KEYS[platform].plus);
+}
+
+/** "⌘V" or "Ctrl+V": the paste shortcut, for the Options legend. */
+export function pasteLabel(platform: Platform = PLATFORM): string {
+  return i18n.t(TRIGGER_KEYS[platform].paste);
 }

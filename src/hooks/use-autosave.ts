@@ -1,6 +1,6 @@
 // Options autosave (product spec §8.4): a valid draft is written ~400 ms after the last edit, an invalid one never.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { checkDraft, type KeyDraft } from '@/domain/key-draft';
+import { checkDraft, type DraftCheck, type KeyDraft } from '@/domain/key-draft';
 import { put } from '@/domain/keymap-ops';
 import type { Key } from '@/domain/keys';
 import type { Shortcut } from '@/domain/shortcut';
@@ -28,20 +28,20 @@ interface Pending {
 }
 
 /**
- * Saves the selected key's draft over its stored shortcut. When the key changes, a pending valid draft is still
- * written to the key it was made on; an invalid one was never pending, so it is dropped. `pagehide` and unmount
- * make a best-effort flush.
+ * Saves the selected key's draft over its stored shortcut. When the key changes or the selection ends (null), a
+ * pending valid draft is still written to the key it was made on; an invalid one was never pending, so it is
+ * dropped. `pagehide` and unmount make a best-effort flush.
  */
 export function useAutosave({
   key,
   draft,
   stored,
 }: {
-  key: Key;
-  draft: KeyDraft;
+  key: Key | null;
+  draft: KeyDraft | null;
   stored: Shortcut | undefined;
 }): Autosave {
-  const check = checkDraft(draft, stored);
+  const check: DraftCheck = key === null || draft === null ? { kind: 'same' } : checkDraft(draft, stored);
   // The keymap is re-read whole on every change, so `stored` is a new object even when this key didn't change.
   const checked = JSON.stringify(check);
   const [failed, setFailed] = useState(false);
@@ -70,7 +70,7 @@ export function useAutosave({
   useEffect(() => {
     if (pending.current !== null && pending.current.key !== key) void write();
     setFailed(false);
-    if (check.kind !== 'valid') {
+    if (key === null || check.kind !== 'valid') {
       cancel();
       return;
     }

@@ -69,5 +69,7 @@ test('updating from 1.6 opens the welcome tab once and migrates the keymap, S mo
   // The imported keys count a tab as open only when it shows their page.
   const options = await context.newPage();
   await options.goto(`chrome-extension://${new URL(worker.url()).host}/options.html#key=1`);
+  // This page is the default, so it sits in More options, collapsed.
+  await options.getByRole('dialog', { name: 'Edit key' }).getByRole('button', { name: 'More options' }).click();
   await expect(options.getByRole('radio', { name: 'This page' })).toHaveAttribute('aria-checked', 'true');
 });

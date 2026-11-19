@@ -420,7 +420,7 @@ describe('openKey: badge flash', () => {
   });
 });
 
-describe('openKey: Try ⌥K from Options', () => {
+describe('openKey: Test from Options', () => {
   const options = tab(1, { index: 0, active: true, url: 'chrome-extension://abc/options.html#key=D' });
   const tryKey = (openKey = createOpenKey()) => openKey({ key: 'D', force: false, trial: true }, options);
 
@@ -523,7 +523,7 @@ describe('openKey: from the popup', () => {
   });
 });
 
-describe('openKey: Try ⌥K with Force new tab', () => {
+describe('openKey: Test with Force new tab', () => {
   it('opens a new tab even for a matching tab, leaving Options alone', async () => {
     const options = tab(1, { index: 0, active: true, url: 'chrome-extension://abc/options.html#key=D' });
     openTabs([options, tab(5, { url: LINK })]);
@@ -537,7 +537,7 @@ describe('openKey: Try ⌥K with Force new tab', () => {
   });
 });
 
-describe('openKey: Try ⌥K on a free key', () => {
+describe('openKey: Test on a free key', () => {
   it('replies free and shows no toast, since a SpeedLink page has no content script', async () => {
     const options = tab(1, { index: 0, active: true, url: 'chrome-extension://abc/options.html' });
     openTabs([options]);
