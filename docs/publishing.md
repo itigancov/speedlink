@@ -101,7 +101,7 @@ When the API path is broken, a release still ships by hand:
 ## Landing page and privacy policy on GitHub Pages
 
 `site/` is the whole published site, plain static files with no build:
-- `/` (`index.html`): the landing page, the listing's Homepage URL `https://itigancov.github.io/speedlink/`. Its styles are inline and it loads nothing from another site. Its files sit beside it: `media/` holds copies of the `store/` images it shows (the screenshots, and the promo tile as `og:image`), which `pnpm listing` refreshes; `fonts/` holds Inter and `OFL.txt`, and `icon/32.png` the favicon, copied once from `public/`. `e2e/landing.spec.ts` checks the links, that no request leaves `site/`, that every file it references loads, and that every copy equals its original.
+- `/` (`index.html`): the landing page, the listing's Homepage URL `https://itigancov.github.io/speedlink/`. Its styles are inline and it loads nothing from another site. Its files sit beside it: `media/` holds the three clean frames and the social card (`og:image`), which `pnpm listing` draws there; `fonts/` holds Inter and `OFL.txt`, and `icon/32.png` the favicon, copied once from `public/`. `e2e/landing.spec.ts` checks the links, that no request leaves `site/`, that every file it references loads, the hero's try-it demo and Copy the link, and that the font and icon copies equal their originals.
 - `/privacy/` (`privacy/index.html`): the policy, the listing's Privacy policy URL `https://itigancov.github.io/speedlink/privacy/`. Its font is inlined. Its address never moves.
 - `.nojekyll`.
 
