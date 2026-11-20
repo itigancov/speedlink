@@ -14,6 +14,7 @@ import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
 import { enterTarget, searchKeymap } from '@/domain/search';
 import { isOpenNow } from '@/domain/tab-match';
 import { useAutosave } from '@/hooks/use-autosave';
+import { useFitsWidth } from '@/hooks/use-fits-width';
 import { useKeymap } from '@/hooks/use-keymap';
 import { lastWebTab, useOpenTabs } from '@/hooks/use-open-tabs';
 import { useOverlayCommandBound } from '@/hooks/use-overlay-command-bound';
@@ -23,7 +24,7 @@ import { isEditableTarget } from '@/platform/key-capture';
 import { readKeymap, writeChange } from '@/platform/keymap-store';
 import { sendMessage } from '@/platform/messaging';
 import { chordLabel, triggerLabel, triggerPlusKey } from '@/platform/platform-labels';
-import { KeyboardCard, type KeyCapsHandle } from './KeyboardCard';
+import { KeyboardCard, type KeyCapsHandle, LG_KEYBOARD_CARD_WIDTH } from './KeyboardCard';
 import { EDITOR_PANEL, KeyEditor } from './KeyEditor';
 import { ListCard } from './ListCard';
 import { hashFor, useKeyEditor } from './use-key-editor';
@@ -37,7 +38,8 @@ interface SearchProps {
   inputRef?: Ref<HTMLInputElement>;
 }
 
-function Header({ search }: { search: SearchProps }) {
+/** `holdHint` is off in a narrow window, where the header has no room for it. */
+function Header({ search, holdHint = true }: { search: SearchProps; holdHint?: boolean }) {
   return (
     <header className="flex flex-wrap items-center gap-x-8 gap-y-3 border-b bg-card px-8 py-3.5">
       <Brand />
@@ -58,9 +60,11 @@ function Header({ search }: { search: SearchProps }) {
           <Kbd>/</Kbd>
         </InputGroupAddon>
       </InputGroup>
-      <p className="ml-auto flex items-center gap-1.5 text-muted-foreground text-ui">
-        {i18n.t('options.holdHint.before')} <Kbd>{triggerLabel()}</Kbd> {i18n.t('options.holdHint.after')}
-      </p>
+      {holdHint && (
+        <p className="ml-auto flex items-center gap-1.5 text-muted-foreground text-ui">
+          {i18n.t('options.holdHint.before')} <Kbd>{triggerLabel()}</Kbd> {i18n.t('options.holdHint.after')}
+        </p>
+      )}
     </header>
   );
 }
@@ -147,6 +151,9 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
   const linkRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const keyboardRef = useRef<KeyCapsHandle>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  /** One measure of the keys card: the lg keyboard fits, or Options draws compact keys and drops the header hint. */
+  const roomy = useFitsWidth(cardRef, LG_KEYBOARD_CARD_WIDTH);
   const listRef = useRef<KeyCapsHandle>(null);
   /** Focus goes to Link once the dialog, or its new key, has rendered: ↵ from the search, ⌥ + a free key. */
   const focusLink = useRef(false);
@@ -250,7 +257,10 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
 
   return (
     <>
-      <Header search={{ query, onQueryChange: setQuery, onKeyDown: onSearchKeyDown, inputRef: searchRef }} />
+      <Header
+        search={{ query, onQueryChange: setQuery, onKeyDown: onSearchKeyDown, inputRef: searchRef }}
+        holdHint={roomy}
+      />
       <main className="mx-auto flex max-w-280 flex-col gap-6 p-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-col gap-1.5">
@@ -274,26 +284,29 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
             <ToggleGroupItem value="list">{i18n.t('options.view.list')}</ToggleGroupItem>
           </ToggleGroup>
         </div>
-        {view === 'keyboard' ? (
-          <KeyboardCard
-            ref={keyboardRef}
-            keymap={keymap}
-            openKeys={openKeys}
-            selected={key}
-            matches={matches}
-            onSelect={(clicked) => openAt(clicked, false)}
-            onDrop={(from, to) => void onDrop(from, to)}
-          />
-        ) : (
-          <ListCard
-            ref={listRef}
-            keymap={keymap}
-            openKeys={openKeys}
-            selected={key}
-            matches={matches}
-            onSelect={(row) => openAt(row, false)}
-          />
-        )}
+        <div ref={cardRef}>
+          {view === 'keyboard' ? (
+            <KeyboardCard
+              ref={keyboardRef}
+              size={roomy ? 'lg' : 'compact'}
+              keymap={keymap}
+              openKeys={openKeys}
+              selected={key}
+              matches={matches}
+              onSelect={(clicked) => openAt(clicked, false)}
+              onDrop={(from, to) => void onDrop(from, to)}
+            />
+          ) : (
+            <ListCard
+              ref={listRef}
+              keymap={keymap}
+              openKeys={openKeys}
+              selected={key}
+              matches={matches}
+              onSelect={(row) => openAt(row, false)}
+            />
+          )}
+        </div>
         <CommandHint />
       </main>
       {/* The key editor (§8.3): modal, so a key is chosen with the dialog closed and the page waits behind it. */}

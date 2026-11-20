@@ -280,14 +280,15 @@ There is no left nav: only Keymap is left. The page is one centred column (heade
 **Header**
 - Logo + "SpeedLink".
 - A 44 px search field "Find a link, site or key…" with a `/` keycap.
-- In the right slot, the hint "Hold **⌥ Option** anywhere to see your keys".
+- In the right slot, the hint "Hold **⌥ Option** anywhere to see your keys". It is hidden in a narrow window (below).
 
 **Heading**
 - "Keymap" + the subline "Press **⌥ + key** on any page to open its link. N of 35 keys in use."
 - A view switch **Keyboard** (default) | **List**.
 
 **Keyboard view**
-- Keys: 4 staggered rows of 76×64 keys (a compact 56×52 size exists for narrow windows), no modifier row.
+- Keys: 4 staggered rows of 76×64 keys, no modifier row.
+- Narrow window: when the keys card is narrower than the 76×64 keyboard (860 px of card content, a window of about 974 px), the same keyboard is drawn with compact 56×52 keys (stagger 0/20/34/54 px, gap 6 px) and the header hint is hidden. The size follows the card's width live, both ways, and is right from the first paint. Narrower than the compact keyboard (634 px of content, a window of about 748 px) the keyboard scrolls sideways inside its card; the page never does. States, selection, drag-to-swap, the arrows, the key editor dialog and the List view work the same at every width. The legend and its hint stay and wrap.
 - Key states: free, assigned (label, monogram tile and the name on a bottom line), open now (green dot on the outer corner), selected (blue, the tile keeps its colour with a white ring), drop target, reserved S (lock).
 - A click (or ↵ / Space) on a key opens its editor dialog (§8.3).
 - A legend: Assigned · Free · ● Open in a tab now, and on the right "Press a key to edit it · **⌘V** pastes a link onto it · Drag to swap" (Ctrl+V on Windows and Linux).

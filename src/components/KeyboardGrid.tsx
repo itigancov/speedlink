@@ -25,6 +25,27 @@ const STAGGER: Record<KeyboardGridSize, readonly string[]> = {
 
 const GAP: Record<KeyboardGridSize, string> = { lg: 'gap-2', compact: 'gap-1.5', sm: 'gap-1' };
 
+/**
+ * The same sizes in px, for `keyboardWidth`. They must match the key widths of `KeyCap` (lg w-19, compact w-14, sm
+ * w-7) and the classes above; e2e/options.spec.ts checks the rendered keys against the threshold built from them.
+ */
+const KEY_WIDTH_PX: Record<KeyboardGridSize, number> = { lg: 76, compact: 56, sm: 28 };
+const GAP_PX: Record<KeyboardGridSize, number> = { lg: 8, compact: 6, sm: 4 };
+const STAGGER_PX: Record<KeyboardGridSize, readonly number[]> = {
+  lg: [0, 28, 46, 74],
+  compact: [0, 20, 34, 54],
+  sm: [0, 10, 16, 26],
+};
+
+/** The width in px of the keyboard drawn at a size: its widest row, stagger included. */
+export function keyboardWidth(size: KeyboardGridSize): number {
+  const key = KEY_WIDTH_PX[size];
+  const gap = GAP_PX[size];
+  return Math.max(
+    ...KEYBOARD_ROWS.map((row, index) => (STAGGER_PX[size][index] ?? 0) + row.length * key + (row.length - 1) * gap),
+  );
+}
+
 export function KeyboardGrid({ size, renderKey, className }: KeyboardGridProps) {
   const stagger = STAGGER[size];
   return (
