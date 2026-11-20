@@ -126,6 +126,15 @@ test('shares the social card at its absolute Pages URL', async ({ page }) => {
   }
 });
 
+// Google Search Console verifies the URL-prefix property through this tag; the Store's Official URL depends on it.
+test('carries the Search Console verification tag', async ({ page }) => {
+  await visit(page);
+  await expect(page.locator('meta[name="google-site-verification"]')).toHaveAttribute(
+    'content',
+    'R6eKNY1HDABOkGQ3Bc_oYA5tNs8OpwPdh6SxCZbHFD0',
+  );
+});
+
 test.describe('the try-it demo', () => {
   const demo = (page: Page) => page.getByRole('region', { name: 'Try it' });
   const tabs = (page: Page) => demo(page).getByRole('list', { name: 'Open tabs' }).getByRole('listitem');
