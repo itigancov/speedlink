@@ -228,37 +228,37 @@ Toasts render on the page, top frame only. Each is a dark pill: key chip + messa
 
 ## 7. Popup · Assign this page
 
-380 px wide.
-- **Header**: logo + "SpeedLink" + an "Open keymap" icon link.
-- **Footer tip**: "Tip: hold ⌥ on any page to see all keys".
+380 px wide. Every view (assign, launcher, loading) has the same frame: a full-width white header bar, a grey scrolling body and a full-width white footer bar.
+- **Header**: logo + "SpeedLink". Nothing on the right.
+- **Footer**: "Hold ⌥ to see all keys" (⌥ as a key; "Alt" off a Mac) and an "Open keymap →" link that opens Options and closes the popup. The launcher's footer is only "Open keymap →". While loading, the body is empty and the footer is the assign view's.
 
 **Page card**
-- The shortcut's coloured monogram tile (no favicon), the tab title and the link.
+- The shortcut's coloured monogram tile (36 px, no favicon), the tab title and the link.
 - **Already on a key**: each shortcut is matched by its own tab match. The card says "Already on ⌥Y" (or "⌥Y, ⌥2"). Nothing is blocked: saving adds another key.
 
 **Key picker**
-- Label "Press a key to put this page on it".
+- Label "Press a key to put this page on it". With all 35 keys in use: "All 35 keys are in use — press one to replace it", no picked key and the keyboard shown.
 - A picked-key drop zone ("⌥ +" + big keycap).
-- "Free & fitting:" chips (§2.6, at most 4).
-- A mini keyboard (picked / taken / free / reserved).
+- "Free & fitting" chips (§2.6, at most 4): the bare letter, named "⌥H" ("Alt+H") for assistive tech.
+- **Show keyboard / Hide keyboard**: a link-style button (`aria-expanded`) that swaps the chips for the mini keyboard (picked / taken / free / reserved) and back. The popup always opens on the chips; the choice is not remembered. With no chips (all 35 in use, or no free key fits) the mini keyboard shows from the start and there is no toggle.
 - **Default picked key**: the first chip, else the first free key in keyboard order.
-- A physical key press in the popup (`event.code`, no ⌥) picks that key; ↵ saves.
+- A physical key press in the popup (`event.code`, no ⌥) picks that key in either view, without switching the view (a key that isn't a chip shows in the drop zone with no chip pressed); ↵ saves, also right after the toggle was clicked.
 
-**Opens as**: a `Select` with the 4 open modes. Tab match and close current are not in the popup. A new shortcut gets the defaults (smart / page / no close) plus the chosen open mode; it never inherits a replaced shortcut's settings.
+**Opens as**: a compact dropdown with the 4 open modes, no visible label (named "Opens as: Smart switch" for assistive tech), left of the primary button on one row; both 46 px high. Tab match and close current are not in the popup. A new shortcut gets the defaults (smart / page / no close) plus the chosen open mode; it never inherits a replaced shortcut's settings.
 
-**Primary button**: free key → "Save to ⌥K"; taken key → dark "Replace ⌥K".
+**Primary button**: fills the rest of the row. Free key → "Save to ⌥K"; taken key → dark "Replace ⌥K". A failed save shows "Couldn't save ⌥K" under the row.
 
 **Conflict**
-- A warning alert "⌥K already opens **Name**." with **Replace** and **Move it to ⌥X** (X per §2.6). Move is hidden when no key is free.
+- A warning alert "⌥K already opens **Name**." with only **Move it to ⌥X** (X per §2.6); Replace is the primary button. Move is hidden when no key is free.
 - Pick another = press another key.
 - Replace and Move both write the undo record.
 
 **Unusable page** (any non-http(s) or restricted page): the popup is a **launcher**, so it is never a dead end.
-- Under the header, a short line "This page can't be put on a key" and an "Open keymap" link. The picker, Save and Opens as are not shown.
+- Under the header, a short line "This page can't be put on a key" (the way to the keymap is the footer link). The picker, Save and Opens as are not shown.
 - Then the overlay's tiles for this tab (§5.4: keycap, name or site, "Open · tab N" subline, green dot), from `getOverlayModel{tabId}`, 2 columns at this width; past 12 tiles the area scrolls inside the popup. No pencil and no search.
 - A bare key, ⌥+key or a tile click opens that key's shortcut through `openKey{key, force, tabId}` with the restricted tab as the current tab (normal semantics, not Test): This tab replaces the new tab page, close current closes it. ⇧ (or ⇧+click) = Force new tab. The keys are read by `event.code`; S is ignored.
 - An `opened` / `noop` reply closes the popup. A free key stays open with "⌥K is free" under the tiles; a `failed` reply shows "Couldn't open ⌥K".
-- Empty keymap: "No keys yet" + "Open keymap".
+- Empty keymap: "No keys yet" + "Open keymap" (and the footer link).
 - ⌥S on a restricted page still opens Options (§5.3).
 
 **All 35 in use**: no chips and no picked key; the prompt reads "All 35 keys are in use — press one to replace it". Replace only.
