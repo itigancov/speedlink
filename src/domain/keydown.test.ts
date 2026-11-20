@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type BrowserOs, classifyKeydown, type KeydownInput } from './keydown';
+import { type BrowserOs, classifyKeydown, type KeydownInput, pageKeyDecision } from './keydown';
 import type { Key } from './keys';
 
 /** ⌥ + K, nothing else held, on a normal page target. */
@@ -137,5 +137,47 @@ describe('classifyKeydown: free keys and the browser’s own Alt keys', () => {
       key: '0',
       force: false,
     });
+  });
+});
+
+describe('pageKeyDecision: a bare key on Options', () => {
+  /** K with nothing held, on a non-editable target. */
+  const bare = (fields: Partial<KeydownInput> = {}): KeydownInput => press({ altKey: false, ...fields });
+  const idle = { selected: null, dragActive: false };
+
+  it('selects a letter or a digit with the dialog closed', () => {
+    expect(pageKeyDecision(bare(), idle)).toEqual({ kind: 'select', key: 'K' });
+    expect(pageKeyDecision(bare({ code: 'Digit0' }), idle)).toEqual({ kind: 'select', key: '0' });
+  });
+
+  it('selects another key with the dialog open', () => {
+    expect(pageKeyDecision(bare({ code: 'KeyG' }), { selected: 'K', dragActive: false })).toEqual({
+      kind: 'select',
+      key: 'G',
+    });
+  });
+
+  it.each<[string, Partial<KeydownInput>]>([
+    ['⌥', { altKey: true }],
+    ['⇧', { shiftKey: true }],
+    ['⌘', { metaKey: true }],
+    ['Ctrl', { ctrlKey: true }],
+    ['AltGr', { altGraph: true }],
+    ['a repeat', { repeat: true }],
+    ['composing', { composing: true }],
+    ['an editable target', { editable: true }],
+    ['S', { code: 'KeyS' }],
+    ['a non-key code', { code: 'Slash' }],
+    ['a numpad digit', { code: 'Numpad1' }],
+  ])('ignores %s', (_name, fields) => {
+    expect(pageKeyDecision(bare(fields), idle)).toEqual({ kind: 'ignore' });
+  });
+
+  it('ignores a key during a drag', () => {
+    expect(pageKeyDecision(bare(), { selected: null, dragActive: true })).toEqual({ kind: 'ignore' });
+  });
+
+  it('ignores the key already selected', () => {
+    expect(pageKeyDecision(bare(), { selected: 'K', dragActive: false })).toEqual({ kind: 'ignore' });
   });
 });

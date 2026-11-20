@@ -28,3 +28,25 @@ export function isOpenNow(shortcut: Shortcut, tabUrls: readonly string[]): boole
   if (shortcut.openMode !== 'smart') return false;
   return tabUrls.some((tabUrl) => tabMatches(tabUrl, shortcut.link, shortcut.tabMatch));
 }
+
+/** The parts of an open tab the title pick reads. */
+export interface TitledTab {
+  url: string;
+  title: string;
+  lastAccessed: number;
+}
+
+/**
+ * The name Options fills in for a link (product spec §8.3): the title of the most recently used tab on the link's page
+ * by the "This page" rule. Undefined with no such tab, or when it has no title. The caller passes only the tabs it may
+ * read titles from (normal, non-incognito windows).
+ */
+export function pageTitleFor(tabs: readonly TitledTab[], link: string): string | undefined {
+  const best = tabs
+    .filter((tab) => tabMatches(tab.url, link, 'page'))
+    .reduce<TitledTab | undefined>(
+      (most, tab) => (most === undefined || tab.lastAccessed > most.lastAccessed ? tab : most),
+      undefined,
+    );
+  return best?.title === '' ? undefined : best?.title;
+}

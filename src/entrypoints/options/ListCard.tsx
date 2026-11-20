@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
 import { siteOf } from '@/domain/link';
 import { displayName, type Shortcut } from '@/domain/shortcut';
-import type { KeyCapsHandle, KeymapViewProps } from './KeyboardCard';
+import { type KeyCapsHandle, type KeymapViewProps, keyCapsHandle } from './KeyboardCard';
 
 /** The same inputs as the Keyboard view; `matches` hides the rows outside a search instead of dimming them. */
 export interface ListCardProps extends KeymapViewProps {
@@ -34,7 +34,7 @@ function Message({ children }: { children: string }) {
 
 export function ListCard({ keymap, openKeys, selected, matches = null, onSelect, platform, ref }: ListCardProps) {
   const nodes = useRef(new Map<Key, HTMLElement>()).current;
-  useImperativeHandle(ref, () => ({ focusKey: (key) => nodes.get(key)?.focus() }), [nodes]);
+  useImperativeHandle(ref, () => keyCapsHandle(nodes), [nodes]);
   const assigned = KEYBOARD_ORDER.flatMap((key) => {
     const shortcut = keymap[key];
     return shortcut === undefined ? [] : [{ key, shortcut }];

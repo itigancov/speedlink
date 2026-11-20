@@ -1,6 +1,6 @@
 // The selected key and its draft (product spec §8.2, §8.4): selection from `#key=K` or none, mirrored back to the
 // hash, and remote changes merged into the draft.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { checkDraft, draftOf, type KeyDraft, mergeRemote } from '@/domain/key-draft';
 import type { Keymap } from '@/domain/keymap-ops';
 import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
@@ -50,6 +50,12 @@ export interface KeyEditor {
   /** Selects the key with its draft reset to storage, even when it is already selected: after a drop writes it. */
   reselect(key: Key): void;
   setDraft(draft: KeyDraft): void;
+  /** Selects the key, if it isn't already, and sets its draft's link; every other field is kept. ⌘V (§8.2). */
+  pasteLink(key: Key, link: string): void;
+  /** Whether Name was edited in the key's last dialog session; a new session on the key starts it over. */
+  nameEdited(key: Key): boolean;
+  /** Puts the name into the key's draft while its session is open and its Name is still empty. */
+  fillName(key: Key, name: string): void;
   /** Shows the key as free at once, ahead of the storage echo; `failed` undoes that when the write fails. */
   markCleared(): { failed(): void };
 }
@@ -74,14 +80,22 @@ export function useKeyEditor(keymap: Keymap): KeyEditor {
   // Adjusting state while rendering: React re-renders at once, before the effects run.
   if (current !== editing) setEditing(current);
 
-  const select = useCallback(
-    (key: Key) => setEditing((prev) => (prev?.key === key ? prev : editingOf(key, keymap[key]))),
-    [keymap],
+  // Kept per key past its session's end: the flush of a key switch still reads the session that just ended.
+  const nameEdits = useRef(new Set<Key>()).current;
+  /** A new dialog session on the key. Idempotent, so it may run inside a state updater. */
+  const start = useCallback(
+    (key: Key) => {
+      nameEdits.delete(key);
+      return editingOf(key, keymap[key]);
+    },
+    [keymap, nameEdits],
   );
+
+  const select = useCallback((key: Key) => setEditing((prev) => (prev?.key === key ? prev : start(key))), [start]);
 
   const close = useCallback(() => setEditing(null), []);
 
-  const reselect = useCallback((key: Key) => setEditing(editingOf(key, keymap[key])), [keymap]);
+  const reselect = useCallback((key: Key) => setEditing(start(key)), [start]);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -98,7 +112,33 @@ export function useKeyEditor(keymap: Keymap): KeyEditor {
   }, [key]);
 
   const setDraft = useCallback(
-    (draft: KeyDraft) => setEditing((prev) => (prev === null ? prev : { ...prev, draft })),
+    (draft: KeyDraft) =>
+      setEditing((prev) => {
+        if (prev === null) return prev;
+        if (draft.name !== prev.draft.name) nameEdits.add(prev.key);
+        return { ...prev, draft };
+      }),
+    [nameEdits],
+  );
+
+  const pasteLink = useCallback(
+    (key: Key, link: string) =>
+      setEditing((prev) => {
+        const target = prev?.key === key ? prev : start(key);
+        return { ...target, draft: { ...target.draft, link } };
+      }),
+    [start],
+  );
+
+  const nameEdited = useCallback((key: Key) => nameEdits.has(key), [nameEdits]);
+
+  const fillName = useCallback(
+    (key: Key, name: string) =>
+      setEditing((prev) =>
+        prev === null || prev.key !== key || prev.draft.name !== ''
+          ? prev
+          : { ...prev, draft: { ...prev.draft, name } },
+      ),
     [],
   );
 
@@ -111,5 +151,17 @@ export function useKeyEditor(keymap: Keymap): KeyEditor {
     };
   };
 
-  return { key, draft: current?.draft ?? null, stored, select, close, reselect, setDraft, markCleared };
+  return {
+    key,
+    draft: current?.draft ?? null,
+    stored,
+    select,
+    close,
+    reselect,
+    setDraft,
+    pasteLink,
+    nameEdited,
+    fillName,
+    markCleared,
+  };
 }

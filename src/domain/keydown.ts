@@ -70,3 +70,26 @@ export function classifyKeydown(
   if (input.shiftKey || BROWSER_KEYS[os].has(label)) return PASS;
   return { kind: 'open', key: label, force: false };
 }
+
+/** Where a bare key press on Options lands: the selected key (none with the dialog closed) and a keyboard drag. */
+export interface PageKeyContext {
+  selected: Key | null;
+  dragActive: boolean;
+}
+
+/** `select`: open the key's dialog, or switch the open dialog to it. `ignore`: the press is left alone. */
+export type PageKeyDecision = { kind: 'ignore' } | { kind: 'select'; key: Key };
+
+const LEAVE: PageKeyDecision = { kind: 'ignore' };
+
+/**
+ * A bare letter or digit on Options (product spec §8.2, §8.9) selects its key. Any modifier, a repeat, IME, a field,
+ * a drag, S and the key already selected leave the press alone; ⌥ + key stays with `classifyKeydown`.
+ */
+export function pageKeyDecision(input: KeydownInput, context: PageKeyContext): PageKeyDecision {
+  const modified = input.altKey || input.shiftKey || input.ctrlKey || input.metaKey || input.altGraph;
+  if (modified || input.repeat || input.composing || input.editable || context.dragActive) return LEAVE;
+  const label = keyLabelFromCode(input.code);
+  if (label === null || !isAssignable(label) || label === context.selected) return LEAVE;
+  return { kind: 'select', key: label };
+}
