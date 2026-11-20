@@ -1,13 +1,14 @@
 // Assign with undo (product spec §3.3, §11.3): the one path that puts a tab's page on a key from outside Options,
 // for the free-key toast and the popup. Read fresh, plan, write, record the undo, toast the tab.
 import type { Browser } from 'wxt/browser';
-import { type AssignOptions, planAssign, planUndo, undoRecord } from '@/domain/assign-plan';
+import { type AssignOptions, planAssign, planUndo } from '@/domain/assign-plan';
 import type { Key } from '@/domain/keys';
 import { displayName } from '@/domain/shortcut';
 import { sendToast } from './injection';
 import { readKeymap, writeChange } from './keymap-store';
 import type { AssignPageReply, UndoReply } from './messaging';
-import { readUndo, removeUndo, writeUndo } from './undo-store';
+import { readUndo, removeUndo } from './undo-store';
+import { writeWithUndo } from './write-with-undo';
 
 export interface AssignPageRequest extends AssignOptions {
   key: Key;
@@ -45,12 +46,10 @@ export function createAssignPage(): AssignPage {
       const plan = planAssign(keymap, key, page, { openMode, resolve });
       if (plan.kind !== 'written') return plan;
 
-      const written = await writeChange(plan.change);
+      const written = await writeWithUndo(plan.change, plan.undo);
       if (!written.ok) return { kind: 'failed' };
-      const record = undoRecord(plan.undo, crypto.randomUUID(), Date.now());
-      await writeUndo(record).catch((error: unknown) => console.error('SpeedLink: no undo record', error));
-      sendToast(tabId, { kind: 'saved', key, name: displayName(plan.shortcut), undoId: record.id });
-      return { kind: 'saved', undoId: record.id };
+      sendToast(tabId, { kind: 'saved', key, name: displayName(plan.shortcut), undoId: written.id });
+      return { kind: 'saved', undoId: written.id };
     } catch (error) {
       console.error('SpeedLink: could not assign', key, error);
       return { kind: 'failed' };

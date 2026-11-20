@@ -26,6 +26,25 @@ export type AssignPageReply =
   | { kind: 'unusable' }
   | { kind: 'failed' };
 
+/** What the popup's key card asks of a shortcut already on a key (product spec §7). */
+export type EditOp =
+  | { kind: 'openMode'; openMode: OpenMode }
+  | { kind: 'remove' }
+  | { kind: 'move'; to: Key; resolve?: 'replace' }
+  | { kind: 'exactPage' };
+
+/**
+ * What `editShortcut` did. `saved`: written; `undo` (the record's handle and when it lapses) only for remove and
+ * move. `conflict`: a move onto a taken key without `resolve`, nothing written. `missing`: the key is free now.
+ * `unusable`: exactPage on a tab URL that isn't a link. `failed`: no such tab, a refused move, or the write failed.
+ */
+export type EditShortcutReply =
+  | { kind: 'saved'; undo?: { id: string; expiresAt: number } }
+  | { kind: 'conflict'; existing: Shortcut }
+  | { kind: 'missing' }
+  | { kind: 'unusable' }
+  | { kind: 'failed' };
+
 /** A sub-frame's Peek or pin, for the top frame (§4.4). */
 export interface FrameEvent {
   kind: 'show' | 'close' | 'pin';
@@ -42,7 +61,7 @@ export type UndoReply = { kind: 'undone' } | { kind: 'stale' } | { kind: 'failed
  *
  * Directions:
  * - content → bg: openKey, assignPage, undo, openOptions, getOverlayModel, frameEvent
- * - popup → bg: openKey, assignPage, openOptions, getOverlayModel
+ * - popup → bg: openKey, assignPage, editShortcut, undo, openOptions, getOverlayModel
  * - options, welcome → bg: tryKey, openOptions
  * - bg → tab (frameId 0, via `sendToTab` in `injection.ts`): ping, overlay, toast, frameEvent
  */
@@ -75,7 +94,13 @@ export interface ProtocolMap {
    */
   assignPage(data: { key: Key; tabId?: number; openMode?: OpenMode; resolve?: Resolve }): AssignPageReply;
 
-  /** Undo the assign whose saved toast carried `id`. */
+  /**
+   * Edit the shortcut on `key` from the popup's key card. Only `key`, `tabId` and `op` come from the popup: the
+   * keymap and the tab's URL are read fresh by the background. Remove and move write the undo record.
+   */
+  editShortcut(data: { key: Key; tabId: number; op: EditOp }): EditShortcutReply;
+
+  /** Undo the change whose saved toast (or the popup's inline Undo) carried `id`. */
   undo(data: { id: string }): UndoReply;
 
   /** Focus an open Options tab, or open one next to the sender, optionally with a key selected (`#key=K`). */

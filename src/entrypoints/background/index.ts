@@ -1,5 +1,6 @@
 import { contentScriptTab, createAssignPage, createUndo } from '@/platform/assign-page';
 import { registerCommands, toggleOverlay } from '@/platform/commands';
+import { createEditShortcut } from '@/platform/edit-shortcut';
 import { registerInjectionOnInstall } from '@/platform/injection';
 import { onMessage } from '@/platform/messaging';
 import { createOpenKey } from '@/platform/open-key';
@@ -20,8 +21,10 @@ export default defineBackground(() => {
     openKey({ key: data.key, force: data.force ?? false, trial: true }, sender.tab),
   );
   const assignPage = createAssignPage();
+  const editShortcut = createEditShortcut();
   const undo = createUndo();
   onMessage('assignPage', ({ data, sender }) => assignPage(data, contentScriptTab(sender)));
+  onMessage('editShortcut', ({ data, sender }) => editShortcut(data, contentScriptTab(sender)));
   onMessage('undo', ({ data }) => undo(data));
   onMessage('openOptions', ({ data, sender }) => openOptions(data?.key, sender.tab));
   onMessage('getOverlayModel', ({ data, sender }) => readOverlayModel(contentScriptTab(sender), data?.tabId));
