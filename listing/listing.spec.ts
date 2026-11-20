@@ -1,24 +1,35 @@
 // `pnpm listing`: draws every image the Web Store listing needs from the real build (the e2e-hooks variant, which has
-// the popup's `?tabId=N` entry), into `store/` and `public/icon/`. The demo keymap goes straight into storage.sync,
-// every demo site is a routed stub, and the browser says it is Chrome on Windows, so the triggers read "Alt". Last,
-// it refreshes the landing page's copies in `site/media/`. A second scenario records the demo loop (item 25) for the
-// landing page and the README, and draws the social card. Not part of `pnpm e2e` or CI: the author reviews the images
-// (item 20) and the loop before they are uploaded (item 22) or committed.
+// the popup's `?tabId=N` entry), into `store/` and `public/icon/`: the five captioned shots (Hero, Smart switch, Peek,
+// Assign, Keymap), the promo tile and the marquee. Hero and Smart switch are templates drawn from the product's
+// components; Peek, Assign and Keymap are captions over clean frames, real captures in a browser mock, which the
+// landing page reuses from `site/media/` along with the social card. The demo keymap goes straight into storage.sync,
+// every demo site is a routed stub, and the browser says it is Chrome on Windows, so the captures read "Alt" (the
+// templates' own text says "⌥ / Alt"). Last, it refreshes the landing page's same-named copies. A second scenario
+// records the demo loop for the README's GIF. Not part of `pnpm e2e` or CI: the author reviews the images in the PR
+// before they are uploaded.
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { BrowserContext, Page, Worker } from '@playwright/test';
 import type { KeyLabel } from '@/domain/keys';
 import { expect, HOOKS_EXTENSION_PATH, serviceWorker, test } from '../e2e/extension';
-import { BACKDROP_URL, DEMO_KEYMAP } from './demo';
+import { BACKDROP_TITLE, BACKDROP_URL, DEMO_KEYMAP, demoTiles, smartSwitchStrips } from './demo';
+import { installI18n } from './i18n';
 import { flatten, inspect } from './png';
 import {
+  browserFramePage,
+  CARD,
+  type Caption,
+  captionedShotPage,
   DEMO_PAGE,
   type DemoTab,
-  demoFramePage,
+  heroPage,
   iconPage,
-  popupCompositePage,
+  MARQUEE,
+  type MockFrame,
+  marqueePage,
   promoTilePage,
+  smartSwitchPage,
   socialCardPage,
 } from './templates';
 import { encodeDemo } from './video';
@@ -42,8 +53,8 @@ declare const speedlinkE2E: { toggleOverlay(tab: Tab): Promise<void> };
 const ROOT = resolve(import.meta.dirname, '..');
 const STORE = join(ROOT, 'store');
 const ICONS = join(ROOT, 'public/icon');
-/** The landing page's media: its copies of the Store images (e2e/landing.spec.ts checks they match `store/`), the
- * demo loop and the social card. */
+/** The landing page's media: the clean frames, the social card, and its copies of Store images
+ * (e2e/landing.spec.ts checks that same-named files match `store/`). */
 const SITE_MEDIA = join(ROOT, 'site/media');
 /** The README's copy of the demo loop. */
 const README_GIF = join(ROOT, 'docs/media/demo.gif');
@@ -52,7 +63,19 @@ const WINDOWS_CHROME =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 const SCREENSHOT = { width: 1280, height: 800 };
 const TILE = { width: 440, height: 280 };
-const CARD = { width: 1200, height: 630 };
+/** What `store/` holds after a run: the listing texts and the seven images, nothing older. */
+const STORE_FILES = [
+  '01-hero.png',
+  '02-smart-switch.png',
+  '03-peek.png',
+  '04-assign.png',
+  '05-keymap.png',
+  'listing.md',
+  'marquee.png',
+  'promo-tile.png',
+];
+/** The 4.0 shots the 4.2 set replaces. */
+const DROPPED = ['01-options-keymap.png', '02-popup-assign.png', '04-saved-toast.png', '05-pinned-overlay-search.png'];
 /** The trigger as the demo's Windows browser labels it. */
 const ALT = 'Alt' as KeyLabel;
 /** The Store takes 128 px icons as 96 px of artwork inside 16 px of transparent padding. */
@@ -127,6 +150,37 @@ async function seedKeymap(worker: Worker): Promise<void> {
   );
 }
 
+const names = new Map(DEMO_KEYMAP.map(({ link, name }) => [new URL(link).hostname, name]));
+
+/** The window's web tabs as the service worker sees them, in strip order, named as the demo keymap names them. */
+async function strip(worker: Worker): Promise<DemoTab[]> {
+  const tabs = (await worker.evaluate(() => chrome.tabs.query({}))).filter(({ url }) => url?.startsWith('https:'));
+  const window = tabs.find(({ active }) => active)?.windowId ?? tabs[0]?.windowId;
+  return tabs
+    .filter(({ windowId }) => windowId === window)
+    .sort((a, b) => a.index - b.index)
+    .map(({ url = '', title = '', active }) => ({
+      title: names.get(new URL(url).hostname) ?? title,
+      link: url,
+      active,
+    }));
+}
+
+/** Draws `html` at `size` and writes it flattened, checked against the Store's rules. */
+async function draw(
+  context: BrowserContext,
+  extensionId: string,
+  html: string,
+  size: { width: number; height: number },
+  path: string,
+): Promise<Buffer> {
+  const page = await drawingPage(context, extensionId, html, size);
+  const png = flatten(await page.screenshot({ animations: 'disabled' }));
+  write(path, png, { ...size, alpha: false });
+  await page.close();
+  return png;
+}
+
 function write(path: string, png: Buffer, rules: { width: number; height: number; alpha: boolean }): void {
   mkdirSync(join(path, '..'), { recursive: true });
   writeFileSync(path, png);
@@ -138,7 +192,11 @@ function write(path: string, png: Buffer, rules: { width: number; height: number
   if (problems.length > 0) throw new Error(`${path} ${problems.join(' and ')}`);
 }
 
-test('draws the icons, the promo tile and the five screenshots', async ({ context, extensionId }) => {
+test('draws the icons, the promo tile, the marquee, the five shots, the clean frames and the social card', async ({
+  context,
+  extensionId,
+}) => {
+  await installI18n();
   const worker = await serviceWorker(context);
   const stylesheets = builtStylesheets();
   await routeDemoSites(context);
@@ -159,100 +217,132 @@ test('draws the icons, the promo tile and the five screenshots', async ({ contex
     await page.close();
   }
 
-  // Promo tile.
-  const tile = await drawingPage(
-    context,
-    extensionId,
-    promoTilePage(stylesheets, 'Your sites, one key away.', 'G'),
-    TILE,
-  );
-  write(join(STORE, 'promo-tile.png'), flatten(await tile.screenshot({ animations: 'disabled' })), {
-    ...TILE,
-    alpha: false,
-  });
-  await tile.close();
+  const drawn = (html: string, size: { width: number; height: number }, path: string) =>
+    draw(context, extensionId, html, size, path);
+  const pitchTiles = demoTiles(['G', 'Y', 'N', 'F', 'C', 'D']);
 
-  // Some demo sites stay open in background tabs: their keys show Open now.
+  // The promo tile, the marquee and the social card in its style.
+  await drawn(promoTilePage(stylesheets), TILE, join(STORE, 'promo-tile.png'));
+  await drawn(marqueePage(stylesheets, pitchTiles), MARQUEE, join(STORE, 'marquee.png'));
+  await drawn(socialCardPage(stylesheets, pitchTiles), CARD, join(SITE_MEDIA, 'social-card.png'));
+
+  // Shot1, Hero.
+  await drawn(heroPage(stylesheets, demoTiles(['Y', 'G', 'C', 'F', 'N', 'D'])), SCREENSHOT, join(STORE, '01-hero.png'));
+
+  // Shot2, Smart switch: GitHub comes to the front, and the strip keeps its tabs.
+  const strips = smartSwitchStrips();
+  expect(strips.before.find(({ active }) => active)?.title).toBe(BACKDROP_TITLE);
+  expect(strips.after.find(({ active }) => active)?.title).toBe('GitHub');
+  expect(strips.after.map(({ title }) => title)).toEqual(strips.before.map(({ title }) => title));
+  await drawn(smartSwitchPage(stylesheets, strips), SCREENSHOT, join(STORE, '02-smart-switch.png'));
+
+  // Some demo sites stay open in background tabs: their Smart keys show Open now.
   for (const { link } of DEMO_KEYMAP.filter(({ open }) => open)) {
     const page = await context.newPage();
     await page.goto(link);
   }
-
   const backdrop = await context.newPage();
+  await backdrop.setViewportSize(DEMO_PAGE);
   await backdrop.goto(BACKDROP_URL);
+  await backdrop.bringToFront();
   const [tab] = await worker.evaluate((url) => chrome.tabs.query({ url }), BACKDROP_URL);
   if (tab === undefined) throw new Error('no backdrop tab');
-  const shoot = async (page: Page, name: string) =>
-    write(join(STORE, name), flatten(await page.screenshot({ animations: 'disabled' })), {
-      ...SCREENSHOT,
-      alpha: false,
-    });
+  await expect.poll(async () => (await strip(worker)).find(({ active }) => active)?.link).toBe(BACKDROP_URL);
+  const tabs = await strip(worker);
+  const capture = async (page: Page) => (await page.screenshot({ animations: 'disabled' })).toString('base64');
+  /** A clean frame: a capture in the browser mock, into the landing page's media. */
+  const cleanFrame = (name: string, frame: MockFrame) =>
+    drawn(browserFramePage(stylesheets, frame), SCREENSHOT, join(SITE_MEDIA, `frame-${name}.png`));
+
+  // The Peek frame: Alt held on the article, captured while it is still down, Open now on the Smart keys left open.
+  await backdrop.keyboard.down('Alt');
   const dialog = backdrop.getByRole('dialog', { name: 'Your keys' });
+  await expect(dialog.getByText(/^Alt held$/)).toBeVisible();
+  const openTiles = dialog.getByTestId('overlay-tile').filter({ hasText: /Open · tab/ });
+  await expect(openTiles).toHaveCount(3);
+  for (const name of ['GitHub', 'Notion', 'Figma']) await expect(openTiles.filter({ hasText: name })).toHaveCount(1);
+  const peek = await cleanFrame('peek', { tabs, pagePng: await capture(backdrop) });
+  await backdrop.keyboard.up('Alt');
+  await expect(dialog).toHaveCount(0);
 
-  // 1. Options keymap, a key selected and its inspector open.
-  const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options.html#key=G`);
-  await expect(options.getByRole('heading', { level: 1, name: 'Keymap' })).toBeVisible();
-  await expect(options.getByRole('button', { name: /^Alt G:/ })).toHaveAttribute('aria-pressed', 'true');
-  await shoot(options, '01-options-keymap.png');
-  await options.close();
-
-  // 2. Popup assign: the popup for the backdrop's tab, dropped over the page it assigns.
-  await backdrop.bringToFront();
+  // The Popup frame: the popup for the article's tab (not on a key, so the picker suggests keys), under the
+  // toolbar icon. Shot4's caption names the first key it suggests.
+  const page = await capture(backdrop);
   const popup = await context.newPage();
   await popup.setViewportSize({ width: 380, height: 800 });
   await popup.goto(`chrome-extension://${extensionId}/popup.html?tabId=${tab.id}`);
   await expect(popup.getByTestId('primary')).toBeVisible();
-  const popupCard = await popup.locator('main').screenshot({ animations: 'disabled' });
-  const composite = await drawingPage(
-    context,
-    extensionId,
-    popupCompositePage(
-      (await backdrop.screenshot({ animations: 'disabled' })).toString('base64'),
-      popupCard.toString('base64'),
-    ),
-    SCREENSHOT,
-  );
-  await shoot(composite, '02-popup-assign.png');
-  await composite.close();
+  const chips = popup.getByRole('group', { name: 'Free & fitting' }).getByRole('button');
+  await expect(chips.first()).toBeVisible();
+  const suggested = ((await chips.first().textContent()) ?? '').trim() as KeyLabel;
+  expect(suggested).toMatch(/^[A-Z0-9]$/);
+  const popupCard = (await popup.locator('main').screenshot({ animations: 'disabled' })).toString('base64');
+  await popup.close();
+  const assign = await cleanFrame('popup', { tabs, pagePng: page, popupPng: popupCard });
 
-  // 3. Peek: ⌥ held on the page, captured while it is still down.
-  await backdrop.bringToFront();
-  await backdrop.keyboard.down('Alt');
-  await expect(dialog.getByText(/^(⌥|Alt) held$/)).toBeVisible();
-  await shoot(backdrop, '03-peek.png');
-  await backdrop.keyboard.up('Alt');
-  await expect(dialog).toHaveCount(0);
+  // The Keymap frame: Options on Y with its key editor open, in the mock as the active tab.
+  const options = await context.newPage();
+  await options.setViewportSize(DEMO_PAGE);
+  await options.goto(`chrome-extension://${extensionId}/options.html#key=Y`);
+  const editor = options.getByRole('dialog', { name: 'Edit key' });
+  await expect(editor).toBeVisible();
+  await expect(editor.getByRole('heading', { level: 2 })).toHaveText('YouTube');
+  await expect(editor.locator('[data-slot=editor-chip]')).toHaveText('Alt+Y');
+  await options.evaluate(() => document.fonts.ready);
+  const keymap = await cleanFrame('keymap', {
+    tabs: [
+      ...tabs.map((tab) => ({ ...tab, active: false })),
+      { title: 'SpeedLink Options', link: 'about:blank', active: true, extension: true },
+    ],
+    address: 'SpeedLink · Options',
+    pagePng: await capture(options),
+  });
+  await options.close();
 
-  // 5. Pinned overlay with a search typed, opened through the command.
-  await worker.evaluate((t) => speedlinkE2E.toggleOverlay(t), tab);
-  await expect(dialog.getByText('Pinned')).toBeVisible();
-  await backdrop.keyboard.type('ma');
-  await expect(dialog.getByTestId('overlay-tile').first()).toBeVisible();
-  await shoot(backdrop, '05-pinned-overlay-search.png');
-  // The first Esc clears the search, the second closes the overlay.
-  await backdrop.keyboard.press('Escape');
-  await backdrop.keyboard.press('Escape');
-  await expect(dialog).toHaveCount(0);
+  // Shot3–5: the captions over the clean frames.
+  const shots: [string, Caption, Buffer][] = [
+    [
+      '03-peek.png',
+      {
+        headline: 'Forgot a key? Hold ⌥ (Alt) to peek.',
+        sub: 'Your keys appear over any page. Sites open right now show in green.',
+      },
+      peek,
+    ],
+    [
+      '04-assign.png',
+      {
+        headline: 'Put any page on a key in one click.',
+        sub: 'Click the toolbar icon and press a key. SpeedLink suggests free keys that fit the site.',
+        thenKey: suggested,
+      },
+      assign,
+    ],
+    [
+      '05-keymap.png',
+      {
+        headline: 'Your keymap is a keyboard.',
+        sub: 'Click a key to edit it right there. Choose how each link opens.',
+      },
+      keymap,
+    ],
+  ];
+  for (const [name, caption, frame] of shots) {
+    await drawn(captionedShotPage(stylesheets, caption, frame.toString('base64')), SCREENSHOT, join(STORE, name));
+  }
 
-  // 4. Saved toast: assign the backdrop through the popup, and capture it with Undo showing. Last, because it
-  // changes the keymap.
-  await popup.keyboard.press('KeyE');
-  const closed = popup.waitForEvent('close');
-  await popup.keyboard.press('Enter');
-  await closed;
-  await expect(backdrop.getByTestId('page-toast')).toContainText('saved');
-  await expect(backdrop.getByTestId('page-toast').getByRole('button', { name: 'Undo' })).toBeVisible();
-  await shoot(backdrop, '04-saved-toast.png');
+  // `store/` holds the 4.2 set and nothing older.
+  for (const name of DROPPED) rmSync(join(STORE, name), { force: true });
+  expect(readdirSync(STORE).sort()).toEqual(STORE_FILES);
 
-  // The landing page: refresh each image it holds a copy of.
+  // The landing page: refresh each image it holds a same-named copy of.
   const store = new Set(readdirSync(STORE));
   for (const name of readdirSync(SITE_MEDIA).filter((name) => store.has(name))) {
     copyFileSync(join(STORE, name), join(SITE_MEDIA, name));
   }
 });
 
-test('records the demo loop and draws the social card', async ({ context, extensionId }) => {
+test('records the demo loop for the README', async ({ context, extensionId }) => {
   const worker = await serviceWorker(context);
   const stylesheets = builtStylesheets();
   await routeDemoSites(context);
@@ -263,21 +353,7 @@ test('records the demo loop and draws the social card', async ({ context, extens
     if (shortcut === undefined) throw new Error(`no demo shortcut on ${key}`);
     return shortcut;
   };
-  const names = new Map(DEMO_KEYMAP.map(({ link, name }) => [new URL(link).hostname, name]));
-  /** The window's web tabs as the service worker sees them, in strip order, named as the demo keymap names them. */
-  const strip = async (): Promise<DemoTab[]> => {
-    const tabs = (await worker.evaluate(() => chrome.tabs.query({}))).filter(({ url }) => url?.startsWith('https:'));
-    const window = tabs.find(({ active }) => active)?.windowId;
-    return tabs
-      .filter(({ windowId }) => windowId === window)
-      .sort((a, b) => a.index - b.index)
-      .map(({ url = '', title = '', active }) => ({
-        title: names.get(new URL(url).hostname) ?? title,
-        link: url,
-        active,
-      }));
-  };
-  const activeLink = async () => (await strip()).find(({ active }) => active)?.link;
+  const activeLink = async () => (await strip(worker)).find(({ active }) => active)?.link;
 
   // GitHub and Notion wait in background tabs; the article is in front.
   const pages = new Map<string, Page>();
@@ -292,18 +368,18 @@ test('records the demo loop and draws the social card', async ({ context, extens
   await backdrop.bringToFront();
   await expect.poll(activeLink).toBe(BACKDROP_URL);
 
-  /** Each still, framed (`png`) and as the bare page (`pagePng`). */
-  const frames: { name: string; png: Buffer; pagePng: string; seconds: number }[] = [];
+  /** Each still, in the browser mock. */
+  const frames: { name: string; png: Buffer; seconds: number }[] = [];
   const frame = async (name: string, page: Page, keys: KeyLabel[], seconds: number) => {
     await page.setViewportSize(DEMO_PAGE);
     const pagePng = (await page.screenshot({ animations: 'disabled' })).toString('base64');
     const drawn = await drawingPage(
       context,
       extensionId,
-      demoFramePage(stylesheets, { tabs: await strip(), pagePng, keys }),
+      browserFramePage(stylesheets, { tabs: await strip(worker), pagePng, keys }),
       SCREENSHOT,
     );
-    frames.push({ name, png: flatten(await drawn.screenshot({ animations: 'disabled' })), pagePng, seconds });
+    frames.push({ name, png: flatten(await drawn.screenshot({ animations: 'disabled' })), seconds });
     await drawn.close();
   };
 
@@ -318,14 +394,14 @@ test('records the demo loop and draws the social card', async ({ context, extens
   await frame('peek', backdrop, [ALT], 2);
 
   // 3. G: the GitHub tab that was already open comes to the front, and no tab is added.
-  const before = (await strip()).length;
+  const before = (await strip(worker)).length;
   await backdrop.keyboard.press('KeyG');
   await backdrop.keyboard.up('Alt');
   await expect.poll(activeLink).toBe(site('G').link);
-  expect((await strip()).length).toBe(before);
+  expect((await strip(worker)).length).toBe(before);
   const github = pages.get('G');
   if (github === undefined) throw new Error('no GitHub page');
-  await frame('switch', github, [ALT, 'G'], 1.5);
+  await frame('switch', github, [ALT, 'G' as KeyLabel], 1.5);
 
   // 4. Alt + M from there: Gmail wasn't open, so it opens in a new tab.
   const opened = context.waitForEvent('page');
@@ -334,8 +410,8 @@ test('records the demo loop and draws the social card', async ({ context, extens
   // The extension's own tab loads before the routes reach it, so it fails to resolve; load it again, routed.
   await gmail.goto(site('M').link);
   await expect.poll(activeLink).toBe(site('M').link);
-  expect((await strip()).length).toBe(before + 1);
-  await frame('open', gmail, [ALT, 'M'], 1.5);
+  expect((await strip(worker)).length).toBe(before + 1);
+  await frame('open', gmail, [ALT, 'M' as KeyLabel], 1.5);
 
   // 5. Keys up, a pause, then the loop fades back to the article.
   await frame('rest', gmail, [], 1.3);
@@ -347,33 +423,6 @@ test('records the demo loop and draws the social card', async ({ context, extens
     return { png: path, seconds };
   });
   mkdirSync(join(README_GIF, '..'), { recursive: true });
-  encodeDemo(shots, SCREENSHOT, {
-    mp4: join(SITE_MEDIA, 'demo.mp4'),
-    webm: join(SITE_MEDIA, 'demo.webm'),
-    gif: README_GIF,
-  });
+  encodeDemo(shots, SCREENSHOT, README_GIF);
   rmSync(work, { recursive: true, force: true });
-
-  // The poster: the Peek still, the frame the loop is about.
-  const peek = frames.find(({ name }) => name === 'peek');
-  if (peek === undefined) throw new Error('no Peek frame');
-  write(join(SITE_MEDIA, 'demo-poster.png'), peek.png, { ...SCREENSHOT, alpha: false });
-
-  // The social card, with the page under Peek.
-  const card = await drawingPage(
-    context,
-    extensionId,
-    socialCardPage(
-      stylesheets,
-      'Put your sites on keys.',
-      'Hold Alt and press a key to open a site, or jump to the tab where it’s already open.',
-      peek.pagePng,
-    ),
-    CARD,
-  );
-  write(join(SITE_MEDIA, 'social-card.png'), flatten(await card.screenshot({ animations: 'disabled' })), {
-    ...CARD,
-    alpha: false,
-  });
-  await card.close();
 });
