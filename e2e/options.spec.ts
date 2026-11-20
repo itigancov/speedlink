@@ -46,7 +46,10 @@ async function openOptions(context: BrowserContext, extensionId: string, key?: s
   page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
   await page.goto(`chrome-extension://${extensionId}/options.html${key === undefined ? '' : `#key=${key}`}`);
   // With #key the dialog is open and the page behind it is hidden from assistive tech.
-  await expect(page.getByRole('heading', { level: 1, name: 'Keymap', includeHidden: true })).toBeVisible();
+  // An empty keymap opens on the first-run page, whose H1 is its own.
+  await expect(
+    page.getByRole('heading', { level: 1, name: /^(Keymap|Put your first link on a key)$/, includeHidden: true }),
+  ).toBeVisible();
   return { page, errors };
 }
 
@@ -654,6 +657,7 @@ test.describe('a narrow window', () => {
   });
 
   test('900 px draws 56×52 keys with no header hint and no sideways scroll', async ({ context, extensionId }) => {
+    await store(await serviceWorker(context, extensionId), 'G', {});
     const { page, errors } = await openOptions(context, extensionId);
     await page.setViewportSize({ width: 900, height: 800 });
 
@@ -791,6 +795,84 @@ test.describe('⌘V and bare keys on Options', () => {
     await expect(editor(page)).toBeFocused();
     expect(page.url()).toBe(`chrome-extension://${extensionId}/options.html#key=G`);
     expect((await item(worker, 'K')) as { link: string }).toMatchObject({ link: fixtureLink });
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe('first run', () => {
+  const heading = (page: Page) => page.getByRole('heading', { level: 1, name: 'Put your first link on a key' });
+  const steps = (page: Page) =>
+    page.getByRole('list', { name: 'First steps', includeHidden: true }).getByRole('listitem', { includeHidden: true });
+  const box = async (locator: ReturnType<Page['locator']>) => {
+    const found = await locator.boundingBox();
+    if (found === null) throw new Error('not laid out');
+    return found;
+  };
+
+  test('an empty keymap guides from Start here on 1 to the first saved key', async ({ context, extensionId }) => {
+    const worker = await serviceWorker(context, extensionId);
+    const { page, errors } = await openOptions(context, extensionId);
+
+    await expect(heading(page)).toBeVisible();
+    await expect(steps(page)).toHaveCount(3);
+    await expect(steps(page).first()).toHaveAttribute('aria-current', 'step');
+    await expect(keyCap(page, '1')).toHaveAttribute('data-state', 'start');
+    await expect(keyCap(page, '1')).toBeFocused();
+
+    await page.keyboard.press('Digit1');
+    await expect(editor(page)).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Link', exact: true })).toBeFocused();
+    await expect(steps(page).nth(1)).toHaveAttribute('aria-current', 'step');
+
+    await page.getByRole('textbox', { name: 'Link', exact: true }).fill(LINK);
+    await expect(page.getByText('Saved')).toBeVisible();
+    expect(await item(worker, '1')).toMatchObject({ link: LINK });
+    // The page behind the dialog is the normal layout now, and the dialog is still open on the key.
+    await expect(page.getByRole('heading', { level: 1, name: 'Keymap', includeHidden: true })).toBeVisible();
+    await expect(editor(page)).toBeVisible();
+    await expect(keyCap(page, '1')).toHaveAttribute('data-state', 'selected');
+
+    await editor(page).getByRole('button', { name: 'Done' }).click();
+    await expect(editor(page)).toBeHidden();
+    await expect(keyCap(page, '1')).toHaveAttribute('data-state', 'assigned');
+    await expect(keyCap(page, '1')).toBeFocused();
+    await expect(heading(page)).toBeHidden();
+    expect(errors).toEqual([]);
+  });
+
+  test('clearing the last key brings first run back', async ({ context, extensionId }) => {
+    const worker = await serviceWorker(context, extensionId);
+    await store(worker, 'G', {});
+    const { page, errors } = await openOptions(context, extensionId, 'G');
+
+    await editor(page).getByRole('button', { name: 'Clear key' }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Put your first link on a key', includeHidden: true }),
+    ).toBeVisible();
+    await expect(editor(page)).toBeVisible();
+    await editor(page).getByRole('button', { name: 'Done' }).click();
+    await expect(keyCap(page, '1')).toHaveAttribute('data-state', 'start');
+    expect(errors).toEqual([]);
+  });
+
+  test('a narrow window draws compact keys and stacks the step cards; a wide one keeps them in a row', async ({
+    context,
+    extensionId,
+  }) => {
+    const { page, errors } = await openOptions(context, extensionId);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(steps(page).first()).toBeVisible();
+    const [first, last] = [await box(steps(page).first()), await box(steps(page).last())];
+    expect(last.y).toBe(first.y);
+
+    await page.setViewportSize({ width: 600, height: 900 });
+    await expect.poll(async () => (await box(keyCap(page, '1'))).width).toBe(56);
+    const [stackedFirst, stackedLast] = [await box(steps(page).first()), await box(steps(page).last())];
+    expect(stackedLast.x).toBe(stackedFirst.x);
+    expect(stackedLast.y).toBeGreaterThan(stackedFirst.y);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(
+      false,
+    );
     expect(errors).toEqual([]);
   });
 });

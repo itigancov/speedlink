@@ -5,7 +5,7 @@ import type { Browser } from 'wxt/browser';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { ROW_STAGGER } from '@/domain/key-grid';
 import { KEYBOARD_ROWS, type Key, type KeyLabel } from '@/domain/keys';
-import { chordLabel, pasteLabel, triggerWord } from '@/platform/platform-labels';
+import { chordLabel, pasteLabel, triggerPlus, triggerSymbol, triggerWord } from '@/platform/platform-labels';
 import { installTabsOnReplaced } from '@/test/fake-replaced';
 import { OptionsPage } from './OptionsPage';
 
@@ -494,6 +494,7 @@ describe('the header and legend', () => {
     ['other', 'Ctrl+V'],
   ] as const)('reads the legend with the %s paste key', async (_platform, paste) => {
     expect(pasteLabel(_platform)).toBe(paste);
+    await store('G');
     await renderPage();
     expect(document.querySelector('[data-slot="legend-hint"]')?.textContent).toBe(
       `Press a key to edit it · ${pasteLabel()} pastes a link onto it · Drag to swap`,
@@ -666,11 +667,6 @@ describe('live updates', () => {
     await act(() => store('Y'));
     await advance();
     expect(screen.getByText(/2 of 35 keys in use\./)).toBeDefined();
-  });
-
-  it('shows 0 of 35 on an empty keymap', async () => {
-    await renderPage();
-    expect(screen.getByText(/0 of 35 keys in use\./)).toBeDefined();
   });
 
   it('the open-now dots follow the open tabs', async () => {
@@ -955,6 +951,7 @@ describe('/ search', () => {
   });
 
   it('/ on a radio still jumps to the search', async () => {
+    await store('G');
     await renderPage();
     const keyboard = screen.getByRole('radio', { name: 'Keyboard' });
     act(() => keyboard.focus());
@@ -1094,14 +1091,6 @@ describe('List view', () => {
     act(() => doneButton().click());
     await advance();
     expect(rows().map((cells) => cells[0])).toEqual(['Y']);
-  });
-
-  it('says "No keys yet — pick one in Keyboard view" on an empty keymap, with or without a query', async () => {
-    await renderPage();
-    showList();
-    expect(rows()).toEqual([['No keys yet — pick one in Keyboard view']]);
-    await type(searchField(), 'zzz');
-    expect(rows()).toEqual([['No keys yet — pick one in Keyboard view']]);
   });
 
   it('hides the rows that do not match the query', async () => {
@@ -2059,6 +2048,7 @@ describe('⌘V on Options', () => {
   });
 
   it('with no key focused, or on the search, does nothing', async () => {
+    await store('G');
     await renderPage();
     const set = vi.spyOn(browser.storage.sync, 'set');
     paste('docs.example.com', document.body);
@@ -2090,6 +2080,7 @@ describe('⌘V on Options', () => {
   });
 
   it('never targets S', async () => {
+    await store('G');
     await renderPage();
     paste('docs.example.com', screen.getByText('S', { selector: '[data-slot="key-label"]' }));
     await advance();
@@ -2172,5 +2163,232 @@ describe('Name from an open tab’s title', () => {
     await type(linkField(), 'late.example.com');
     await advance(400);
     expect((await readItem('K'))?.name).toBe('Late page');
+  });
+});
+
+describe('first run', () => {
+  const steps = () =>
+    within(screen.getByRole('list', { name: 'First steps', hidden: true })).getAllByRole('listitem', { hidden: true });
+  const currentStep = () => steps().findIndex((step) => step.getAttribute('aria-current') === 'step') + 1;
+
+  it('opens on the first-run page while the keymap is empty', async () => {
+    await renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: 'Put your first link on a key' })).toBeDefined();
+    expect(screen.getByText(/^Then press/).textContent).toBe(
+      `Then press ${triggerPlus()} that key on any page to open it. All 35 keys are free.`,
+    );
+    expect(steps().map((step) => step.querySelector('[data-slot="step-title"]')?.textContent)).toEqual([
+      'Pick a key',
+      'Paste a link',
+      'Use it anywhere',
+    ]);
+    expect(currentStep()).toBe(1);
+    expect(
+      screen.getByText(
+        'Not sure where to start? Open a site you use every day, click the SpeedLink icon in the toolbar and press a key.',
+      ),
+    ).toBeDefined();
+    expect(screen.queryByRole('heading', { level: 1, name: 'Keymap' })).toBeNull();
+    expect(screen.queryByText(/of 35 keys in use/)).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'List' })).toBeNull();
+    expect(document.querySelector('[data-slot="legend-hint"]')).toBeNull();
+  });
+
+  it('draws Start here on 1 and focuses it on load', async () => {
+    await renderPage();
+    expect(keyButton('1').getAttribute('data-state')).toBe('start');
+    expect(keyButton('1').getAttribute('aria-label')).toBe(`${T} 1: free`);
+    expect(document.activeElement).toBe(keyButton('1'));
+    expect(keyButton('2').getAttribute('data-state')).toBe('free');
+    expect(keyButton('1').tabIndex).toBe(0);
+  });
+
+  it('puts Start here on the first free key in keyboard order, never on S', async () => {
+    await renderPage();
+    const starts = Array.from(document.querySelectorAll('[data-state="start"]')).map(
+      (node) => node.querySelector('[data-slot="key-label"]')?.textContent,
+    );
+    expect(starts).toEqual(['1']);
+  });
+
+  it('names the paste and trigger keys for the platform in the step lines and the subline', async () => {
+    await renderPage();
+    expect(screen.getByText(`${pasteLabel()} works right away. The name comes from the page.`)).toBeDefined();
+    expect(screen.getByText(`Hold ${triggerSymbol()} on any page to see your keys.`)).toBeDefined();
+  });
+
+  it('keeps the header and the ⌥S line', async () => {
+    overlayShortcut = '';
+    await renderPage();
+    expect(within(screen.getByRole('banner')).getByText(/anywhere to see your keys/)).toBeDefined();
+    expect(screen.getByRole('searchbox', { name: 'Find a link, site or key' })).toBeDefined();
+    expect(
+      screen.getByRole('link', { name: `Set ${chordLabel('S')} for pages where SpeedLink can’t run` }),
+    ).toBeDefined();
+  });
+
+  it('leaves focus alone when the page opens on a key or on the search', async () => {
+    await renderPage('#key=K');
+    expect(document.activeElement).toBe(linkField());
+    expect(currentStep()).toBe(2);
+    expect(keyButton('1').getAttribute('data-state')).toBe('start');
+  });
+
+  it('does not take focus from the search when the page opens on #search', async () => {
+    await renderPage('#search');
+    expect(document.activeElement).toBe(searchField());
+  });
+
+  it('shows the selected look over Start here on the same key', async () => {
+    await renderPage('#key=1');
+    expect(keyButton('1').getAttribute('data-state')).toBe('selected');
+  });
+
+  it('makes step 2 current when a key is clicked, and step 1 again when the dialog closes empty', async () => {
+    await renderPage();
+    act(() => keyButton('K').click());
+    await advance();
+    expect(currentStep()).toBe(2);
+    expect(inEditor().getByText('Paste a link to assign it')).toBeDefined();
+    act(() => doneButton().click());
+    await advance();
+    expect(currentStep()).toBe(1);
+  });
+
+  it('opens the dialog on ↵ on the focused Start here key, and on a bare key', async () => {
+    await renderPage();
+    act(() => keyButton('1').click());
+    await advance();
+    expect(chip()).toBe(chordLabel('1'));
+    act(() => doneButton().click());
+    await advance();
+    bareKey('KeyK');
+    await advance();
+    expect(chip()).toBe(chordLabel('K'));
+    expect(document.activeElement).toBe(linkField());
+    expect(currentStep()).toBe(2);
+  });
+
+  it('⌘V on the focused Start here key saves the link and ends first run behind the open dialog', async () => {
+    await renderPage();
+    paste('docs.example.com');
+    await advance(400);
+    expect(await readItem('1')).toMatchObject({ link: 'https://docs.example.com/' });
+    expect(screen.getByRole('heading', { level: 1, name: 'Keymap', hidden: true })).toBeDefined();
+  });
+
+  it('turns into the normal layout at the first save, with the dialog still open on that key', async () => {
+    await renderPage();
+    act(() => keyButton('1').click());
+    await advance();
+    await type(linkField(), 'docs.example.com');
+    await advance(400);
+    expect(await readItem('1')).toMatchObject({ link: 'https://docs.example.com/' });
+    expect(screen.getByRole('heading', { level: 1, name: 'Keymap', hidden: true })).toBeDefined();
+    expect(screen.getByText(/1 of 35 keys in use\./, { selector: 'p' })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'Put your first link on a key', hidden: true })).toBeNull();
+    expect(screen.queryByRole('list', { name: 'First steps', hidden: true })).toBeNull();
+    expect(document.querySelector('[data-slot="legend-hint"]')).not.toBeNull();
+    expect(editor()).not.toBeNull();
+    expect(selectedKey()).toMatch(new RegExp(`^${T} 1:`));
+    expect(saved()).not.toBeNull();
+    expect(document.activeElement).toBe(linkField());
+  });
+
+  it('returns focus to the saved key on the normal layout when the dialog closes', async () => {
+    await renderPage();
+    act(() => keyButton('1').click());
+    await advance();
+    await type(linkField(), 'docs.example.com');
+    await advance(400);
+    act(() => doneButton().click());
+    await advance();
+    expect(editor()).toBeNull();
+    expect(document.activeElement).toBe(keyButton('1'));
+    expect(keyButton('1').getAttribute('data-state')).toBe('assigned');
+  });
+
+  it('discards an invalid link on close and stays on first run with step 1 current', async () => {
+    await renderPage();
+    const set = vi.spyOn(browser.storage.sync, 'set');
+    act(() => keyButton('1').click());
+    await advance();
+    await type(linkField(), 'not a link');
+    await advance(400);
+    act(() => doneButton().click());
+    await advance();
+    expect(set).not.toHaveBeenCalled();
+    expect(editor()).toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Put your first link on a key' })).toBeDefined();
+    expect(currentStep()).toBe(1);
+    expect(keyButton('1').getAttribute('data-state')).toBe('start');
+  });
+
+  it('ends live, with nothing selected, when a key arrives from elsewhere', async () => {
+    await renderPage();
+    await act(() => store('G'));
+    await advance();
+    expect(screen.getByRole('heading', { level: 1, name: 'Keymap' })).toBeDefined();
+    expect(screen.getByText(/1 of 35 keys in use\./)).toBeDefined();
+    expect(selectedKey()).toBeNull();
+    expect(editor()).toBeNull();
+    expect(screen.queryByRole('list', { name: 'First steps' })).toBeNull();
+    expect(keyButton('1').getAttribute('data-state')).toBe('free');
+  });
+
+  it('comes back when the last key is cleared, behind the dialog that stays open on the free key', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    expect(screen.getByRole('heading', { level: 1, name: 'Keymap', hidden: true })).toBeDefined();
+    act(() => inEditor().getByRole('button', { name: 'Clear key' }).click());
+    await advance();
+    expect(title()).toBe('Free key');
+    expect(editor()).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Put your first link on a key', hidden: true })).toBeDefined();
+    expect(currentStep()).toBe(2);
+    act(() => doneButton().click());
+    await advance();
+    expect(currentStep()).toBe(1);
+    expect(keyButton('1').getAttribute('data-state')).toBe('start');
+    expect(document.activeElement).toBe(keyButton('G'));
+  });
+
+  it('draws the keys when the last key is cleared from the List view', async () => {
+    await store('G');
+    await renderPage();
+    act(() => screen.getByRole('radio', { name: 'List' }).click());
+    act(() => keyButton('G').click());
+    await advance();
+    act(() => inEditor().getByRole('button', { name: 'Clear key' }).click());
+    await advance();
+    expect(screen.queryByRole('radio', { name: 'List', hidden: true })).toBeNull();
+    expect(keyButton('1').getAttribute('data-state')).toBe('start');
+    expect(screen.queryByRole('table', { hidden: true })).toBeNull();
+    act(() => doneButton().click());
+    await advance();
+    expect(document.activeElement).toBe(keyButton('G'));
+  });
+
+  it('keeps the search working: dimming and ↵ on the first match', async () => {
+    await renderPage();
+    await type(searchField(), 'k');
+    expect(keyButton('K').getAttribute('data-dimmed')).toBeNull();
+    expect(keyButton('1').getAttribute('data-dimmed')).toBe('true');
+    press(searchField(), 'Enter');
+    await advance();
+    expect(editor()).not.toBeNull();
+  });
+
+  it('draws compact keys, a smaller heading and no header hint in a narrow window', async () => {
+    const width = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 500 } as DOMRect);
+    await renderPage();
+    width.mockRestore();
+    expect(keyButton('1').className).toContain('w-14');
+    expect(screen.getByRole('heading', { level: 1, name: 'Put your first link on a key' }).className).toContain(
+      'text-2xl',
+    );
+    expect(screen.queryByText(/anywhere to see your keys/)).toBeNull();
+    expect(steps()).toHaveLength(3);
+    expect(screen.getByText(/Not sure where to start\?/)).toBeDefined();
   });
 });

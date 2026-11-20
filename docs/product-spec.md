@@ -286,6 +286,17 @@ There is no left nav: only Keymap is left. The page is one centred column (heade
 - "Keymap" + the subline "Press **⌥ + key** on any page to open its link. N of 35 keys in use."
 - A view switch **Keyboard** (default) | **List**.
 
+**First run**
+- While the keymap has no shortcut, Options shows the first-run state in place of the normal heading. It is derived live from the keymap, with no stored flag: it ends the moment a key is assigned, from here or from elsewhere (the popup, another Options tab, sync), and comes back when the last key is cleared.
+- The header (logo, search, the "Hold ⌥ anywhere…" hint) and the ⌥S line (§8.8) stay as they are. The "Keymap" heading, the "N of 35" subline, the Keyboard | List switch and the legend go.
+- Heading **"Put your first link on a key"** + the subline "Then press **⌥ + that key** on any page to open it. All 35 keys are free." (Alt on Windows and Linux).
+- Three step cards in a row: **1 Pick a key** ("Click it below, or just press it on your keyboard.") · **2 Paste a link** ("⌘V works right away. The name comes from the page.", Ctrl+V on Windows and Linux) · **3 Use it anywhere** ("Hold ⌥ on any page to see your keys."). The active card has a primary border and number: step 2 exactly while a key is selected, step 1 otherwise; step 3 is never active. The cards stack to one column when three don't fit in a row.
+- The keys are always the Keyboard view: with a List view open, clearing the last key shows the keys. Under the keys, the hint "Not sure where to start? Open a site you use every day, click the SpeedLink icon in the toolbar and press a key." replaces the legend.
+- **Start here**: the first free key in keyboard order (`1` on an empty keymap, never `S`) is drawn as a dashed "Start here" key; selected wins on the same key. Its accessible name is that of any free key.
+- Narrow window: the same compact keys and no header hint as below, a 24 px heading, and the subline and the hint wrap.
+- It is there from the first paint; there is no flash of the normal layout.
+- The first successful save turns the page behind the dialog into the normal layout (the new key selected); the dialog stays open on it, with "Saved", for a name or an Opens as mode. Clear key on the last key leaves the dialog open on the now-free key while the page behind it turns back into first run. Closing with an invalid link discards it (§8.4) and leaves first run, step 1 active.
+
 **Keyboard view**
 - Keys: 4 staggered rows of 76×64 keys, no modifier row.
 - Narrow window: when the keys card is narrower than the 76×64 keyboard (860 px of card content, a window of about 974 px), the same keyboard is drawn with compact 56×52 keys (stagger 0/20/34/54 px, gap 6 px) and the header hint is hidden. The size follows the card's width live, both ways, and is right from the first paint. Narrower than the compact keyboard (634 px of content, a window of about 748 px) the keyboard scrolls sideways inside its card; the page never does. States, selection, drag-to-swap, the arrows, the key editor dialog and the List view work the same at every width. The legend and its hint stay and wrap.
@@ -298,12 +309,13 @@ There is no left nav: only Keymap is left. The page is one centred column (heade
 - Only assigned keys, in keyboard order, with no sorting.
 - A row click selects that key and opens its editor dialog over the List view; the view does not switch. The selected key's row is highlighted.
 - The Key cell shows the open-now dot. Name falls back to the site, shown muted. The Link is truncated to one line, with the full link in a tooltip.
-- Empty → "No keys yet — pick one in Keyboard view" (it wins over a query). A query that matches no assigned key, including one that matches only free keys, shows "No keys match".
+- A query that matches no assigned key, including one that matches only free keys, shows "No keys match".
 
 ### 8.2 Selection
 - At most one key is selected; the selection may be empty. The editor dialog (§8.3) is open exactly while a key is selected, over whichever view is shown.
 - `#key=K` selects K and opens its dialog. It is used by the overlay pencil and by ⌥S on restricted pages. It is read on load and on `hashchange` (which also switches an open dialog to K); S is never selected.
 - Without `#key=K`, nothing is selected on load.
+- First run (§8.1): with the keymap empty and no `#key=K` or `#search` on load, focus goes to the Start here key, so ↵, Space, ⌘V and a bare key act at once. This happens once per page load; when first run comes back after Clear key, closing the dialog returns focus to the key as usual. With `#key=K`, K is selected and its dialog open over the first-run page. A click or bare key on any free key opens its dialog, as for any free key.
 - The selection is mirrored to `#key=K` with `history.replaceState`; with nothing selected, the hash is cleared.
 - A click on a key selects it and opens its dialog. With the dialog open the keys are behind its scrim, so another key is reached by closing it first (or with ⌥ + a free key or its bare key, §8.9).
 - The dialog closes with ×, Done, a click on the scrim and Esc. Esc closes it when focus is outside a field, or in Link or Name while the draft equals storage; in a field with an unsaved change, the first Esc only leaves the field for the dialog (nothing is reverted) and the next one closes.
