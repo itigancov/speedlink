@@ -26,6 +26,8 @@ const monogramVariants = cva(
         xs: 'size-5 rounded-sm text-2xs',
         sm: 'size-6 rounded-sm text-xs',
         default: 'size-8 rounded-lg text-ui',
+        /** 36 px: the popup's page card. */
+        md: 'size-9 rounded-lg text-ui',
         lg: 'size-10 rounded-lg text-md',
       },
       ringed: { true: 'ring-1 ring-primary-foreground', false: '' },
@@ -34,7 +36,7 @@ const monogramVariants = cva(
   },
 );
 
-export type MonogramSize = '2xs' | 'xs' | 'sm' | 'default' | 'lg';
+export type MonogramSize = '2xs' | 'xs' | 'sm' | 'default' | 'md' | 'lg';
 
 export interface MonogramProps {
   shortcut: Shortcut;

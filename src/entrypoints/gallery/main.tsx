@@ -196,7 +196,7 @@ function Variants() {
 function Monograms() {
   return (
     <div className="flex flex-col gap-3">
-      {(['2xs', 'xs', 'sm', 'default', 'lg'] as const).map((size) => (
+      {(['2xs', 'xs', 'sm', 'default', 'md', 'lg'] as const).map((size) => (
         <div key={size} className="flex items-center gap-3">
           <Caption>{size}</Caption>
           {HUE_SAMPLES.map((shortcut) => (

@@ -71,11 +71,21 @@ const queryButton = (name: string | RegExp) => screen.queryByRole('button', { na
 const isDisabled = (element: HTMLElement) => (element as HTMLButtonElement).disabled;
 /** The key on the drop zone's big keycap, or null with none picked. */
 const pickedKey = () => screen.getByTestId('picked-key').querySelector('[data-slot=key-cap]')?.textContent ?? null;
+const chipGroup = () => screen.queryByRole('group', { name: 'Free & fitting' });
+/** The visible text of each chip: the bare letter. */
 const chips = () =>
-  within(screen.getByRole('group', { name: 'Free & fitting:' }))
+  within(chipGroup() ?? document.body)
     .queryAllByRole('button')
     .map((chip) => chip.textContent);
+const chip = (key: string, platform: 'mac' | 'other' = 'mac') => button(platform === 'mac' ? `⌥${key}` : `Alt+${key}`);
 const miniKey = (key: string) => button(new RegExp(`^Option ${key}:`));
+const queryMiniKey = (key: string) => screen.queryByRole('button', { name: new RegExp(`^Option ${key}:`) });
+const showKeyboard = () => button('Show keyboard');
+const opensAs = (mode = 'Smart switch') => screen.getByRole('combobox', { name: `Opens as: ${mode}` });
+/** The footer's tip line, whose ⌥ is a key of its own, by its whole text. */
+const tip = (text: string) =>
+  screen.getByText((_, element) => element?.tagName === 'P' && element.textContent === text);
+const openKeymapLink = () => button('Open keymap →');
 const press = (code: string, init: KeyboardEventInit = {}, target: Element = document.body) =>
   act(() => {
     fireEvent.keyDown(target, { code, ...init });
@@ -153,9 +163,10 @@ describe('the page card', () => {
 describe('picking a key', () => {
   it('picks the first free & fitting key, and offers at most 4', async () => {
     await renderPopup();
-    expect(chips()).toEqual(['⌥G', '⌥P', '⌥R', '⌥A']);
+    expect(chips()).toEqual(['G', 'P', 'R', 'A']);
     expect(pickedKey()).toBe('G');
-    expect(button('⌥G').getAttribute('aria-pressed')).toBe('true');
+    expect(chip('G').getAttribute('aria-pressed')).toBe('true');
+    expect(chip('P').getAttribute('aria-pressed')).toBe('false');
     expect(primary().textContent).toBe('Save to ⌥G');
     expect(screen.getByText('Press a key to put this page on it')).toBeDefined();
   });
@@ -163,7 +174,7 @@ describe('picking a key', () => {
   it('picks the first free key in keyboard order when no key fits', async () => {
     await fillAllBut('3', 'Z');
     await renderPopup();
-    expect(chips()).toEqual([]);
+    expect(chipGroup()).toBeNull();
     expect(pickedKey()).toBe('3');
   });
 
@@ -172,7 +183,6 @@ describe('picking a key', () => {
     await press('KeyK', { key: 'л' });
     expect(pickedKey()).toBe('K');
     expect(primary().textContent).toBe('Save to ⌥K');
-    expect(miniKey('K').getAttribute('aria-pressed')).toBe('true');
   });
 
   it('ignores S and keys off the grid', async () => {
@@ -190,8 +200,9 @@ describe('picking a key', () => {
 
   it('picks a clicked chip or mini-keyboard key', async () => {
     await renderPopup();
-    fireEvent.click(button('⌥R'));
+    fireEvent.click(chip('R'));
     expect(pickedKey()).toBe('R');
+    fireEvent.click(showKeyboard());
     fireEvent.click(miniKey('7'));
     expect(pickedKey()).toBe('7');
   });
@@ -199,6 +210,7 @@ describe('picking a key', () => {
   it('labels mini-keyboard keys with their shortcut or as free, and keeps S out', async () => {
     await store('Y', { name: 'YouTube' });
     await renderPopup();
+    fireEvent.click(showKeyboard());
     expect(miniKey('Y').getAttribute('aria-label')).toBe('Option Y: YouTube');
     expect(miniKey('K').getAttribute('aria-label')).toBe('Option K: free');
     expect(isDisabled(miniKey('S'))).toBe(true);
@@ -206,7 +218,7 @@ describe('picking a key', () => {
 
   it('leaves key presses inside "Opens as" to the select', async () => {
     await renderPopup();
-    await press('KeyK', {}, screen.getByRole('combobox', { name: 'Opens as' }));
+    await press('KeyK', {}, opensAs());
     expect(pickedKey()).toBe('G');
   });
 
@@ -230,13 +242,14 @@ describe('saving', () => {
 
   it('saves with the chosen open mode', async () => {
     await renderPopup();
-    const select = screen.getByRole('combobox', { name: 'Opens as' });
+    const select = opensAs();
     expect(select.textContent).toBe('Smart switch');
     await act(() => {
       fireEvent.keyDown(select, { key: 'Enter' });
     });
     fireEvent.click(screen.getByRole('option', { name: 'Background tab' }));
     await settle();
+    expect(opensAs('Background tab')).toBeDefined();
 
     fireEvent.click(primary());
 
@@ -246,15 +259,25 @@ describe('saving', () => {
   it('a click on a chip or a mini-keyboard key keeps focus where it was, so ↵ then saves', async () => {
     await renderPopup();
     // A pointer press whose default is prevented doesn't move focus to the button.
-    expect(fireEvent.mouseDown(button('⌥R'))).toBe(false);
+    expect(fireEvent.mouseDown(chip('R'))).toBe(false);
+    expect(fireEvent.mouseDown(showKeyboard())).toBe(false);
+    fireEvent.click(showKeyboard());
     expect(fireEvent.mouseDown(miniKey('7'))).toBe(false);
+    expect(fireEvent.mouseDown(button('Hide keyboard'))).toBe(false);
+  });
+
+  it('↵ still saves after the keyboard was shown or hidden with a click', async () => {
+    await renderPopup();
+    fireEvent.click(showKeyboard());
+    await press('Enter', { key: 'Enter' });
+    expect(assignPage).toHaveBeenCalledExactlyOnceWith({ key: 'G', tabId: 7, openMode: 'smart' });
   });
 
   it('↵ on a focused button activates that button, not the save', async () => {
     await renderPopup();
-    const chip = button('⌥R');
-    chip.focus();
-    await press('Enter', { key: 'Enter' }, chip);
+    const target = chip('R');
+    target.focus();
+    await press('Enter', { key: 'Enter' }, target);
     expect(assignPage).not.toHaveBeenCalled();
   });
 
@@ -268,9 +291,8 @@ describe('saving', () => {
     expect(assignPage).toHaveBeenCalledOnce();
     expect(pickedKey()).toBe('G');
     expect(isDisabled(primary())).toBe(true);
-    expect(isDisabled(button('⌥R'))).toBe(true);
-    expect(isDisabled(miniKey('K'))).toBe(true);
-    expect(isDisabled(screen.getByRole('combobox', { name: 'Opens as' }))).toBe(true);
+    expect(isDisabled(chip('R'))).toBe(true);
+    expect(isDisabled(opensAs())).toBe(true);
   });
 
   it.each([{ kind: 'failed' }, { kind: 'unusable' }] as const)(
@@ -313,19 +335,32 @@ describe('a taken key', () => {
     await renderPopup();
     await press('KeyK');
     const alert = screen.getByRole('alert');
-    expect(alert.textContent).toBe('⌥K already opens Kagi.ReplaceMove it to ⌥A');
+    expect(alert.textContent).toBe('⌥K already opens Kagi.Move it to ⌥A');
     expect(within(alert).getByText('Kagi').tagName).toBe('STRONG');
+    expect(within(alert).getAllByRole('button')).toHaveLength(1);
     expect(primary().textContent).toBe('Replace ⌥K');
   });
 
-  it.each([
-    ['the primary button', () => primary()],
-    ['Replace in the alert', () => within(screen.getByRole('alert')).getByRole('button', { name: 'Replace' })],
-  ])('%s replaces', async (_, target) => {
+  it('the primary button replaces', async () => {
     await renderPopup();
     await press('KeyK');
-    fireEvent.click(target());
+    fireEvent.click(primary());
     expect(assignPage).toHaveBeenCalledExactlyOnceWith({ key: 'K', tabId: 7, openMode: 'smart', resolve: 'replace' });
+  });
+
+  it('offers no Move when no key is free', async () => {
+    await fillAllBut();
+    await renderPopup();
+    await press('KeyK');
+    expect(screen.getByRole('alert').textContent).toBe('⌥K already opens Site K.');
+    expect(queryButton(/^Move it to/)).toBeNull();
+  });
+
+  it('keeps the chips view when the pick is a taken key', async () => {
+    await renderPopup();
+    await press('KeyK');
+    expect(chips()).toEqual(['G', 'P', 'R', 'A']);
+    expect(queryMiniKey('K')).toBeNull();
   });
 
   it('↵ replaces', async () => {
@@ -363,7 +398,7 @@ describe('a taken key', () => {
     await act(() => store('G', { name: 'Gmail' }));
     await settle();
     expect(screen.getByRole('alert').textContent).toMatch(/^⌥G already opens Gmail\./);
-    expect(chips()).toEqual(['⌥P', '⌥R', '⌥A', '⌥I']);
+    expect(chips()).toEqual(['P', 'R', 'A', 'I']);
   });
 });
 
@@ -372,7 +407,9 @@ describe('all 35 keys in use', () => {
     await fillAllBut();
     await renderPopup();
 
-    expect(chips()).toEqual([]);
+    expect(chipGroup()).toBeNull();
+    expect(queryButton(/keyboard$/)).toBeNull();
+    expect(miniKey('K')).toBeDefined();
     expect(screen.getByText('All 35 keys are in use — press one to replace it')).toBeDefined();
     expect(isDisabled(primary())).toBe(true);
     await press('Enter', { key: 'Enter' });
@@ -381,7 +418,105 @@ describe('all 35 keys in use', () => {
     await press('KeyK');
     expect(primary().textContent).toBe('Replace ⌥K');
     expect(queryButton(/^Move it to/)).toBeNull();
-    expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Replace' })).toBeDefined();
+    expect(miniKey('K').getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('the keyboard view', () => {
+  it('starts on the chips, with no mini keyboard', async () => {
+    await renderPopup();
+    expect(chips()).toEqual(['G', 'P', 'R', 'A']);
+    expect(queryMiniKey('K')).toBeNull();
+    expect(showKeyboard().getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('gives each chip the full chord as its name', async () => {
+    await renderPopup({ platform: 'other' });
+    expect(chip('G', 'other').textContent).toBe('G');
+    expect(within(screen.getByRole('group', { name: 'Free & fitting' })).getAllByRole('button')).toHaveLength(4);
+  });
+
+  it('swaps the chips for the mini keyboard and back', async () => {
+    await renderPopup();
+    fireEvent.click(showKeyboard());
+
+    expect(chipGroup()).toBeNull();
+    expect(miniKey('K')).toBeDefined();
+    expect(miniKey('G').getAttribute('aria-pressed')).toBe('true');
+    expect(button('Hide keyboard').getAttribute('aria-expanded')).toBe('true');
+    expect(queryButton('Show keyboard')).toBeNull();
+
+    fireEvent.click(button('Hide keyboard'));
+
+    expect(chips()).toEqual(['G', 'P', 'R', 'A']);
+    expect(queryMiniKey('K')).toBeNull();
+    expect(showKeyboard().getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('keeps the picked key across the swap', async () => {
+    await renderPopup();
+    fireEvent.click(showKeyboard());
+    fireEvent.click(miniKey('7'));
+    fireEvent.click(button('Hide keyboard'));
+    expect(pickedKey()).toBe('7');
+    expect(chips().length).toBe(4);
+    expect(
+      within(screen.getByRole('group', { name: 'Free & fitting' })).queryAllByRole('button', { pressed: true }),
+    ).toHaveLength(0);
+  });
+
+  it('opens on the chips every time', async () => {
+    const { unmount } = render(
+      <PopupPage actions={{ assignPage, openOptions, close, openKey, getOverlayModel }} platform="mac" />,
+    );
+    await settle();
+    fireEvent.click(showKeyboard());
+    unmount();
+    await renderPopup();
+    expect(chips()).toEqual(['G', 'P', 'R', 'A']);
+  });
+
+  it('picks a physical key in either view', async () => {
+    await renderPopup();
+    await press('KeyR');
+    expect(pickedKey()).toBe('R');
+    fireEvent.click(showKeyboard());
+    await press('KeyK');
+    expect(pickedKey()).toBe('K');
+    expect(miniKey('K').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('shows a non-chip pick in the zone without switching the view or pressing a chip', async () => {
+    await renderPopup();
+    await press('KeyK');
+    expect(pickedKey()).toBe('K');
+    expect(chips()).toEqual(['G', 'P', 'R', 'A']);
+    for (const key of ['G', 'P', 'R', 'A']) expect(chip(key).getAttribute('aria-pressed')).toBe('false');
+    expect(queryMiniKey('K')).toBeNull();
+  });
+
+  it('shows the keyboard from the start, with no toggle, when no key fits', async () => {
+    await fillAllBut('3', 'Z');
+    await renderPopup();
+    expect(miniKey('3').getAttribute('aria-pressed')).toBe('true');
+    expect(queryButton(/keyboard$/)).toBeNull();
+  });
+
+  it('keeps S reserved and shows picked, taken and free keys', async () => {
+    await store('Y', { name: 'YouTube' });
+    await renderPopup();
+    fireEvent.click(showKeyboard());
+    expect(isDisabled(miniKey('S'))).toBe(true);
+    expect(miniKey('Y').getAttribute('aria-label')).toBe('Option Y: YouTube');
+    expect(miniKey('G').getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('Opens as', () => {
+  it('is a dropdown with no visible label, named with the current mode', async () => {
+    await renderPopup();
+    expect(screen.queryByText('Opens as')).toBeNull();
+    expect(opensAs().textContent).toBe('Smart switch');
   });
 });
 
@@ -416,6 +551,7 @@ describe('an unusable page: the launcher', () => {
       expect(tile('Y').textContent).toContain('YouTube');
       expect(screen.queryByTestId('primary')).toBeNull();
       expect(screen.queryByRole('combobox')).toBeNull();
+      expect(queryButton(/keyboard$/)).toBeNull();
     },
   );
 
@@ -538,12 +674,21 @@ describe('an unusable page: the launcher', () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it('still opens the keymap from the link under the line', async () => {
+  it('has no link in the line itself, and Open keymap → alone in the footer', async () => {
     await renderPopup();
-    fireEvent.click(button('Open keymap'));
+    expect(queryButton('Open keymap')).toBeNull();
+    expect(screen.queryByText(/^Hold /)).toBeNull();
+    fireEvent.click(openKeymapLink());
     await settle();
     expect(openOptions).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the footer link next to the empty state', async () => {
+    getOverlayModel.mockResolvedValue({ tiles: [] });
+    await renderPopup();
+    expect(screen.getByText('No keys yet')).toBeDefined();
+    expect(openKeymapLink()).toBeDefined();
   });
 
   it('scrolls its tiles inside the popup past 12 keys', async () => {
@@ -563,15 +708,35 @@ describe('an unusable page: the launcher', () => {
 });
 
 describe('the frame', () => {
-  it('shows the footer tip', async () => {
+  it('shows the name in the header and no icon to the keymap', async () => {
     await renderPopup();
-    expect(screen.getByText('Tip: hold ⌥ on any page to see all keys')).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'SpeedLink' })).toBeDefined();
+    expect(queryButton('Open keymap')).toBeNull();
+  });
+
+  it('says to hold ⌥ for all keys, and opens the keymap from the footer link', async () => {
+    await renderPopup();
+    expect(tip('Hold ⌥ to see all keys')).toBeDefined();
+    expect(screen.getByText('⌥').tagName).toBe('KBD');
+    fireEvent.click(openKeymapLink());
+    await settle();
+    expect(openOptions).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('draws the header and footer while it loads', () => {
+    query.mockImplementation(() => new Promise(() => {}));
+    render(<PopupPage actions={{ assignPage, openOptions, close, openKey, getOverlayModel }} platform="mac" />);
+    expect(screen.getByRole('heading', { name: 'SpeedLink' })).toBeDefined();
+    expect(tip('Hold ⌥ to see all keys')).toBeDefined();
+    expect(openKeymapLink()).toBeDefined();
   });
 
   it('reads Alt + K off a Mac', async () => {
     await renderPopup({ platform: 'other' });
     expect(primary().textContent).toBe('Save to Alt+G');
     expect(screen.getByText('Alt +')).toBeDefined();
-    expect(screen.getByText('Tip: hold Alt on any page to see all keys')).toBeDefined();
+    expect(tip('Hold Alt to see all keys')).toBeDefined();
+    expect(chip('G', 'other')).toBeDefined();
   });
 });

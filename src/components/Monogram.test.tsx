@@ -20,7 +20,7 @@ describe('Monogram', () => {
   });
 
   it('draws no image, at every size', () => {
-    for (const size of ['2xs', 'xs', 'sm', 'default', 'lg'] as const) {
+    for (const size of ['2xs', 'xs', 'sm', 'default', 'md', 'lg'] as const) {
       const { container, unmount } = render(
         <Monogram shortcut={validShortcut({ link: 'https://mail.google.com/' })} size={size} />,
       );

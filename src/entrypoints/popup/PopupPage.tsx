@@ -1,15 +1,17 @@
 // Popup (product spec §7). On a page that can take a key: the tab's page card, the key picker, Opens as and the save.
 // On one that can't (the new tab page, chrome://, the Web Store): a launcher, the overlay's tiles with a key press
-// that opens. The popup never writes the keymap: the background assigns (§11.3) and opens (§4.1).
-import { cn } from 'cn';
-import { BanIcon, KeyboardIcon, ZapIcon } from 'lucide-react';
-import { type MouseEvent, useEffect, useRef, useState } from 'react';
+// that opens. The popup never writes the keymap: the background assigns (§11.3) and opens (§4.1). Every view sits in
+// the same frame: header bar, grey body, footer bar.
+import { BanIcon } from 'lucide-react';
+import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { BrandMark } from '@/components/Brand';
 import { KeyboardGrid } from '@/components/KeyboardGrid';
 import { KeyCap, type KeyCapState } from '@/components/KeyCap';
 import { Monogram } from '@/components/Monogram';
 import { OverlayEmpty, OverlayTiles } from '@/components/OverlayTiles';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Kbd } from '@/components/ui/kbd';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { keyFromCode, type PickedKey, type PickerModel, pickerModel } from '@/domain/assign-picker';
 import type { Keymap, Resolve } from '@/domain/keymap-ops';
@@ -52,11 +54,18 @@ const onControl = (target: EventTarget | null) =>
 /** A pointer press on a picker key leaves focus where it was, so ↵ right after a click still saves. */
 const keepFocus = (event: MouseEvent) => event.preventDefault();
 
+// A private-use character stands in for a node inside a message; Chrome's getMessage drops a NUL.
+const MARK = '\uE000';
+
+/** A message built with `MARK` as one argument, split around it so a node can sit inside the sentence. */
+function splitAround(message: string): [string, string] {
+  const [before = '', after = ''] = message.split(MARK);
+  return [before, after];
+}
+
 /** "⌥K already opens **Name**.", with the name in bold. */
 function ConflictText({ chord, name }: { chord: string; name: string }) {
-  // A private-use character stands in for the name; Chrome's getMessage drops a NUL.
-  const MARK = '\uE000';
-  const [before = '', after = ''] = i18n.t('popup.conflict', [chord, MARK]).split(MARK);
+  const [before, after] = splitAround(i18n.t('popup.conflict', [chord, MARK]));
   return (
     <p>
       {before}
@@ -66,20 +75,46 @@ function ConflictText({ chord, name }: { chord: string; name: string }) {
   );
 }
 
-/** The brand and, with `onOpenKeymap`, the icon that opens the keymap. */
-function Header({ onOpenKeymap }: { onOpenKeymap?: () => void }) {
+async function openKeymap(actions: PopupActions) {
+  await actions.openOptions();
+  actions.close();
+}
+
+/** The footer's link to the full keymap. */
+function OpenKeymapLink({ actions }: { actions: PopupActions }) {
   return (
-    <header className="flex items-center gap-2">
-      <span aria-hidden="true" className="flex size-6 items-center justify-center rounded-md bg-primary">
-        <ZapIcon className="size-3.5 fill-primary-foreground text-primary-foreground" />
-      </span>
-      <h1 className="flex-1 font-bold text-md">{i18n.t('extName')}</h1>
-      {onOpenKeymap !== undefined && (
-        <Button variant="ghost" size="icon-xs" aria-label={i18n.t('popup.openKeymap')} onClick={onOpenKeymap}>
-          <KeyboardIcon aria-hidden="true" className="size-4" />
-        </Button>
-      )}
-    </header>
+    <Button variant="link" size="xs" className="ml-auto px-0" onClick={() => void openKeymap(actions)}>
+      {i18n.t('popup.openKeymapLink')}
+    </Button>
+  );
+}
+
+/** "Hold ⌥ to see all keys", with the ⌥ as a key. */
+function PeekTip({ platform }: { platform: Platform }) {
+  const [before, after] = splitAround(i18n.t('popup.tip', [MARK]));
+  return (
+    <p className="text-2xs text-muted-foreground">
+      {before}
+      <Kbd>{triggerSymbol(platform)}</Kbd>
+      {after}
+    </p>
+  );
+}
+
+/**
+ * The frame of every popup view: a white header bar with the brand, the grey scrolling body and a white footer bar.
+ * `footer` is what the view puts in the bar.
+ */
+function PopupShell({ footer, children }: { footer: ReactNode; children?: ReactNode }) {
+  return (
+    <main className="flex w-95 flex-col bg-background text-foreground">
+      <header className="flex items-center gap-2 border-border-subtle border-b bg-card px-4 py-3">
+        <BrandMark />
+        <h1 className="font-bold text-md">{i18n.t('extName')}</h1>
+      </header>
+      <div className="flex max-h-125 min-h-24 flex-col gap-2 overflow-y-auto p-3">{children}</div>
+      <footer className="flex items-center gap-2 border-border-subtle border-t bg-card px-4 py-2">{footer}</footer>
+    </main>
   );
 }
 
@@ -87,7 +122,7 @@ function PageCard({ tab, model, platform }: { tab: PopupTab; model: PickerModel;
   return (
     <section className="flex items-center gap-3 rounded-xl border bg-card p-2.5">
       {model.usable ? (
-        <Monogram shortcut={model.shortcut} size="default" />
+        <Monogram shortcut={model.shortcut} size="md" />
       ) : (
         <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
           <BanIcon aria-hidden="true" className="size-4" />
@@ -129,6 +164,8 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
   const inFlight = useRef(false);
 
   const model = pickerModel(keymap, tab, picked ?? null);
+  // The mini keyboard shows from the start only when there are no chips; after that only the toggle changes it.
+  const [keyboard, setKeyboard] = useState(!model.usable || model.chips.length === 0);
   const defaultKey = model.usable ? model.defaultKey : null;
 
   // The default pick is made once, on the first render; after that only the user picks.
@@ -191,13 +228,10 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const openKeymap = async () => {
-    await actions.openOptions();
-    actions.close();
-  };
-
   const full = model.usable && model.full;
   const chips = model.usable ? model.chips : [];
+  // Chips that vanish (the keymap filled up) leave nothing to toggle back to.
+  const showKeyboard = keyboard || chips.length === 0;
   const pickedKey = pickedState?.key ?? null;
   const chord = pickedKey === null ? null : chordLabel(pickedKey, platform);
   const primaryLabel =
@@ -206,11 +240,17 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
       : i18n.t(primaryResolve === 'replace' ? 'popup.replaceKey' : 'popup.saveTo', [chord]);
 
   return (
-    <main className="flex w-95 flex-col gap-2 bg-background p-3 text-foreground">
-      <Header onOpenKeymap={() => void openKeymap()} />
+    <PopupShell
+      footer={
+        <>
+          <PeekTip platform={platform} />
+          <OpenKeymapLink actions={actions} />
+        </>
+      }
+    >
       <PageCard tab={tab} model={model} platform={platform} />
 
-      <section className="flex flex-col gap-1.5 rounded-xl border bg-card p-2.5">
+      <section className="flex flex-col gap-2 rounded-xl border bg-card p-2.5">
         <p className="font-medium text-ui">{i18n.t(full ? 'popup.promptFull' : 'popup.prompt')}</p>
         <div
           data-testid="picked-key"
@@ -234,96 +274,108 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
           )}
         </div>
 
-        {/* biome-ignore lint/a11y/useSemanticElements: a group of toggle buttons, not a fieldset of inputs */}
-        <div
-          role="group"
-          aria-label={i18n.t('popup.fitting')}
-          className={cn('flex items-center gap-1.5', chips.length === 0 && 'hidden')}
-        >
-          <span aria-hidden="true" className="text-2xs text-muted-foreground">
-            {i18n.t('popup.fitting')}
-          </span>
-          {chips.map((key) => (
+        {chips.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            {!showKeyboard && (
+              // biome-ignore lint/a11y/useSemanticElements: a group of toggle buttons, not a fieldset of inputs
+              <div role="group" aria-label={i18n.t('popup.fitting')} className="flex items-center gap-1.5">
+                <span aria-hidden="true" className="text-2xs text-muted-foreground">
+                  {i18n.t('popup.fitting')}
+                </span>
+                {chips.map((key) => (
+                  <Button
+                    key={key}
+                    variant="outline"
+                    size="xs"
+                    aria-label={chordLabel(key, platform)}
+                    aria-pressed={key === pickedKey}
+                    disabled={!ready}
+                    onMouseDown={keepFocus}
+                    onClick={() => pick(key)}
+                    className="aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground"
+                  >
+                    {key}
+                  </Button>
+                ))}
+              </div>
+            )}
             <Button
-              key={key}
-              variant="outline"
+              variant="link"
               size="xs"
-              aria-pressed={key === pickedKey}
-              disabled={!ready}
+              aria-expanded={showKeyboard}
               onMouseDown={keepFocus}
-              onClick={() => pick(key)}
-              className="aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground"
+              onClick={() => setKeyboard(!showKeyboard)}
+              className="ml-auto px-0"
             >
-              {chordLabel(key, platform)}
+              {i18n.t(showKeyboard ? 'popup.hideKeyboard' : 'popup.showKeyboard')}
             </Button>
-          ))}
-        </div>
+          </div>
+        )}
 
-        <KeyboardGrid
-          size="sm"
-          renderKey={(label) => (
-            <KeyCap
-              size="sm"
-              label={label}
-              platform={platform}
-              state={miniKeyState(label, keymap, pickedKey)}
-              name={isAssignable(label) ? keymap[label] && displayName(keymap[label]) : undefined}
-              aria-pressed={isAssignable(label) ? label === pickedKey : undefined}
-              disabled={!ready}
-              onMouseDown={keepFocus}
-              onClick={isAssignable(label) ? () => pick(label) : undefined}
-            />
-          )}
-        />
+        {showKeyboard && (
+          <KeyboardGrid
+            size="sm"
+            renderKey={(label) => (
+              <KeyCap
+                size="sm"
+                label={label}
+                platform={platform}
+                state={miniKeyState(label, keymap, pickedKey)}
+                name={isAssignable(label) ? keymap[label] && displayName(keymap[label]) : undefined}
+                aria-pressed={isAssignable(label) ? label === pickedKey : undefined}
+                disabled={!ready}
+                onMouseDown={keepFocus}
+                onClick={isAssignable(label) ? () => pick(label) : undefined}
+              />
+            )}
+          />
+        )}
 
         {pickedState?.kind === 'conflict' && chord !== null && (
           <Alert variant="warning" className="px-3 py-2 text-ui">
             <AlertDescription className="col-span-2 col-start-1 gap-1.5 text-ui">
               <ConflictText chord={chord} name={displayName(pickedState.existing)} />
-              <div className="flex flex-wrap gap-1.5">
-                <Button variant="warning-outline" size="xs" disabled={!ready} onClick={() => void save('replace')}>
-                  {i18n.t('popup.replace')}
-                </Button>
-                {pickedState.moveTarget !== null && (
+              {pickedState.moveTarget !== null && (
+                <div className="flex flex-wrap gap-1.5">
                   <Button variant="warning-outline" size="xs" disabled={!ready} onClick={() => void save('move')}>
                     {i18n.t('popup.moveTo', [chordLabel(pickedState.moveTarget, platform)])}
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </AlertDescription>
           </Alert>
         )}
       </section>
 
-      <div className="flex items-center justify-between gap-3">
-        <span id="opens-as" className="font-medium text-ui">
-          {i18n.t('popup.opensAs')}
-        </span>
-        <Select value={openMode} onValueChange={(value) => setOpenMode(value as OpenMode)} disabled={!ready}>
-          <SelectTrigger size="sm" aria-labelledby="opens-as" className="w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {OPEN_MODES.map((mode) => (
-              <SelectItem key={mode} value={mode}>
-                {i18n.t(`options.openMode.${mode}.title`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
       <div className="flex flex-col gap-2">
-        <Button
-          data-testid="primary"
-          size="lg"
-          variant={primaryResolve === 'replace' || full ? 'inverse' : 'default'}
-          disabled={!primaryEnabled}
-          onClick={() => void save(primaryResolve)}
-          className="w-full font-semibold"
-        >
-          {primaryLabel}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={openMode} onValueChange={(value) => setOpenMode(value as OpenMode)} disabled={!ready}>
+            <SelectTrigger
+              size="lg"
+              aria-label={i18n.t('popup.opensAsMode', [i18n.t(`options.openMode.${openMode}.title`)])}
+              className="rounded-key bg-card font-medium text-ui"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {OPEN_MODES.map((mode) => (
+                <SelectItem key={mode} value={mode}>
+                  {i18n.t(`options.openMode.${mode}.title`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            data-testid="primary"
+            size="xl"
+            variant={primaryResolve === 'replace' || full ? 'inverse' : 'default'}
+            disabled={!primaryEnabled}
+            onClick={() => void save(primaryResolve)}
+            className="flex-1 font-semibold"
+          >
+            {primaryLabel}
+          </Button>
+        </div>
         {failedKey !== null && (
           <Alert variant="destructive" className="px-3 py-2 text-ui">
             <AlertDescription className="col-span-2 col-start-1 text-ui">
@@ -332,11 +384,7 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
           </Alert>
         )}
       </div>
-
-      <footer className="text-center text-2xs text-muted-foreground">
-        {i18n.t('popup.tip', [triggerSymbol(platform)])}
-      </footer>
-    </main>
+    </PopupShell>
   );
 }
 
@@ -402,26 +450,15 @@ function Launcher({ actions, tab, keymap, platform }: ViewProps) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const openKeymap = async () => {
-    await actions.openOptions();
-    actions.close();
-  };
-
   const empty = model !== null && model.tiles.length === 0;
   return (
-    <main className="flex w-95 flex-col gap-2 bg-background p-3 text-foreground">
-      <Header />
-      <section className="flex items-center justify-between gap-3 rounded-xl border bg-card p-2.5">
+    <PopupShell footer={<OpenKeymapLink actions={actions} />}>
+      <section className="rounded-xl border bg-card p-2.5">
         <p className="text-2xs text-warning-foreground">{i18n.t('popup.unusable')}</p>
-        {!empty && (
-          <Button variant="link" size="xs" onClick={() => void openKeymap()}>
-            {i18n.t('popup.openKeymap')}
-          </Button>
-        )}
       </section>
       {model !== null &&
         (empty ? (
-          <OverlayEmpty onOpenKeymap={() => void openKeymap()} />
+          <OverlayEmpty onOpenKeymap={() => void openKeymap(actions)} />
         ) : (
           <OverlayTiles
             tiles={model.tiles}
@@ -442,14 +479,25 @@ function Launcher({ actions, tab, keymap, platform }: ViewProps) {
           </AlertDescription>
         </Alert>
       )}
-    </main>
+    </PopupShell>
   );
 }
 
 export function PopupPage({ actions, tabId, platform = PLATFORM }: PopupPageProps) {
   const tab = usePopupTab(tabId);
   const keymap = useKeymap();
-  if (tab === null || keymap === null) return <main className="w-95 bg-background p-3" />;
+  if (tab === null || keymap === null) {
+    return (
+      <PopupShell
+        footer={
+          <>
+            <PeekTip platform={platform} />
+            <OpenKeymapLink actions={actions} />
+          </>
+        }
+      />
+    );
+  }
 
   // A page that can't go on a key has nothing to assign; it gets the launcher (§7).
   const View = pickerModel(keymap, tab, null).usable ? AssignView : Launcher;
