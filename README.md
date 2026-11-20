@@ -23,9 +23,9 @@ uses it as `"SpeedLink Inter"`.
 
 ## Listing images
 
-`pnpm listing` redraws the Store images, the extension icons, the landing page's demo loop and social card, and
-`docs/media/demo.gif` from the real build. It needs `ffmpeg` and `ffprobe` on `PATH` (with libx264 and libvpx, as in
-Homebrew's `ffmpeg`) to encode and check the loop. Review the results before committing them.
+`pnpm listing` redraws the Store images (five captioned shots, the promo tile and the marquee), the extension icons,
+the landing page's clean frames and social card, and `docs/media/demo.gif` from the real build. It needs `ffmpeg` and
+`ffprobe` on `PATH` to encode and check the GIF. Review the results in the PR before they are uploaded.
 
 ## Gallery
 

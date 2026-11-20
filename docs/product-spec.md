@@ -653,8 +653,10 @@ Key-state colors live inside `KeyCap`.
 
 **Listing**
 - New English summary and description, worded from the glossary.
-- Five screenshots at 1280×800, captured by `pnpm listing` from the real build on a demo keymap and a neutral backdrop page, with Alt labels: Options keymap, popup assign, Peek overlay, saved toast, pinned overlay with a search.
-- A small promo tile 440×280, drawn by the same command. The assets and every listing text live in `store/` (`listing.md`).
+- Five captioned screenshots at 1280×800, drawn by `pnpm listing` from the real build on a demo keymap and a neutral backdrop page, each with a big headline and a short sub: Hero, Smart switch, Peek, Assign, Keymap.
+  - Hero and Smart switch are templates drawn from the real components (keycaps, overlay tiles, monograms): the ⌥ / Alt + G chord over six tiles, open sites green; one tab strip before and after ⌥ / Alt + G, the same tabs with GitHub in front.
+  - Peek, Assign and Keymap are a caption over a clean frame: a real capture (the Peek with ⌥ held, the popup under the toolbar icon, the key editor open on a key) in a template browser mock that is plainly not Chrome. Captures read "Alt" (Windows); captions say "⌥ / Alt" or "⌥ (Alt)". The landing page reuses the clean frames without captions.
+- A small promo tile 440×280 ("Put your sites on keys." with the ⌥ / Alt + G chord), a marquee 1400×560 (the headline, the sub and six tiles, G highlighted) and the landing page's social card 1200×630 in the marquee style, drawn by the same command. The saved-toast and pinned-overlay shots are dropped; the demo loop only feeds the README's GIF. The Store assets and every listing text live in `store/` (`listing.md`).
 - Privacy tab: single purpose; justifications for `tabs`, `scripting`, `storage` and `<all_urls>`; data "not collected".
 - A short privacy policy page, `site/privacy/index.html`, published on GitHub Pages at `https://itigancov.github.io/speedlink/privacy/`. Support and the policy's contact are GitHub Issues; no email is published.
 
