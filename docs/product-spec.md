@@ -637,6 +637,7 @@ Key-state colors live inside `KeyCap`.
 **Versions**
 - 4.0.0, then a no-op **4.0.1** (version bump only, built together) to bind Alt+S.
 - 4.0.1 is submitted once 4.0.0 is published and confirmed on the author's install.
+- **4.2.0**: the redesign, a minor release without a migration. The manifest changes only in its version (§13); the listing texts and images are updated (below).
 
 **Permission check**
 - Before publishing: a local CRX → CRX update (packed 1.6, then 4.0.0, one `.pem`).
@@ -661,7 +662,7 @@ Key-state colors live inside `KeyCap`.
 - The landing page, `site/index.html` on GitHub Pages (the listing's Homepage URL): one static page, its styles and a small script inline, local Inter, nothing loaded from another site, light and dark. Its hero is a live try-it demo of Smart switch on the demo keymap (click a key: an open site's tab comes to the front, a closed one opens in a new tab; Reset), with "On your phone? Copy the link" for visitors who can't install. Below it: How it works, Peek, Assign and Keymap on the clean frames, the four open modes, a trust strip, an FAQ answered from §4.2, §13 and §1, and a closing Add to Chrome. No rating or user-count line. Its media are the clean frames and the social card.
 - A short privacy policy page, `site/privacy/index.html`, published on GitHub Pages at `https://itigancov.github.io/speedlink/privacy/`. Support and the policy's contact are GitHub Issues; no email is published.
 
-**Manual QA** (`docs/release-checklist.md`, run before every major or minor release)
+**Manual QA** (`docs/release-checklist.md`; which checks a release runs: #1, #3 by hand and #8 only when it changes the v1 migration or the storage schema, #4 was 4.0.1 only, #2's Store part only when the manifest changed, the rest at RC. For 4.2.0: #2 (automated), #5, #6, #7, #9, #10)
 1. Real Store update 1.6 → 4.0: keymap migrated, S moved, `speedlink` untouched, report in the service-worker console.
 2. No re-consent (local CRX test and Store update).
 3. The welcome page opens on the update from 1.x.
@@ -671,4 +672,5 @@ Key-state colors live inside `KeyCap`.
 7. macOS: no dead-key leftover after a suppressed ⌥E.
 8. Second device: late-arriving sync data, and the migration catches up.
 9. Smoke test of all 4 open modes on live sites.
+10. Visual pass: every redesigned surface (Options keyboard, first run, narrow window, key editor dialog and List; Popup picker, Show keyboard, key card and launcher; Peek and the pinned overlay; toasts and welcome) in light and dark, matching its canvas board, nothing clipped, no unreadable contrast. The Windows half needs Windows; otherwise it is marked unverified and the risk is accepted explicitly, as in #6.
 ↳ rebuild map: issues/10-release-plan.md (release plan)

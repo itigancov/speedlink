@@ -1,6 +1,6 @@
 # Release checklist
 
-The checks to run before every major or minor release (product spec §14, "Manual QA"). Each one says what it protects, when it runs, how to run it and what passes. Some are automated and only need their result read. The rest are done by hand.
+The checks a major or minor release can run (product spec §14, "Manual QA"; which ones, below). Each one says what it protects, when it runs, how to run it and what passes. Some are automated and only need their result read. The rest are done by hand.
 
 **When a check runs.** There are three points:
 
@@ -19,6 +19,17 @@ The checks to run before every major or minor release (product spec §14, "Manua
 | 7 | macOS: no dead-key leftover | RC | By hand |
 | 8 | Second device: sync catches up | After publish | By hand |
 | 9 | The four open modes on live sites | RC | `pnpm smoke:live` |
+| 10 | Visual pass | RC | By hand |
+
+**Which checks a release runs.**
+
+- #1, #3 (by hand) and #8 run only for a release that changes the v1 migration or the storage schema.
+- #4 was for 4.0.1 only.
+- #2's Store part (by hand) runs only when the manifest changed. Its automated part, the warnings test in `e2e/manifest.spec.ts`, runs with every suite.
+- #3's e2e (`e2e/v1-update.spec.ts`) always runs as part of the suite.
+- #5, #6, #7, #9 and #10 run at RC for every release.
+
+For 4.2.0 (a minor release with no migration and no manifest change) that gives #2 (RC, automated), #5, #6, #7, #9 and #10.
 
 **Getting the candidate.** Download the zip from the prerelease and unzip it into an empty folder:
 
@@ -203,6 +214,20 @@ SPEEDLINK_EXTENSION=<dir>/rc pnpm smoke:live
 Without `SPEEDLINK_EXTENSION`, it builds and runs on `.output/chrome-mv3`. It isn't in CI: live sites change and go down.
 
 **Pass.** All tests pass. A failure is read by hand before it counts. If a site changed or is down, swap it in `live/live-sites.spec.ts` for one with the same role and re-run.
+
+## 10. Visual pass
+
+**What it protects.** A release that restyles surfaces can break a token in one theme, clip a label or lose contrast, and no unit or e2e test sees it. Each surface is looked at once, in light and in dark, against its canvas board.
+
+**When.** RC, on the candidate loaded unpacked in a separate Chrome profile (see "Getting the candidate"). Windows half: without a Windows machine or VM it is marked **unverified**, with the same explicit per-release acceptance as #6 (who, the date). Mitigation: the "Alt" labels were checked on the listing captures, and the platform-labels helper is unit-tested.
+
+**How.** Switch the OS between light and dark and go through every surface in both:
+1. **Options**: Keyboard (assigned, open-now and free keys; selected key); first run (empty keymap); a narrow window (compact keys, then the sideways scroll); the key editor dialog; List.
+2. **Popup**: the key picker with chips; Show keyboard (mini keyboard); the key card; the launcher on a restricted page.
+3. **Peek** and the **pinned overlay** on an ordinary site.
+4. **Toasts** (saved, free key, Undo) and the **welcome** page.
+
+**Pass.** Every surface, in both themes, matches its canvas board, has nothing clipped, and has no unreadable contrast.
 
 ## Record template
 
