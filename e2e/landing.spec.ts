@@ -1,6 +1,7 @@
-// Guards the landing page in `site/` (backlog item 24): its links, the privacy promise that it loads nothing from
-// anywhere else, that its media loads (the demo loop, item 25) and that its screenshots and font are the current
-// copies. The page is served at its real Pages URL from disk; no extension is involved. Look and layout are the author's review, not this spec's.
+// Guards the landing page in `site/` (items 24 and 38): its links, the privacy promise that it loads nothing from
+// anywhere else, that its images, font and icon load, the hero's try-it demo (scripted Smart switch), "Copy the link"
+// on a phone, and that its font and icon are the current copies. The page is served at its real Pages URL from disk;
+// no extension is involved. Look, layout and copy wording are the author's review, not this spec's.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
@@ -50,8 +51,6 @@ function contentType(file: string): string {
   const types: Record<string, string> = {
     '.html': 'text/html; charset=utf-8',
     '.png': 'image/png',
-    '.mp4': 'video/mp4',
-    '.webm': 'video/webm',
     '.woff2': 'font/woff2',
   };
   return types[extname(file)] ?? 'application/octet-stream';
@@ -68,7 +67,7 @@ test('links the privacy policy, Support on GitHub Issues and the source', async 
   await visit(page);
   expect(await hrefs(page, 'Privacy policy')).toContain('privacy/');
   expect(await hrefs(page, 'Support')).toEqual([ISSUES]);
-  expect(await hrefs(page, 'Source on GitHub')).toEqual([REPO]);
+  expect(new Set(await hrefs(page, 'Source on GitHub'))).toEqual(new Set([REPO]));
 });
 
 test('requests nothing from outside site/', async ({ page }) => {
@@ -76,13 +75,11 @@ test('requests nothing from outside site/', async ({ page }) => {
   expect(outside).toEqual([]);
 });
 
-test('every image, video, font and icon it references is in site/ and loads', async ({ page }) => {
+test('every image, font and icon it references is in site/ and loads', async ({ page }) => {
   const { missing } = await visit(page);
   expect(missing).toEqual([]);
   const references = await page.evaluate(() => [
     ...[...document.images].map((image) => image.currentSrc),
-    ...[...document.querySelectorAll('video')].map((video) => video.poster),
-    ...[...document.querySelectorAll('video source')].map((source) => (source as HTMLSourceElement).src),
     ...[...document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"], link[rel="preload"]')].map(
       (link) => link.href,
     ),
@@ -99,27 +96,8 @@ test('every image, video, font and icon it references is in site/ and loads', as
     [...document.images].filter((image) => !image.complete || image.naturalWidth === 0).map((image) => image.src),
   );
   expect(unloaded).toEqual([]);
-  // Each video picked a source and read its header.
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        [...document.querySelectorAll('video')].map((video) => video.readyState >= 1 && video.currentSrc !== ''),
-      ),
-    )
-    .not.toContain(false);
   const fonts = await page.evaluate(() => [...document.fonts].map(({ family, status }) => `${family}: ${status}`));
   expect(fonts).toEqual(['SpeedLink Inter: loaded']);
-});
-
-test('under reduced motion the hero shows the demo poster and plays nothing', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await visit(page);
-  const hero = page.locator('.hero video');
-  await expect(hero).toHaveAttribute('poster', 'media/demo-poster.png');
-  expect(await hero.evaluate((video: HTMLVideoElement) => ({ src: video.currentSrc, paused: video.paused }))).toEqual({
-    src: '',
-    paused: true,
-  });
 });
 
 async function hrefs(page: Page, name: string): Promise<(string | null)[]> {
@@ -128,19 +106,119 @@ async function hrefs(page: Page, name: string): Promise<(string | null)[]> {
   return Promise.all(links.map((link) => link.getAttribute('href')));
 }
 
-/** The copies in `site/<folder>/` of files in the folder they come from; `site/media/` also has files of its own. */
+/** The copies in `site/<folder>/` of files in the folder they come from. */
 const copies = (folder: string, from: string) =>
   readdirSync(join(SITE, folder))
     .filter((name) => existsSync(join(ROOT, from, name)))
     .map((name) => ({ copy: `${folder}/${name}`, original: `${from}/${name}` }));
 
-// The screenshots (`pnpm listing` writes both), Inter and the favicon.
-for (const { copy, original } of [
-  ...copies('media', 'store'),
-  ...copies('fonts', 'public/fonts'),
-  ...copies('icon', 'public/icon'),
-]) {
+// Inter and the favicon.
+for (const { copy, original } of [...copies('fonts', 'public/fonts'), ...copies('icon', 'public/icon')]) {
   test(`site/${copy} is the same file as ${original}`, () => {
     expect(readFileSync(join(SITE, copy)).equals(readFileSync(join(ROOT, original)))).toBe(true);
   });
 }
+
+test('shares the social card at its absolute Pages URL', async ({ page }) => {
+  await visit(page);
+  for (const meta of ['meta[property="og:image"]', 'meta[name="twitter:image"]']) {
+    await expect(page.locator(meta)).toHaveAttribute('content', `${PAGES}media/social-card.png`);
+  }
+});
+
+test.describe('the try-it demo', () => {
+  const demo = (page: Page) => page.getByRole('region', { name: 'Try it' });
+  const tabs = (page: Page) => demo(page).getByRole('list', { name: 'Open tabs' }).getByRole('listitem');
+  const activeTab = (page: Page) => demo(page).locator('[aria-current="page"]');
+  const message = (page: Page) => demo(page).getByRole('status');
+  const key = (page: Page, letter: string) =>
+    demo(page).getByRole('button', { name: new RegExp(`^⌥ \\(Alt\\) ${letter}:`) });
+
+  test('starts on the article with GitHub and Figma open', async ({ page }) => {
+    await visit(page);
+    await expect(tabs(page)).toHaveText(['Field Notes', 'GitHub', 'Figma']);
+    await expect(activeTab(page)).toHaveText('Field Notes');
+    await expect(key(page, 'G')).toHaveAccessibleName('⌥ (Alt) G: GitHub, open now');
+    await expect(key(page, 'M')).toHaveAccessibleName('⌥ (Alt) M: Gmail');
+  });
+
+  test('a key whose site is open jumps to its tab and adds none', async ({ page }) => {
+    await visit(page);
+    await key(page, 'G').click();
+    await expect(activeTab(page)).toHaveText('GitHub');
+    await expect(tabs(page)).toHaveCount(3);
+    await expect(message(page)).toContainText('already open');
+  });
+
+  test('a key whose site is not open opens it in a new tab', async ({ page }) => {
+    await visit(page);
+    await key(page, 'M').click();
+    await expect(tabs(page)).toHaveText(['Field Notes', 'GitHub', 'Figma', 'Gmail']);
+    await expect(activeTab(page)).toHaveText('Gmail');
+    await expect(message(page)).toContainText('opened in a new tab');
+    await expect(key(page, 'M')).toHaveAccessibleName('⌥ (Alt) M: Gmail, open now');
+  });
+
+  test('Reset restores the start', async ({ page }) => {
+    await visit(page);
+    const start = await message(page).textContent();
+    await key(page, 'M').click();
+    await key(page, 'C').click();
+    await key(page, 'F').click();
+    await demo(page).getByRole('button', { name: 'Reset' }).click();
+    await expect(tabs(page)).toHaveText(['Field Notes', 'GitHub', 'Figma']);
+    await expect(activeTab(page)).toHaveText('Field Notes');
+    await expect(message(page)).toHaveText(start ?? '');
+    await expect(key(page, 'M')).toHaveAccessibleName('⌥ (Alt) M: Gmail');
+  });
+
+  test('announces politely and works from the keyboard', async ({ page }) => {
+    await visit(page);
+    await expect(message(page)).toHaveAttribute('aria-live', 'polite');
+    await key(page, 'C').focus();
+    await page.keyboard.press('Enter');
+    await expect(activeTab(page)).toHaveText('Calendar');
+    await page.keyboard.press('Tab');
+    await expect(demo(page).getByRole('button', { name: 'Reset' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(activeTab(page)).toHaveText('Field Notes');
+  });
+
+  test('ignores a real Alt key press', async ({ page }) => {
+    await visit(page);
+    await page.keyboard.press('Alt+M');
+    await expect(tabs(page)).toHaveCount(3);
+    await expect(activeTab(page)).toHaveText('Field Notes');
+  });
+});
+
+test.describe('Copy the link', () => {
+  const copyButton = (page: Page) => page.getByRole('button', { name: 'Copy the link' });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test('copies the Store item and says Copied', async ({ page, context }) => {
+      await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: PAGES });
+      await visit(page);
+      await copyButton(page).click();
+      expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(STORE_ITEM);
+      await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
+    });
+
+    test('shows the link as text when the clipboard refuses', async ({ page }) => {
+      await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'clipboard', { value: undefined });
+      });
+      await visit(page);
+      await copyButton(page).click();
+      await expect(page.getByText(STORE_ITEM, { exact: true })).toBeVisible();
+      await expect(copyButton(page)).toHaveCount(0);
+    });
+  });
+
+  test('is hidden on a desktop', async ({ page }) => {
+    await visit(page);
+    await expect(page.getByText('On your phone?')).toBeHidden();
+  });
+});

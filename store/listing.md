@@ -1,6 +1,6 @@
 # Web Store listing texts
 
-Every text the Developer Dashboard asks for, ready to paste (item 22 does the pasting). Images: `01`–`05` are the screenshots (1280×800), `promo-tile.png` the small promo tile (440×280). `pnpm listing` redraws them and the extension icons from the build (and refreshes the landing page's copies in `site/media/`); the texts are edited here, by hand.
+Every text the Developer Dashboard asks for, ready to paste (item 22 does the pasting). Images: `01`–`05` are the screenshots (1280×800), `promo-tile.png` the small promo tile (440×280). `pnpm listing` redraws them and the extension icons from the build; the texts are edited here, by hand.
 
 ## Store listing tab
 

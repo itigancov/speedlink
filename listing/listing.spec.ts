@@ -4,10 +4,9 @@
 // components; Peek, Assign and Keymap are captions over clean frames, real captures in a browser mock, which the
 // landing page reuses from `site/media/` along with the social card. The demo keymap goes straight into storage.sync,
 // every demo site is a routed stub, and the browser says it is Chrome on Windows, so the captures read "Alt" (the
-// templates' own text says "⌥ / Alt"). Last, it refreshes the landing page's same-named copies. A second scenario
-// records the demo loop for the README's GIF. Not part of `pnpm e2e` or CI: the author reviews the images in the PR
-// before they are uploaded.
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+// templates' own text says "⌥ / Alt"). A second scenario records the demo loop for the README's GIF. Not part of
+// `pnpm e2e` or CI: the author reviews the images in the PR before they are uploaded.
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { BrowserContext, Page, Worker } from '@playwright/test';
@@ -53,8 +52,7 @@ declare const speedlinkE2E: { toggleOverlay(tab: Tab): Promise<void> };
 const ROOT = resolve(import.meta.dirname, '..');
 const STORE = join(ROOT, 'store');
 const ICONS = join(ROOT, 'public/icon');
-/** The landing page's media: the clean frames, the social card, and its copies of Store images
- * (e2e/landing.spec.ts checks that same-named files match `store/`). */
+/** The landing page's media: the clean frames and the social card. */
 const SITE_MEDIA = join(ROOT, 'site/media');
 /** The README's copy of the demo loop. */
 const README_GIF = join(ROOT, 'docs/media/demo.gif');
@@ -334,12 +332,6 @@ test('draws the icons, the promo tile, the marquee, the five shots, the clean fr
   // `store/` holds the 4.2 set and nothing older.
   for (const name of DROPPED) rmSync(join(STORE, name), { force: true });
   expect(readdirSync(STORE).sort()).toEqual(STORE_FILES);
-
-  // The landing page: refresh each image it holds a same-named copy of.
-  const store = new Set(readdirSync(STORE));
-  for (const name of readdirSync(SITE_MEDIA).filter((name) => store.has(name))) {
-    copyFileSync(join(STORE, name), join(SITE_MEDIA, name));
-  }
 });
 
 test('records the demo loop for the README', async ({ context, extensionId }) => {
