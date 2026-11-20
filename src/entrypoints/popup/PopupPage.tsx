@@ -101,6 +101,16 @@ function PeekTip({ platform }: { platform: Platform }) {
   );
 }
 
+/** The assign view's footer, also drawn while it loads. */
+function AssignFooter({ actions, platform }: { actions: PopupActions; platform: Platform }) {
+  return (
+    <>
+      <PeekTip platform={platform} />
+      <OpenKeymapLink actions={actions} />
+    </>
+  );
+}
+
 /**
  * The frame of every popup view: a white header bar with the brand, the grey scrolling body and a white footer bar.
  * `footer` is what the view puts in the bar.
@@ -165,7 +175,7 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
 
   const model = pickerModel(keymap, tab, picked ?? null);
   // The mini keyboard shows from the start only when there are no chips; after that only the toggle changes it.
-  const [keyboard, setKeyboard] = useState(!model.usable || model.chips.length === 0);
+  const [keyboardChosen, setKeyboardChosen] = useState(!model.usable || model.chips.length === 0);
   const defaultKey = model.usable ? model.defaultKey : null;
 
   // The default pick is made once, on the first render; after that only the user picks.
@@ -231,7 +241,7 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
   const full = model.usable && model.full;
   const chips = model.usable ? model.chips : [];
   // Chips that vanish (the keymap filled up) leave nothing to toggle back to.
-  const showKeyboard = keyboard || chips.length === 0;
+  const showKeyboard = keyboardChosen || chips.length === 0;
   const pickedKey = pickedState?.key ?? null;
   const chord = pickedKey === null ? null : chordLabel(pickedKey, platform);
   const primaryLabel =
@@ -240,14 +250,7 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
       : i18n.t(primaryResolve === 'replace' ? 'popup.replaceKey' : 'popup.saveTo', [chord]);
 
   return (
-    <PopupShell
-      footer={
-        <>
-          <PeekTip platform={platform} />
-          <OpenKeymapLink actions={actions} />
-        </>
-      }
-    >
+    <PopupShell footer={<AssignFooter actions={actions} platform={platform} />}>
       <PageCard tab={tab} model={model} platform={platform} />
 
       <section className="flex flex-col gap-2 rounded-xl border bg-card p-2.5">
@@ -304,7 +307,7 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
               size="xs"
               aria-expanded={showKeyboard}
               onMouseDown={keepFocus}
-              onClick={() => setKeyboard(!showKeyboard)}
+              onClick={() => setKeyboardChosen(!showKeyboard)}
               className="ml-auto px-0"
             >
               {i18n.t(showKeyboard ? 'popup.hideKeyboard' : 'popup.showKeyboard')}
@@ -337,7 +340,13 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
               <ConflictText chord={chord} name={displayName(pickedState.existing)} />
               {pickedState.moveTarget !== null && (
                 <div className="flex flex-wrap gap-1.5">
-                  <Button variant="warning-outline" size="xs" disabled={!ready} onClick={() => void save('move')}>
+                  <Button
+                    variant="warning-outline"
+                    size="xs"
+                    disabled={!ready}
+                    onMouseDown={keepFocus}
+                    onClick={() => void save('move')}
+                  >
                     {i18n.t('popup.moveTo', [chordLabel(pickedState.moveTarget, platform)])}
                   </Button>
                 </div>
@@ -487,16 +496,7 @@ export function PopupPage({ actions, tabId, platform = PLATFORM }: PopupPageProp
   const tab = usePopupTab(tabId);
   const keymap = useKeymap();
   if (tab === null || keymap === null) {
-    return (
-      <PopupShell
-        footer={
-          <>
-            <PeekTip platform={platform} />
-            <OpenKeymapLink actions={actions} />
-          </>
-        }
-      />
-    );
+    return <PopupShell footer={<AssignFooter actions={actions} platform={platform} />} />;
   }
 
   // A page that can't go on a key has nothing to assign; it gets the launcher (§7).
