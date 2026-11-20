@@ -173,7 +173,7 @@ describe('editShortcut: move', () => {
     await vi.waitFor(() =>
       expect(sent).toEqual([
         '3/0 ping null',
-        `3/0 toast ${JSON.stringify({ kind: 'saved', key: 'K', name: 'Mail', undoId: record?.id })}`,
+        `3/0 toast ${JSON.stringify({ kind: 'saved', key: 'K', name: 'Mail', link: mail.link, undoId: record?.id })}`,
       ]),
     );
   });

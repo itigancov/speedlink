@@ -25,6 +25,17 @@ describe('WelcomePage', () => {
     ]);
   });
 
+  it('draws the steps as step cards, none of them current', () => {
+    render(<WelcomePage platform="mac" />);
+    const steps = within(screen.getByRole('list')).getAllByRole('listitem');
+    expect(steps.map((step) => step.querySelector('[data-slot="step-title"]')?.textContent)).toEqual([
+      'Put a page on a key',
+      'Press ⌥ + key anywhere',
+      'Hold ⌥ to see your keys',
+    ]);
+    expect(steps.some((step) => step.hasAttribute('aria-current'))).toBe(false);
+  });
+
   it('draws the trigger as a keycap', () => {
     render(<WelcomePage platform="mac" />);
     const keycaps = [...document.querySelectorAll('kbd')];

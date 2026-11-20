@@ -175,7 +175,7 @@ describe('assignPage: the saved toast', () => {
     }) as never);
   });
 
-  it('is sent to the tab, with the name and the undo handle', async () => {
+  it('is sent to the tab, with the name, the link and the undo handle', async () => {
     openTabs(tab(3));
 
     const reply = await createAssignPage()({ key: 'K', tabId: 3 }, undefined);
@@ -184,7 +184,7 @@ describe('assignPage: the saved toast', () => {
     await vi.waitFor(() =>
       expect(sent).toEqual([
         '3/0 ping null',
-        `3/0 toast ${JSON.stringify({ kind: 'saved', key: 'K', name: 'The Guide', undoId })}`,
+        `3/0 toast ${JSON.stringify({ kind: 'saved', key: 'K', name: 'The Guide', link: URL, undoId })}`,
       ]),
     );
   });

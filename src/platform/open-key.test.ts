@@ -244,7 +244,10 @@ describe('openKey: page toasts', () => {
     await createOpenKey()({ key: 'D', force: false }, current);
 
     await vi.waitFor(() =>
-      expect(sent).toEqual(['5/0 ping null', '5/0 toast {"kind":"switched","key":"D","name":"Docs"}']),
+      expect(sent).toEqual([
+        '5/0 ping null',
+        '5/0 toast {"kind":"switched","key":"D","name":"Docs","link":"https://docs.example.com/"}',
+      ]),
     );
   });
 
@@ -255,7 +258,10 @@ describe('openKey: page toasts', () => {
     await createOpenKey()({ key: 'D', force: false }, current);
 
     await vi.waitFor(() =>
-      expect(sent).toEqual(['5/0 ping null', '5/0 toast {"kind":"switched","key":"D","name":"docs.example.com"}']),
+      expect(sent).toEqual([
+        '5/0 ping null',
+        '5/0 toast {"kind":"switched","key":"D","name":"docs.example.com","link":"https://docs.example.com/"}',
+      ]),
     );
   });
 
@@ -467,7 +473,10 @@ describe('openKey: Test from Options', () => {
     await tryKey();
 
     await vi.waitFor(() =>
-      expect(sent).toEqual(['5 ping null', '5 toast {"kind":"switched","key":"D","name":"Docs"}']),
+      expect(sent).toEqual([
+        '5 ping null',
+        '5 toast {"kind":"switched","key":"D","name":"Docs","link":"https://docs.example.com/"}',
+      ]),
     );
   });
 });

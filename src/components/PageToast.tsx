@@ -1,10 +1,12 @@
-// The on-page toast pill (product spec §6, design inventory §1.4): key chip, message, an optional right-aligned
-// action, and an optional ×. Presentational only; `ToastRegion` decides what shows and for how long. It lives in the HUD's
+// The on-page toast pill (product spec §6, design inventory §1.4): key chip, the shortcut's tile when the toast is
+// about one, message, an optional right-aligned action, and an optional ×. Presentational only; `ToastRegion` decides what shows and for how long. It lives in the HUD's
 // shadow root, so it is custom (no Sonner) and never takes focus.
 import { cva } from 'class-variance-authority';
 import { cn } from 'cn';
 import { XIcon } from 'lucide-react';
 import type { ComponentProps, MouseEvent } from 'react';
+import type { Shortcut } from '@/domain/shortcut';
+import { Monogram } from './Monogram';
 
 export type PageToastTone = 'free' | 'saved' | 'switched' | 'error';
 
@@ -26,6 +28,8 @@ export interface PageToastProps extends Omit<ComponentProps<'div'>, 'children'> 
   /** "⌥K" or "Alt+K", from the platform-labels helper. */
   chip: string;
   tone: PageToastTone;
+  /** Draws the shortcut's tile between the chip and the message; for toasts about a shortcut. */
+  shortcut?: Pick<Shortcut, 'name' | 'link'>;
   message: string;
   /** Shows the action when given, with `onAction`. */
   actionLabel?: string;
@@ -38,6 +42,7 @@ export interface PageToastProps extends Omit<ComponentProps<'div'>, 'children'> 
 export function PageToast({
   chip,
   tone,
+  shortcut,
   message,
   actionLabel,
   onAction,
@@ -51,12 +56,13 @@ export function PageToast({
       data-testid="page-toast"
       data-tone={tone}
       className={cn(
-        'pointer-events-auto flex max-w-lg items-center gap-3 rounded-key bg-inverse px-3 py-2.5 font-sans text-ui shadow-lg',
+        'pointer-events-auto flex max-w-lg items-center gap-3 rounded-xl bg-inverse px-3 py-2.5 font-sans text-ui shadow-lg',
         className,
       )}
       {...props}
     >
       <span className={chipVariants({ tone })}>{chip}</span>
+      {shortcut !== undefined && <Monogram shortcut={shortcut} size="xs" />}
       {/* Colour sits here, not on the pill: `cn` reads `text-ui` as a colour and would drop a sibling text colour. */}
       <span className="min-w-0 flex-1 truncate text-inverse-foreground">{message}</span>
       {onAction !== undefined && (

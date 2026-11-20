@@ -2,7 +2,11 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import type { Key } from '@/domain/keys';
+import { tileHue } from '@/domain/shortcut';
 import { createToastSlot, ToastRegion, type ToastSlot } from './ToastRegion';
+
+const GUIDE = 'https://docs.example.com/guide';
+const YOUTUBE = 'https://www.youtube.com/';
 
 let slot: ToastSlot;
 let openNew: Mock<(key: Key) => void>;
@@ -150,7 +154,7 @@ describe('the free-key toast, when its key is taken meanwhile', () => {
 
   it('leaves other toasts alone', () => {
     renderRegion();
-    show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });
+    show({ kind: 'saved', key: 'K', name: 'The Guide', link: GUIDE, undoId: 'u1' });
 
     occupied.assign('K');
 
@@ -161,16 +165,16 @@ describe('the free-key toast, when its key is taken meanwhile', () => {
 describe('the saved toast', () => {
   it('reads "⌥K → The Guide saved · Undo", with no ×', () => {
     renderRegion('mac');
-    show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });
+    show({ kind: 'saved', key: 'K', name: 'The Guide', link: GUIDE, undoId: 'u1' });
 
-    expect(pill()?.textContent).toBe('⌥K→ The Guide savedUndo');
+    expect(pill()?.textContent).toBe('⌥KT→ The Guide savedUndo');
     expect(pill()?.dataset.tone).toBe('saved');
     expect(screen.queryByRole('button', { name: 'Close' })).toBeNull();
   });
 
   it('closes at once on Undo, and asks to undo that assign', () => {
     renderRegion();
-    show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });
+    show({ kind: 'saved', key: 'K', name: 'The Guide', link: GUIDE, undoId: 'u1' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
@@ -180,7 +184,7 @@ describe('the saved toast', () => {
 
   it('dismisses itself after 5 s', () => {
     renderRegion();
-    show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });
+    show({ kind: 'saved', key: 'K', name: 'The Guide', link: GUIDE, undoId: 'u1' });
 
     advance(4999);
     expect(pill()).not.toBeNull();
@@ -190,7 +194,7 @@ describe('the saved toast', () => {
 
   it('stays while hovered, so Undo is there as long as it shows', () => {
     renderRegion();
-    show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });
+    show({ kind: 'saved', key: 'K', name: 'The Guide', link: GUIDE, undoId: 'u1' });
     fireEvent.pointerEnter(pill() as HTMLElement);
 
     advance(60_000);
@@ -202,7 +206,7 @@ describe('the saved toast', () => {
   it('replaces the free-key toast it came from', () => {
     renderRegion();
     show({ kind: 'free', key: 'K' });
-    show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'u1' });
+    show({ kind: 'saved', key: 'K', name: 'The Guide', link: GUIDE, undoId: 'u1' });
 
     expect(screen.getAllByTestId('page-toast')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDefined();
@@ -246,15 +250,15 @@ describe('the error toast', () => {
 describe('the switched toast', () => {
   it('reads "⌥Y Switched to your open YouTube tab · Open new", with no ×', () => {
     renderRegion('mac');
-    show({ kind: 'switched', key: 'Y', name: 'YouTube' });
+    show({ kind: 'switched', key: 'Y', name: 'YouTube', link: YOUTUBE });
 
-    expect(pill()?.textContent).toBe('⌥YSwitched to your open YouTube tabOpen new');
+    expect(pill()?.textContent).toBe('⌥YYSwitched to your open YouTube tabOpen new');
     expect(screen.queryByRole('button', { name: 'Close' })).toBeNull();
   });
 
   it('dismisses itself after 3 s', () => {
     renderRegion();
-    show({ kind: 'switched', key: 'Y', name: 'YouTube' });
+    show({ kind: 'switched', key: 'Y', name: 'YouTube', link: YOUTUBE });
 
     advance(2999);
     expect(pill()).not.toBeNull();
@@ -264,7 +268,7 @@ describe('the switched toast', () => {
 
   it('stays while hovered, then restarts the full 3 s on leave', () => {
     renderRegion();
-    show({ kind: 'switched', key: 'Y', name: 'YouTube' });
+    show({ kind: 'switched', key: 'Y', name: 'YouTube', link: YOUTUBE });
     advance(2000);
 
     fireEvent.pointerEnter(pill() as HTMLElement);
@@ -280,10 +284,10 @@ describe('the switched toast', () => {
 
   it('a toast that replaces one under the pointer is held too', () => {
     renderRegion();
-    show({ kind: 'switched', key: 'Y', name: 'YouTube' });
+    show({ kind: 'switched', key: 'Y', name: 'YouTube', link: YOUTUBE });
     fireEvent.pointerEnter(pill() as HTMLElement);
 
-    show({ kind: 'switched', key: 'G', name: 'GitHub' });
+    show({ kind: 'switched', key: 'G', name: 'GitHub', link: 'https://github.com/' });
     advance(10_000);
     expect(screen.getByText('⌥G')).toBeDefined();
 
@@ -298,7 +302,7 @@ describe('the switched toast', () => {
     fireEvent.pointerEnter(pill() as HTMLElement);
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
 
-    show({ kind: 'switched', key: 'Y', name: 'YouTube' });
+    show({ kind: 'switched', key: 'Y', name: 'YouTube', link: YOUTUBE });
     advance(3000);
 
     expect(pill()).toBeNull();
@@ -306,7 +310,7 @@ describe('the switched toast', () => {
 
   it('is not closed by Esc', () => {
     renderRegion();
-    show({ kind: 'switched', key: 'Y', name: 'YouTube' });
+    show({ kind: 'switched', key: 'Y', name: 'YouTube', link: YOUTUBE });
 
     fireEvent.keyDown(document.body, { key: 'Escape', code: 'Escape' });
 
@@ -315,7 +319,7 @@ describe('the switched toast', () => {
 
   it('calls openNew(key) from Open new', () => {
     renderRegion();
-    show({ kind: 'switched', key: 'Y', name: 'YouTube' });
+    show({ kind: 'switched', key: 'Y', name: 'YouTube', link: YOUTUBE });
 
     fireEvent.click(screen.getByRole('button', { name: 'Open new' }));
 
@@ -336,7 +340,7 @@ describe('one slot', () => {
 
   it('a free toast replaces a switched one, and is then untimed', () => {
     renderRegion();
-    show({ kind: 'switched', key: 'Y', name: 'YouTube' });
+    show({ kind: 'switched', key: 'Y', name: 'YouTube', link: YOUTUBE });
     advance(2000);
     show({ kind: 'free', key: 'K' });
 
@@ -347,9 +351,9 @@ describe('one slot', () => {
 
   it('the same toast again restarts its lifetime', () => {
     renderRegion();
-    show({ kind: 'switched', key: 'Y', name: 'YouTube' });
+    show({ kind: 'switched', key: 'Y', name: 'YouTube', link: YOUTUBE });
     advance(2000);
-    show({ kind: 'switched', key: 'Y', name: 'YouTube' });
+    show({ kind: 'switched', key: 'Y', name: 'YouTube', link: YOUTUBE });
 
     advance(2999);
     expect(pill()).not.toBeNull();
@@ -383,5 +387,56 @@ describe('accessibility', () => {
       expect(fireEvent.mouseDown(screen.getByRole('button', { name }))).toBe(false);
     }
     field.remove();
+  });
+});
+
+describe("the shortcut's tile", () => {
+  const tiles = () => [...document.querySelectorAll<HTMLElement>('[data-slot="monogram"]')];
+
+  it('sits in the saved toast, with the hue of the link and the first letter of the name', () => {
+    renderRegion();
+    show({ kind: 'saved', key: 'K', name: 'The Guide', link: GUIDE, undoId: 'u1' });
+
+    expect(tiles()).toHaveLength(1);
+    expect(tiles()[0]?.dataset.hue).toBe(tileHue(GUIDE));
+    expect(tiles()[0]?.textContent).toBe('T');
+  });
+
+  it('sits in the switched toast, with the hue of the link and the first letter of the name', () => {
+    renderRegion();
+    show({ kind: 'switched', key: 'Y', name: 'YouTube', link: YOUTUBE });
+
+    expect(tiles()).toHaveLength(1);
+    expect(tiles()[0]?.dataset.hue).toBe(tileHue(YOUTUBE));
+    expect(tiles()[0]?.textContent).toBe('Y');
+  });
+
+  it('sits between the key chip and the message', () => {
+    renderRegion();
+    show({ kind: 'saved', key: 'K', name: 'The Guide', link: GUIDE, undoId: 'u1' });
+
+    const parts = [...(pill()?.children ?? [])].map((part) => part.getAttribute('data-slot') ?? part.textContent);
+    expect(parts.slice(0, 3)).toEqual(['⌥K', 'monogram', '→ The Guide saved']);
+  });
+
+  it('is absent from the free-key toast', () => {
+    renderRegion();
+    show({ kind: 'free', key: 'K' });
+
+    expect(tiles()).toHaveLength(0);
+  });
+
+  it.each(['undo-stale', 'save-failed'] as const)('is absent from the %s error toast', (reason) => {
+    renderRegion();
+    show({ kind: 'error', key: 'K', reason });
+
+    expect(tiles()).toHaveLength(0);
+  });
+
+  it('is decoration: hidden from assistive technology', () => {
+    renderRegion();
+    show({ kind: 'saved', key: 'K', name: 'The Guide', link: GUIDE, undoId: 'u1' });
+
+    expect(tiles()[0]?.getAttribute('aria-hidden')).toBe('true');
   });
 });

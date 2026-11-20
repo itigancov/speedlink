@@ -60,7 +60,7 @@ export function createOpenKey(): OpenKey {
 
       // Smart switch landed on an existing tab, maybe in another window: say so there, with a way out (Open new).
       if (outcome.switched) {
-        sendToast(outcome.targetTabId, { kind: 'switched', key, name: displayName(shortcut) });
+        sendToast(outcome.targetTabId, { kind: 'switched', key, name: displayName(shortcut), link: shortcut.link });
       }
 
       const badgeTab = plan.badge === 'current' ? currentTab.id : outcome.targetTabId;

@@ -57,7 +57,13 @@ async function run(keymap: Keymap, key: Key, tabId: number, tabUrl: string, op: 
       if (plan.kind !== 'written') return plan;
       const reply = savedWithUndo(await writeWithUndo(plan.change, plan.undo));
       if (reply.kind === 'saved' && reply.undo !== undefined) {
-        sendToast(tabId, { kind: 'saved', key: op.to, name: displayName(plan.shortcut), undoId: reply.undo.id });
+        sendToast(tabId, {
+          kind: 'saved',
+          key: op.to,
+          name: displayName(plan.shortcut),
+          link: plan.shortcut.link,
+          undoId: reply.undo.id,
+        });
       }
       return reply;
     }
