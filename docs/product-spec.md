@@ -31,7 +31,7 @@ Cut from 4.0: Profiles, Defaults (a global default open mode), Import & export, 
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `link` | string | required | normalized http(s) URL (§2.3) |
-| `name` | string? | none | without a name, the link's site is shown |
+| `name` | string? | none | without a name, the link's site is shown; Options fills it from a matching open tab's title (§8.3) |
 | `openMode` | `smart` \| `new` \| `this` \| `bg` | `smart` | Smart switch / New tab / This tab / Background tab |
 | `tabMatch` | `exact` \| `page` \| `site` | `page` | always stored, used only by `smart` |
 | `closeCurrent` | boolean | `false` | ignored, and its checkbox disabled, when `openMode = this` |
@@ -290,7 +290,7 @@ There is no left nav: only Keymap is left. The page is one centred column (heade
 - Keys: 4 staggered rows of 76×64 keys, no modifier row.
 - Narrow window: when the keys card is narrower than the 76×64 keyboard (860 px of card content, a window of about 974 px), the same keyboard is drawn with compact 56×52 keys (stagger 0/20/34/54 px, gap 6 px) and the header hint is hidden. The size follows the card's width live, both ways, and is right from the first paint. Narrower than the compact keyboard (634 px of content, a window of about 748 px) the keyboard scrolls sideways inside its card; the page never does. States, selection, drag-to-swap, the arrows, the key editor dialog and the List view work the same at every width. The legend and its hint stay and wrap.
 - Key states: free, assigned (label, monogram tile and the name on a bottom line), open now (green dot on the outer corner), selected (blue, the tile keeps its colour with a white ring), drop target, reserved S (lock).
-- A click (or ↵ / Space) on a key opens its editor dialog (§8.3).
+- A click (or ↵ / Space) on a key opens its editor dialog (§8.3), as does its bare key and ⌘V on it (§8.9).
 - A legend: Assigned · Free · ● Open in a tab now, and on the right "Press a key to edit it · **⌘V** pastes a link onto it · Drag to swap" (Ctrl+V on Windows and Linux).
 
 **List view**
@@ -305,10 +305,10 @@ There is no left nav: only Keymap is left. The page is one centred column (heade
 - `#key=K` selects K and opens its dialog. It is used by the overlay pencil and by ⌥S on restricted pages. It is read on load and on `hashchange` (which also switches an open dialog to K); S is never selected.
 - Without `#key=K`, nothing is selected on load.
 - The selection is mirrored to `#key=K` with `history.replaceState`; with nothing selected, the hash is cleared.
-- A click on a key selects it and opens its dialog. With the dialog open the keys are behind its scrim, so another key is reached by closing it first (or with ⌥ + a free key, §8.9).
+- A click on a key selects it and opens its dialog. With the dialog open the keys are behind its scrim, so another key is reached by closing it first (or with ⌥ + a free key or its bare key, §8.9).
 - The dialog closes with ×, Done, a click on the scrim and Esc. Esc closes it when focus is outside a field, or in Link or Name while the draft equals storage; in a field with an unsaved change, the first Esc only leaves the field for the dialog (nothing is reverted) and the next one closes.
 - Closing settles the draft as a key switch does: a valid one is saved, an invalid one is discarded (§8.4).
-- Focus: a free key opens with focus in Link; an assigned key opens with focus on the dialog itself, no field active. ↵ from the search (§8.6) and ⌥ + a free key (§8.9) focus Link whatever the key. Closing returns focus to the key, or to the List row's key it was opened from. The arrow keys move focus between keys (passing over `S`) without selecting. Only the selected key, or the first key with nothing selected, is in the tab order.
+- Focus: a free key opens with focus in Link; an assigned key opens with focus on the dialog itself, no field active. ↵ from the search (§8.6) and ⌥ + a free key (§8.9) focus Link whatever the key. A bare key (§8.9) focuses Link on a free key and the dialog on an assigned one, also when it switches an open dialog; a ⌘V that opened the dialog focuses the dialog. Closing returns focus to the key, or to the List row's key it was opened from. The arrow keys move focus between keys (passing over `S`) without selecting. Only the selected key, or the first key with nothing selected, is in the tab order.
 
 ### 8.3 Key editor dialog ("Edit key")
 A modal dialog named "Edit key": a scrim over the page, focus kept inside (Tab cycles through the dialog), the page behind it does not scroll and is hidden from assistive tech. It is centred at every window size, `max-w-md` (448 px) wide, and in a narrow window the window's width minus a margin; in a short window its content scrolls inside it. It never follows the key; the selected key stays highlighted under the scrim. It fades and zooms in, without animation under reduced motion. Radix `Dialog` is allowed here: the no-portal, no-focus-trap rule is for the HUD (§12.3).
@@ -324,7 +324,7 @@ A modal dialog named "Edit key": a scrim over the page, focus kept inside (Tab c
 - Use current tab takes the most recently used (`lastAccessed`) http(s) tab in a normal, non-incognito window, never an extension page; the tooltip names its title. Without one, the button is disabled with the tooltip "No web page open".
 - It fills Link, and Name if Name is empty (tab title).
 
-**Name**: "— optional", placeholder "Taken from the page title".
+**Name**: "— optional", placeholder "Taken from the page title". When the draft's link becomes valid at the autosave settle (§8.4), pasted or typed, and Name is empty and wasn't edited in this dialog session (opening or switching keys starts a new one), Name is filled from the title of an open tab on that link by the "This page" rule (§2.4): the most recently used (`lastAccessed`) such tab in a normal, non-incognito window. No such tab, or one without a title, leaves Name empty. Titles are read live (a tab that finishes loading later gives its real title); nothing is fetched over the network. A Name already there is never overwritten.
 
 **Opens as**: a 4-way segmented control, Smart · New tab · This tab · Background, each segment named by its full term ("Smart switch", "Background tab") for assistive tech. No badge. The chosen mode's description shows under it:
 - Smart switch: "Jumps to the tab if it's already open, otherwise opens a new one."
@@ -385,7 +385,9 @@ The "Set ⌥S" line, per §5.3.
 
 ### 8.9 ⌥+key on Options
 - ⌥+key follows §4.6: an assigned key opens as Test does (§8.5), ⌥⇧+key forces a new tab. A pending draft is left alone.
-- ⌥ + a free key selects that key and opens its dialog with focus in Link, over the current view; with the dialog open it switches the dialog to that key. A draft is saved or discarded as on any key switch (§8.4).
+- ⌥ + a free key selects that key and opens its dialog with focus in Link, over the current view; with the dialog open it switches the dialog to that key. A draft is saved or discarded as on any key switch (§8.4). ⌥ + an assigned key opens as Test also with the dialog open.
+- A bare key (a letter or digit, no ⇧, ⌘, Ctrl, ⌥ or AltGr, outside Link, Name and the search) selects that key and opens its dialog; with the dialog open it switches the dialog to that key, so a bare key reaches an assigned key from the dialog. It works with focus anywhere outside a text field, the dialog's controls and buttons included. The key already selected and S do nothing; a held key acts once; IME composition and a keyboard drag (§8.7) leave it alone. Focus per §8.2; the draft settles and More options collapses as on any key switch.
+- ⌘V / Ctrl+V outside Link, Name and the search pastes a link onto the dialog's key, or, with the dialog closed, onto the focused key (a List row's key included), opening its dialog with focus on the dialog. With no key focused it does nothing. Only plain text is read, trimmed, from the paste event (no clipboard permission); an empty one, or an image, is ignored. A free key is assigned once the link is valid; an assigned key gets its link replaced and keeps its name; an invalid link shows the inline error and writes nothing (§8.4). The write is the normal autosave, with "Saved". Inside a field ⌘V pastes as usual.
 - ⌥S focuses the search and selects its text, as `/` does (§8.6). It arrives either from the page's own listener, or from the `toggle-overlay` command, which sets `#search` (§5.3); the page reacts as it does to `#key=K` (no reload) and puts `#key=K` back (or an empty hash). With the dialog open, the search is behind its scrim: focus stays in the dialog.
 - Typing in a field (Link, Name, the search) is the field's: ⌥+key there is not ours. On Windows and Linux the browser's own Alt keys on free keys keep working (§4.3). Repeats send once.
 - No Peek: the keymap is already in view.

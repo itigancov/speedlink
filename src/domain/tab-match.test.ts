@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isOpenNow, tabMatches } from './tab-match';
+import { isOpenNow, pageTitleFor, tabMatches } from './tab-match';
 import { validShortcut } from './test-shortcut';
 
 describe('tabMatches', () => {
@@ -93,5 +93,34 @@ describe('isOpenNow', () => {
 
   it.each(['new', 'this', 'bg'] as const)('is false for open mode %s even when a tab matches', (openMode) => {
     expect(isOpenNow(validShortcut({ link: 'github.com', openMode, tabMatch: 'site' }), tabs)).toBe(false);
+  });
+});
+
+describe('pageTitleFor', () => {
+  const tab = (url: string, title: string, lastAccessed = 1) => ({ url, title, lastAccessed });
+
+  it('takes the title of a tab on the same page, query, hash and trailing / ignored', () => {
+    expect(pageTitleFor([tab('https://a.com/x/?utm=1#top', 'X page')], 'https://a.com/x')).toBe('X page');
+  });
+
+  it('never takes another path on the same site', () => {
+    expect(pageTitleFor([tab('https://a.com/y', 'Y page')], 'https://a.com/x')).toBeUndefined();
+  });
+
+  it('takes the most recently used of several matching tabs', () => {
+    const tabs = [
+      tab('https://a.com/x', 'Old', 5),
+      tab('https://a.com/x?b', 'New', 9),
+      tab('https://a.com/x', 'Mid', 7),
+    ];
+    expect(pageTitleFor(tabs, 'https://a.com/x')).toBe('New');
+  });
+
+  it('gives nothing for a matching tab without a title', () => {
+    expect(pageTitleFor([tab('https://a.com/x', '')], 'https://a.com/x')).toBeUndefined();
+  });
+
+  it('gives nothing without tabs', () => {
+    expect(pageTitleFor([], 'https://a.com/x')).toBeUndefined();
   });
 });

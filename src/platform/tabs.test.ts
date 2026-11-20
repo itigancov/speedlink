@@ -82,7 +82,7 @@ describe('watchPlanTabs', () => {
     await settle();
 
     await fakeBrowser.tabs.onUpdated.trigger(1, { status: 'loading' }, tab(1));
-    await fakeBrowser.tabs.onUpdated.trigger(1, { title: 'New title' }, tab(1));
+    await fakeBrowser.tabs.onUpdated.trigger(1, { pinned: true }, tab(1));
     await settle();
     expect(reads).toHaveLength(1);
 
@@ -90,6 +90,16 @@ describe('watchPlanTabs', () => {
     await fakeBrowser.tabs.onUpdated.trigger(1, { url: 'https://moved.example/' }, open[0] as Tab);
     await settle();
     expect(urls()).toEqual(['https://moved.example/']);
+  });
+
+  it('reads again when a tab’s title changes, so a page that loaded later gives its real title', async () => {
+    watchPlanTabs((tabs) => reads.push(tabs));
+    await settle();
+
+    open = [tab(1, { title: 'Loaded' })];
+    await fakeBrowser.tabs.onUpdated.trigger(1, { title: 'Loaded' }, open[0] as Tab);
+    await settle();
+    expect(reads.at(-1)?.map((t) => t.title)).toEqual(['Loaded']);
   });
 
   it('reads again when a window opens or closes', async () => {

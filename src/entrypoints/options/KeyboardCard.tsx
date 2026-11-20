@@ -51,9 +51,23 @@ export interface KeymapViewProps {
   platform?: Platform;
 }
 
-/** A view's way to put focus back on a key: the dialog returns it there on close. */
+/** A view's keys and focus: the dialog returns focus to a key on close, and ⌘V pastes onto the focused one. */
 export interface KeyCapsHandle {
   focusKey(key: Key): void;
+  /** The key whose button has focus, or null. */
+  focusedKey(): Key | null;
+}
+
+/** The handle over a view's rendered key buttons. */
+export function keyCapsHandle(nodes: ReadonlyMap<Key, HTMLElement>): KeyCapsHandle {
+  return {
+    focusKey: (key) => nodes.get(key)?.focus(),
+    focusedKey: () => {
+      const focused = document.activeElement;
+      for (const [key, node] of nodes) if (node === focused) return key;
+      return null;
+    },
+  };
 }
 
 /** The card's padding and border on both sides (p-6 and 1 px): what the card takes from its own width. */
@@ -175,7 +189,7 @@ export function KeyboardCard({
   const drag = frozenDrag ?? liveDrag;
   const nodes = useRef(new Map<Key, HTMLElement>()).current;
 
-  useImperativeHandle(ref, () => ({ focusKey: (key) => nodes.get(key)?.focus() }), [nodes]);
+  useImperativeHandle(ref, () => keyCapsHandle(nodes), [nodes]);
 
   // Space picks up and drops on keydown, and the focused button then clicks on keyup: that click would open the
   // key's dialog over the drag, or after the drop. The pick-up's click lands mid-drag; the drop's is swallowed here

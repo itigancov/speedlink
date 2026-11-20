@@ -36,10 +36,13 @@ export function useAutosave({
   key,
   draft,
   stored,
+  beforeWrite,
 }: {
   key: Key | null;
   draft: KeyDraft | null;
   stored: Shortcut | undefined;
+  /** The last change to a settled valid draft, just before it is written: Options fills Name from a tab title. */
+  beforeWrite?: (key: Key, shortcut: Shortcut) => Shortcut;
 }): Autosave {
   const check: DraftCheck = key === null || draft === null ? { kind: 'same' } : checkDraft(draft, stored);
   // The keymap is re-read whole on every change, so `stored` is a new object even when this key didn't change.
@@ -47,13 +50,16 @@ export function useAutosave({
   const [failed, setFailed] = useState(false);
   const pending = useRef<Pending | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const latestBeforeWrite = useRef(beforeWrite);
+  latestBeforeWrite.current = beforeWrite;
 
   const write = useCallback(async () => {
     clearTimeout(timer.current);
     const next = pending.current;
     pending.current = null;
     if (next === null) return;
-    const result = await writeChange(put(next.key, next.shortcut));
+    const shortcut = latestBeforeWrite.current?.(next.key, next.shortcut) ?? next.shortcut;
+    const result = await writeChange(put(next.key, shortcut));
     if (!result.ok) {
       console.error('SpeedLink: could not save', next.key, result.error);
       setFailed(true);

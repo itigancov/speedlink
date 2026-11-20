@@ -1424,6 +1424,17 @@ describe('drag-to-swap', () => {
     expect(editor()).toBeNull();
   });
 
+  it('a bare key during a drag opens no dialog and leaves the drag going', async () => {
+    await store('Y', youtube);
+    await renderPage();
+
+    await pickUp('Y');
+    await pressKeys('KeyK', 'ArrowLeft', 'Space');
+
+    expect(editor()).toBeNull();
+    expect((await readItem('T'))?.link).toBe('https://youtube.com/');
+  });
+
   it('dropping a key back on itself changes nothing', async () => {
     await store('Y', youtube);
     await renderPage();
@@ -1789,5 +1800,377 @@ describe('#search', () => {
     await goTo('#search');
     expect(document.activeElement).toBe(searchField());
     expect(window.location.hash).toBe('');
+  });
+});
+
+/** A bare key press on the focused element (or the page), as the keyboard sends it. */
+const bareKey = (
+  code: string,
+  init: KeyboardEventInit = {},
+  target: Element = document.activeElement ?? document.body,
+) => {
+  const event = new KeyboardEvent('keydown', {
+    code,
+    key: code.slice(-1).toLowerCase(),
+    bubbles: true,
+    cancelable: true,
+    ...init,
+  });
+  act(() => {
+    target.dispatchEvent(event);
+  });
+  return event;
+};
+
+/** A ⌘V / Ctrl+V on the focused element (or the page): a `paste` event whose clipboard holds `text` as plain text. */
+const paste = (text: string, target: Element = document.activeElement ?? document.body, type = 'text/plain') => {
+  const event = new Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'clipboardData', {
+    value: { getData: (asked: string) => (asked === type ? text : '') },
+  });
+  act(() => {
+    target.dispatchEvent(event);
+  });
+  return event;
+};
+
+describe('bare keys on Options', () => {
+  it('a letter opens its key’s dialog; a free key gets focus in Link', async () => {
+    await renderPage();
+    bareKey('KeyK');
+    await advance();
+    expect(chip()).toBe(chordLabel('K'));
+    expect(window.location.hash).toBe('#key=K');
+    expect(document.activeElement).toBe(linkField());
+  });
+
+  it('a digit opens an assigned key with focus on the dialog', async () => {
+    await store('7');
+    await renderPage();
+    act(() => keyButton('G').focus());
+    bareKey('Digit7');
+    await advance();
+    expect(chip()).toBe(chordLabel('7'));
+    expect(document.activeElement).toBe(editor());
+  });
+
+  it('switches the open dialog to another key, focus on the dialog for an assigned one', async () => {
+    await store('G');
+    await renderPage('#key=K');
+    act(() => doneButton().focus());
+    bareKey('KeyG');
+    await advance();
+    expect(chip()).toBe(chordLabel('G'));
+    expect(document.activeElement).toBe(editor());
+  });
+
+  it('switching to a free key puts focus in Link', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    await advance();
+    bareKey('KeyK');
+    await advance();
+    expect(chip()).toBe(chordLabel('K'));
+    expect(document.activeElement).toBe(linkField());
+  });
+
+  it('works from the Opens as control and the dialog buttons', async () => {
+    await store('G');
+    await store('Y');
+    await renderPage('#key=G');
+    act(() => mode('Smart switch').focus());
+    bareKey('KeyY');
+    await advance();
+    expect(chip()).toBe(chordLabel('Y'));
+    act(() => closeButton().focus());
+    bareKey('KeyG');
+    await advance();
+    expect(chip()).toBe(chordLabel('G'));
+  });
+
+  it('saves a valid draft on the switch and discards an invalid one', async () => {
+    await store('G');
+    await store('Y');
+    await renderPage('#key=G');
+    await type(nameField(), 'Code');
+    act(() => doneButton().focus());
+    bareKey('KeyY');
+    await advance();
+    expect((await readItem('G'))?.name).toBe('Code');
+
+    await type(linkField(), 'mailto:x@y.z');
+    act(() => doneButton().focus());
+    bareKey('KeyG');
+    await advance(1000);
+    expect((await readItem('Y'))?.link).toBe('https://github.com/');
+  });
+
+  it('collapses More options on the switch', async () => {
+    await store('G', { tabMatch: 'page' });
+    await store('Y', { tabMatch: 'page' });
+    await renderPage('#key=G');
+    act(() => moreOptions().click());
+    expect(moreOptions().getAttribute('aria-expanded')).toBe('true');
+    act(() => moreOptions().focus());
+    bareKey('KeyY');
+    await advance();
+    expect(moreOptions().getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('the key already selected changes nothing', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    await type(nameField(), 'Code');
+    act(() => doneButton().focus());
+    bareKey('KeyG');
+    await advance();
+    expect(nameField().value).toBe('Code');
+    expect(document.activeElement).toBe(doneButton());
+  });
+
+  it('S does nothing, dialog open or closed', async () => {
+    await renderPage();
+    bareKey('KeyS');
+    await advance();
+    expect(editor()).toBeNull();
+
+    await goToKey('K');
+    act(() => doneButton().focus());
+    bareKey('KeyS');
+    await advance();
+    expect(chip()).toBe(chordLabel('K'));
+  });
+
+  it('a letter typed in Link, Name or the search stays there', async () => {
+    await store('G');
+    await renderPage();
+    bareKey('KeyG', {}, searchField());
+    await advance();
+    expect(editor()).toBeNull();
+
+    await goToKey('K');
+    bareKey('KeyG', {}, linkField());
+    bareKey('KeyG', {}, nameField());
+    await advance();
+    expect(chip()).toBe(chordLabel('K'));
+  });
+
+  it.each<[string, KeyboardEventInit]>([
+    ['⇧', { shiftKey: true }],
+    ['⌘', { metaKey: true }],
+    ['Ctrl', { ctrlKey: true }],
+  ])('ignores a press with %s held', async (_name, init) => {
+    await renderPage();
+    const event = bareKey('KeyK', init);
+    await advance();
+    expect(editor()).toBeNull();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('acts once for a held key', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    act(() => doneButton().focus());
+    bareKey('KeyK', { repeat: true });
+    await advance();
+    expect(chip()).toBe(chordLabel('G'));
+  });
+
+  it('⌥ + an assigned key still opens it as Test does with the dialog open', async () => {
+    const sent: { type: string }[] = [];
+    vi.spyOn(browser.runtime, 'sendMessage').mockImplementation((async (message: { type: string }) => {
+      sent.push(message);
+      return { res: { kind: 'opened', tabId: 9, switched: false } };
+    }) as never);
+    const ownState = KeyboardEvent.prototype.getModifierState;
+    vi.spyOn(KeyboardEvent.prototype, 'getModifierState').mockImplementation(function (this: KeyboardEvent, key) {
+      return key === 'AltGraph' ? false : ownState.call(this, key);
+    });
+    await store('G');
+    await renderPage('#key=K');
+    act(() => doneButton().focus());
+    bareKey('KeyG', { altKey: true });
+    await advance();
+    expect(sent).toEqual([expect.objectContaining({ type: 'tryKey' })]);
+    expect(chip()).toBe(chordLabel('K'));
+  });
+});
+
+describe('⌘V on Options', () => {
+  it('on a focused free key: opens its dialog, assigns the link once valid, focus on the dialog', async () => {
+    await renderPage();
+    act(() => keyButton('K').focus());
+    const event = paste('docs.example.com');
+    await advance();
+    expect(chip()).toBe(chordLabel('K'));
+    expect(linkField().value).toBe('docs.example.com');
+    expect(document.activeElement).toBe(editor());
+    expect(event.defaultPrevented).toBe(true);
+
+    await advance(400);
+    expect(await readItem('K')).toEqual({
+      link: 'https://docs.example.com/',
+      openMode: 'smart',
+      tabMatch: 'page',
+      closeCurrent: false,
+    });
+    expect(saved()).not.toBeNull();
+  });
+
+  it('with the dialog open: replaces the key’s link and keeps its name', async () => {
+    await store('G', { name: 'Code' });
+    await renderPage('#key=G');
+    await advance();
+    paste('gitlab.com');
+    await advance(400);
+    expect(await readItem('G')).toMatchObject({ link: 'https://gitlab.com/', name: 'Code' });
+    expect(nameField().value).toBe('Code');
+  });
+
+  it('trims the pasted text', async () => {
+    await renderPage('#key=K');
+    act(() => doneButton().focus());
+    paste('  https://docs.example.com/a \n');
+    await advance(400);
+    expect((await readItem('K'))?.link).toBe('https://docs.example.com/a');
+  });
+
+  it('an invalid paste shows the inline error and writes nothing', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    await advance();
+    paste('mailto:me@example.com');
+    await advance(1000);
+    expect(linkField().value).toBe('mailto:me@example.com');
+    expect(screen.getByRole('alert').textContent).toBe('Enter a web address, like github.com or https://example.com.');
+    expect((await readItem('G'))?.link).toBe('https://github.com/');
+    expect(editor()).not.toBeNull();
+  });
+
+  it('on a focused List row: works as on its key', async () => {
+    await store('G', { name: 'Code' });
+    await renderPage();
+    act(() => screen.getByRole('radio', { name: 'List' }).click());
+    act(() => keyButton('G').focus());
+    paste('gitlab.com');
+    await advance(400);
+    expect(chip()).toBe(chordLabel('G'));
+    expect(await readItem('G')).toMatchObject({ link: 'https://gitlab.com/', name: 'Code' });
+  });
+
+  it('with no key focused, or on the search, does nothing', async () => {
+    await renderPage();
+    const set = vi.spyOn(browser.storage.sync, 'set');
+    paste('docs.example.com', document.body);
+    act(() => searchField().focus());
+    const inSearch = paste('docs.example.com');
+    await advance(1000);
+    expect(editor()).toBeNull();
+    expect(set).not.toHaveBeenCalled();
+    expect(inSearch.defaultPrevented).toBe(false);
+  });
+
+  it('inside Link or Name pastes as usual', async () => {
+    await store('G');
+    await renderPage('#key=G');
+    const inName = paste('gitlab.com', nameField());
+    const inLink = paste('gitlab.com', linkField());
+    await advance(1000);
+    expect(inName.defaultPrevented).toBe(false);
+    expect(inLink.defaultPrevented).toBe(false);
+    expect(linkField().value).toBe('https://github.com/');
+  });
+
+  it('ignores a paste with no text (an image)', async () => {
+    await renderPage();
+    act(() => keyButton('K').focus());
+    paste('data', document.activeElement ?? document.body, 'image/png');
+    await advance();
+    expect(editor()).toBeNull();
+  });
+
+  it('never targets S', async () => {
+    await renderPage();
+    paste('docs.example.com', screen.getByText('S', { selector: '[data-slot="key-label"]' }));
+    await advance();
+    expect(editor()).toBeNull();
+  });
+});
+
+describe('Name from an open tab’s title', () => {
+  beforeEach(() => {
+    openTabs = [
+      ...openTabs,
+      tab(2, { url: 'https://docs.example.com/guide?utm=x', title: 'Docs guide (old)', lastAccessed: 5 }),
+      tab(3, { url: 'https://docs.example.com/guide/', title: 'Docs guide', lastAccessed: 9 }),
+      tab(4, { url: 'https://docs.example.com/guide', title: 'Secret', lastAccessed: 50, incognito: true }),
+    ];
+  });
+
+  it('fills Name for a pasted link from the most recently used matching tab, never incognito', async () => {
+    await renderPage();
+    act(() => keyButton('K').focus());
+    paste('docs.example.com/guide');
+    await advance(400);
+    expect(await readItem('K')).toMatchObject({ link: 'https://docs.example.com/guide', name: 'Docs guide' });
+    await advance();
+    expect(nameField().value).toBe('Docs guide');
+  });
+
+  it('fills Name for a typed link, once at the settle', async () => {
+    await renderPage('#key=K');
+    await type(linkField(), 'https://docs.example.com');
+    await advance(100);
+    await type(linkField(), 'https://docs.example.com/guide');
+    expect(nameField().value).toBe('');
+    await advance(400);
+    expect((await readItem('K'))?.name).toBe('Docs guide');
+    expect(nameField().value).toBe('Docs guide');
+  });
+
+  it('leaves Name empty when no tab matches', async () => {
+    await renderPage('#key=K');
+    await type(linkField(), 'https://docs.example.com/other');
+    await advance(1000);
+    expect((await readItem('K'))?.name).toBeUndefined();
+    expect(nameField().value).toBe('');
+  });
+
+  it('never overwrites a Name that is there', async () => {
+    await store('G', { name: 'Code' });
+    await renderPage('#key=G');
+    await type(linkField(), 'https://docs.example.com/guide');
+    await advance(1000);
+    expect((await readItem('G'))?.name).toBe('Code');
+  });
+
+  it('leaves an unnamed key unnamed when only its open mode changes', async () => {
+    await store('G', { link: 'https://docs.example.com/guide' });
+    await renderPage('#key=G');
+    act(() => mode('New tab').click());
+    await advance(1000);
+    expect(await readItem('G')).toMatchObject({ openMode: 'new' });
+    expect((await readItem('G'))?.name).toBeUndefined();
+  });
+
+  it('keeps a Name cleared in this dialog session empty', async () => {
+    await store('G', { name: 'Code' });
+    await renderPage('#key=G');
+    await type(nameField(), '');
+    await type(linkField(), 'https://docs.example.com/guide');
+    await advance(1000);
+    expect((await readItem('G'))?.name).toBeUndefined();
+    expect(nameField().value).toBe('');
+  });
+
+  it('takes a title that changed after Options opened', async () => {
+    openTabs = [...openTabs.slice(0, 1), tab(5, { url: 'https://late.example.com/', title: 'Loading…' })];
+    await renderPage('#key=K');
+    openTabs = [...openTabs.slice(0, 1), tab(5, { url: 'https://late.example.com/', title: 'Late page' })];
+    await act(() => fakeBrowser.tabs.onUpdated.trigger(5, { title: 'Late page' }, openTabs[1] as Tab));
+    await advance(100);
+    await type(linkField(), 'late.example.com');
+    await advance(400);
+    expect((await readItem('K'))?.name).toBe('Late page');
   });
 });

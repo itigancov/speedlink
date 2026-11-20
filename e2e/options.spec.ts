@@ -742,3 +742,55 @@ test.describe('a narrow window', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe('⌘V and bare keys on Options', () => {
+  /** A ⌘V / Ctrl+V on the focused element, the clipboard holding `text`: the event, with no clipboard permission. */
+  const paste = (page: Page, text: string) =>
+    page.evaluate((value) => {
+      const data = new DataTransfer();
+      data.setData('text/plain', value);
+      const target = document.activeElement ?? document.body;
+      target.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    }, text);
+
+  test('pastes a link onto a free key with its tab’s title as Name, then switches keys with a bare key', async ({
+    context,
+    extensionId,
+  }) => {
+    const worker = await serviceWorker(context, extensionId);
+    await store(worker, 'G', { name: 'Fixture' });
+    const fixture = await context.newPage();
+    const fixtureLink = `http://127.0.0.1:${FIXTURE_PORT}/small-root.html`;
+    await fixture.goto(fixtureLink);
+    const { page, errors } = await openOptions(context, extensionId);
+    await page.bringToFront();
+
+    await keyCap(page, 'K').focus();
+    await paste(page, ` ${fixtureLink}\n`);
+
+    await expect(editorTitle(page)).toHaveText('Fixture: small root');
+    await expect(editor(page)).toBeFocused();
+    await expect
+      .poll(() => item(worker, 'K'))
+      .toEqual({
+        link: fixtureLink,
+        name: 'Fixture: small root',
+        openMode: 'smart',
+        tabMatch: 'page',
+        closeCurrent: false,
+      });
+    await expect(nameField(page)).toHaveValue('Fixture: small root');
+
+    await paste(page, 'mailto:me@example.com');
+    await expect(page.getByRole('alert')).toHaveText('Enter a web address, like github.com or https://example.com.');
+    await page.waitForTimeout(800);
+    expect((await item(worker, 'K')) as { link: string }).toMatchObject({ link: fixtureLink });
+
+    await page.keyboard.press('KeyG');
+    await expect(editorTitle(page)).toHaveText('Fixture');
+    await expect(editor(page)).toBeFocused();
+    expect(page.url()).toBe(`chrome-extension://${extensionId}/options.html#key=G`);
+    expect((await item(worker, 'K')) as { link: string }).toMatchObject({ link: fixtureLink });
+    expect(errors).toEqual([]);
+  });
+});

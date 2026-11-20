@@ -9,10 +9,12 @@ import { Kbd } from '@/components/ui/kbd';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { checkDraft } from '@/domain/key-draft';
+import { pageKeyDecision } from '@/domain/keydown';
 import { clear, dropChange, type Keymap } from '@/domain/keymap-ops';
 import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
 import { enterTarget, searchKeymap } from '@/domain/search';
-import { isOpenNow } from '@/domain/tab-match';
+import { type Shortcut, validateShortcut } from '@/domain/shortcut';
+import { isOpenNow, pageTitleFor } from '@/domain/tab-match';
 import { useAutosave } from '@/hooks/use-autosave';
 import { useFitsWidth } from '@/hooks/use-fits-width';
 import { useKeymap } from '@/hooks/use-keymap';
@@ -20,7 +22,7 @@ import { lastWebTab, useOpenTabs } from '@/hooks/use-open-tabs';
 import { useOverlayCommandBound } from '@/hooks/use-overlay-command-bound';
 import { usePageKeys } from '@/hooks/use-page-keys';
 import { openShortcutSettings, SEARCH_HASH, SHORTCUT_SETTINGS } from '@/platform/commands';
-import { isEditableTarget } from '@/platform/key-capture';
+import { isEditableTarget, keyInput } from '@/platform/key-capture';
 import { readKeymap, writeChange } from '@/platform/keymap-store';
 import { sendMessage } from '@/platform/messaging';
 import { chordLabel, triggerLabel, triggerPlusKey } from '@/platform/platform-labels';
@@ -30,6 +32,9 @@ import { ListCard } from './ListCard';
 import { hashFor, useKeyEditor } from './use-key-editor';
 
 type View = 'keyboard' | 'list';
+
+/** Where focus goes once the dialog, or its new key, has rendered. */
+type FocusTo = 'link' | 'dialog';
 
 interface SearchProps {
   query: string;
@@ -155,8 +160,15 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
   /** One measure of the keys card: the lg keyboard fits, or Options draws compact keys and drops the header hint. */
   const roomy = useFitsWidth(cardRef, LG_KEYBOARD_CARD_WIDTH);
   const listRef = useRef<KeyCapsHandle>(null);
-  /** Focus goes to Link once the dialog, or its new key, has rendered: ↵ from the search, ⌥ + a free key. */
-  const focusLink = useRef(false);
+  /**
+   * Where focus goes once the dialog, or its new key, has rendered: Link after ↵ from the search, ⌥ + a free key or a
+   * bare free key; the dialog after a bare assigned key or a ⌘V that opened it. Null: the dialog opens as on a click.
+   */
+  const focusNext = useRef<FocusTo | null>(null);
+  const focusRef = (focus: FocusTo | undefined) =>
+    focus === 'link' ? linkRef : focus === 'dialog' ? dialogRef : undefined;
+  /** A keyboard drag is under way: bare keys leave it alone. */
+  const dragging = useRef(false);
   /** The key the dialog was last open on: focus goes back to it on close. */
   const lastKey = useRef<Key | null>(null);
   const tabs = useOpenTabs();
@@ -166,18 +178,35 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
   dialogOpen.current = key !== null;
   useSlashFocus(searchRef, dialogOpen);
   useSearchHash(searchRef, key);
-  const autosave = useAutosave({ key, draft, stored });
+  /**
+   * Name from an open tab's title (§8.3), at the settle point so a link typed letter by letter fills it once: only
+   * for a new link, while Name is empty and wasn't edited in the dialog session, and from tabs in normal,
+   * non-incognito windows.
+   */
+  const fillNameFromTab = (written: Key, shortcut: Shortcut): Shortcut => {
+    if (shortcut.name !== undefined || shortcut.link === keymap[written]?.link || editor.nameEdited(written))
+      return shortcut;
+    const title = pageTitleFor(tabs ?? [], shortcut.link);
+    const named = title === undefined ? null : validateShortcut({ ...shortcut, name: title });
+    if (named === null || !named.ok || named.value.name === undefined) return shortcut;
+    editor.fillName(written, named.value.name);
+    return named.value;
+  };
+  const autosave = useAutosave({ key, draft, stored, beforeWrite: fillNameFromTab });
 
-  /** Selects a key, which opens its dialog over the current view; a pending draft is settled as on any key switch. */
-  const openAt = (target: Key, link: boolean) => {
+  /**
+   * Selects a key, which opens its dialog over the current view; a pending draft is settled as on any key switch.
+   * Without `focus`, the dialog opens as on a click: Link for a free key, the dialog for an assigned one.
+   */
+  const openAt = (target: Key, focus?: FocusTo) => {
     editor.select(target);
     // The key already open renders nothing new, so no effect would move focus: move it now.
-    if (link && target === key) linkRef.current?.focus();
-    else focusLink.current = link;
+    if (target === key) focusRef(focus)?.current?.focus();
+    else focusNext.current = focus ?? null;
   };
   usePageKeys({
     keymap,
-    onFree: (free) => openAt(free, true),
+    onFree: (free) => openAt(free, 'link'),
     onReserved: () => {
       if (!dialogOpen.current) focusSearch(searchRef);
     },
@@ -187,10 +216,44 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
     if (key !== null) lastKey.current = key;
   }, [key]);
   useEffect(() => {
-    if (!focusLink.current || linkRef.current === null) return;
-    focusLink.current = false;
-    linkRef.current.focus();
+    const target = focusRef(focusNext.current ?? undefined);
+    if (target?.current == null) return;
+    focusNext.current = null;
+    target.current.focus();
   });
+
+  // The page's keyboard (§8.2): on the document, so presses and pastes from inside the dialog reach it too.
+  const latest = useRef({ key, keymap, view, openAt, pasteLink: editor.pasteLink });
+  latest.current = { key, keymap, view, openAt, pasteLink: editor.pasteLink };
+  useEffect(() => {
+    // A bare letter or digit opens its key's dialog, or switches the open dialog to it.
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      const { key: selected, keymap: live, openAt: open } = latest.current;
+      const decision = pageKeyDecision(keyInput(event), { selected, dragActive: dragging.current });
+      if (decision.kind === 'ignore') return;
+      event.preventDefault();
+      open(decision.key, live[decision.key] === undefined ? 'link' : 'dialog');
+    };
+    // ⌘V / Ctrl+V outside a field puts the copied link on the dialog's key, or on the focused key with the dialog
+    // closed. Only plain text is read, from the event: no clipboard permission.
+    const onPaste = (event: ClipboardEvent) => {
+      if (isEditableTarget(event.composedPath()[0])) return;
+      const text = event.clipboardData?.getData('text/plain').trim() ?? '';
+      if (text === '') return;
+      const { key: selected, view: shown, pasteLink } = latest.current;
+      const target = selected ?? (shown === 'list' ? listRef : keyboardRef).current?.focusedKey() ?? null;
+      if (target === null) return;
+      event.preventDefault();
+      if (selected === null) focusNext.current = 'dialog';
+      pasteLink(target, text);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('paste', onPaste);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('paste', onPaste);
+    };
+  }, []);
 
   const openKeys = useMemo(() => {
     const urls = (tabs ?? []).map((tab) => tab.url);
@@ -212,7 +275,7 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
     if (event.key === 'Enter') {
       event.preventDefault();
       const target = enterTarget(keymap, query, { assignedOnly: view === 'list' });
-      if (target !== null) openAt(target, true);
+      if (target !== null) openAt(target, 'link');
     } else if (event.key === 'Escape') {
       event.preventDefault();
       if (query === '') event.currentTarget.blur();
@@ -293,8 +356,11 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
               openKeys={openKeys}
               selected={key}
               matches={matches}
-              onSelect={(clicked) => openAt(clicked, false)}
+              onSelect={(clicked) => openAt(clicked)}
               onDrop={(from, to) => void onDrop(from, to)}
+              onDragActiveChange={(active) => {
+                dragging.current = active;
+              }}
             />
           ) : (
             <ListCard
@@ -303,7 +369,7 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
               openKeys={openKeys}
               selected={key}
               matches={matches}
-              onSelect={(row) => openAt(row, false)}
+              onSelect={(row) => openAt(row)}
             />
           )}
         </div>
@@ -321,13 +387,14 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
           aria-modal="true"
           aria-describedby={undefined}
           className={cn(EDITOR_PANEL, 'w-md')}
-          // A free key is there to be filled: Link. An assigned one opens quiet, so Esc closes and nothing types.
+          // A free key is there to be filled: Link. An assigned one opens quiet, so Esc closes and nothing types. A ⌘V
+          // that opened the dialog has filled Link already: the dialog, so the next key or paste acts on the keymap.
           onOpenAutoFocus={(event) => {
             event.preventDefault();
-            if (focusLink.current || stored === undefined) {
-              focusLink.current = false;
-              linkRef.current?.focus();
-            } else dialogRef.current?.focus();
+            const next = focusNext.current;
+            focusNext.current = null;
+            if (next === 'link' || (next === null && stored === undefined)) linkRef.current?.focus();
+            else dialogRef.current?.focus();
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();

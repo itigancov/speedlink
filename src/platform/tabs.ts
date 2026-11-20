@@ -53,8 +53,8 @@ const COALESCE_MS = 50;
 
 /**
  * Calls back with every open tab, read fresh, once at the start and again after any change that can alter a tab's
- * link or window: created, removed, replaced, a URL update, a window opened or closed. A burst of events gives one
- * read, and an older read that lands late is dropped. Returns the unsubscribe.
+ * link, title or window: created, removed, replaced, a URL or title update, a window opened or closed. A burst of
+ * events gives one read, and an older read that lands late is dropped. Returns the unsubscribe.
  */
 export function watchPlanTabs(callback: (tabs: PlanTab[]) => void): () => void {
   let active = true;
@@ -75,7 +75,7 @@ export function watchPlanTabs(callback: (tabs: PlanTab[]) => void): () => void {
     timer ??= setTimeout(read, COALESCE_MS);
   };
   const onUpdated = (_tabId: number, change: Browser.tabs.OnUpdatedInfo) => {
-    if (change.url !== undefined) schedule();
+    if (change.url !== undefined || change.title !== undefined) schedule();
   };
 
   browser.tabs.onCreated.addListener(schedule);
