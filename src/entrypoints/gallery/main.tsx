@@ -317,12 +317,13 @@ const sampleKeymap: Partial<Record<Key, Shortcut>> = {
   '1': validShortcut({ link: 'http://localhost:3000/', name: 'Dev server', openMode: 'this' }),
 };
 
-function KeyboardCards() {
+function KeyboardCards({ size }: { size: 'lg' | 'compact' }) {
   return (
     <div className="flex flex-col gap-4">
       {PLATFORMS.map((platform) => (
         <KeyboardCard
           key={platform}
+          size={size}
           keymap={sampleKeymap}
           openKeys={new Set<Key>(['Y', 'K'])}
           selected="K"
@@ -336,7 +337,7 @@ function KeyboardCards() {
 }
 
 /** The keyboard card under a search: "tube" matches Y only (K, selected, dims), and a query with no match. */
-function SearchedKeyboardCards() {
+function SearchedKeyboardCards({ size }: { size: 'lg' | 'compact' }) {
   return (
     <div className="flex flex-col gap-4">
       {[
@@ -348,6 +349,7 @@ function SearchedKeyboardCards() {
           <KeyboardCard
             keymap={sampleKeymap}
             openKeys={new Set<Key>(['Y', 'K'])}
+            size={size}
             selected="K"
             matches={matches}
             onSelect={noop}
@@ -360,7 +362,7 @@ function SearchedKeyboardCards() {
 }
 
 /** The keyboard card mid-drag: Y lifted over a free key (move) and over an assigned key (swap). */
-function DraggingKeyboardCards() {
+function DraggingKeyboardCards({ size }: { size: 'lg' | 'compact' }) {
   return (
     <div className="flex flex-col gap-4">
       {[
@@ -375,6 +377,7 @@ function DraggingKeyboardCards() {
             selected="K"
             onSelect={noop}
             onDrop={noop}
+            size={size}
             frozenDrag={{ source: 'Y', target }}
           />
         </div>
@@ -547,13 +550,22 @@ function App() {
         <Grids />
       </Section>
       <Section title="Options: keyboard card, per platform">
-        <KeyboardCards />
+        <KeyboardCards size="lg" />
       </Section>
       <Section title="Options: keyboard card under a search">
-        <SearchedKeyboardCards />
+        <SearchedKeyboardCards size="lg" />
       </Section>
       <Section title="Options: keyboard card mid-drag">
-        <DraggingKeyboardCards />
+        <DraggingKeyboardCards size="lg" />
+      </Section>
+      <Section title="Options: keyboard card, compact keys (a narrow window), per platform">
+        <KeyboardCards size="compact" />
+      </Section>
+      <Section title="Options: compact keyboard card under a search">
+        <SearchedKeyboardCards size="compact" />
+      </Section>
+      <Section title="Options: compact keyboard card mid-drag">
+        <DraggingKeyboardCards size="compact" />
       </Section>
       <Section title="Options: list view">
         <ListCards />

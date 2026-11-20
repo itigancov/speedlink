@@ -23,7 +23,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { KeyboardGrid } from '@/components/KeyboardGrid';
+import { KeyboardGrid, keyboardWidth } from '@/components/KeyboardGrid';
 import { KeyCap, type KeyCapState } from '@/components/KeyCap';
 import { Kbd } from '@/components/ui/kbd';
 import { ARROWS, neighbourKey } from '@/domain/key-grid';
@@ -56,7 +56,15 @@ export interface KeyCapsHandle {
   focusKey(key: Key): void;
 }
 
+/** The card's padding and border on both sides (p-6 and 1 px): what the card takes from its own width. */
+const CARD_CHROME = 2 * (24 + 1);
+
+/** The card width, in px, at which the lg keyboard fits and below which Options draws compact keys. */
+export const LG_KEYBOARD_CARD_WIDTH = keyboardWidth('lg') + CARD_CHROME;
+
 export interface KeyboardCardProps extends KeymapViewProps {
+  /** The keys' size: compact when the card is narrower than the lg keyboard. Defaults to lg. */
+  size?: 'lg' | 'compact';
   /** A shortcut was dropped from one key onto another. */
   onDrop: (from: Key, to: Key) => void;
   /** A drag started (true) or ended either way (false). */
@@ -159,6 +167,7 @@ export function KeyboardCard({
   onDrop,
   onDragActiveChange,
   frozenDrag,
+  size = 'lg',
   platform,
   ref,
 }: KeyboardCardProps) {
@@ -251,6 +260,7 @@ export function KeyboardCard({
     return (
       <KeyCap
         label={label}
+        size={size}
         state={state}
         open={openKeys.has(label)}
         shortcut={shortcut}
@@ -274,6 +284,7 @@ export function KeyboardCard({
     return (
       <KeyCap
         label={source}
+        size={size}
         state={source === selected ? 'selected' : 'assigned'}
         shortcut={shortcut}
         name={shortcut === undefined ? undefined : displayName(shortcut)}
@@ -286,7 +297,7 @@ export function KeyboardCard({
   };
 
   const renderKey = (label: KeyLabel) => {
-    if (!isAssignable(label)) return <KeyCap label={label} state="reserved" platform={platform} />;
+    if (!isAssignable(label)) return <KeyCap label={label} size={size} state="reserved" platform={platform} />;
     if (frozenDrag !== undefined) {
       if (frozenDrag.target !== label) return keyCapOf(label);
       return (
@@ -336,8 +347,12 @@ export function KeyboardCard({
       }}
     >
       <div className="flex flex-col gap-5 rounded-2xl border bg-card p-6">
-        <div className="mx-auto w-fit">
-          <KeyboardGrid size="lg" renderKey={renderKey} />
+        {/* Narrower than the compact keyboard it scrolls here, not the page. The padding makes room for the open
+            dot and the selection ring, which overflow clipping would cut; the negative margin takes it back. */}
+        <div className="-m-2 overflow-x-auto p-2">
+          <div className="mx-auto w-fit">
+            <KeyboardGrid size={size} renderKey={renderKey} />
+          </div>
         </div>
         <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 border-border-subtle border-t pt-4 text-muted-foreground text-xs">
           <li className="flex items-center gap-2">

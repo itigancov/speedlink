@@ -621,3 +621,124 @@ test.describe('the key editor dialog', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe('a narrow window', () => {
+  const youtube = { link: LINK, name: 'YouTube', openMode: 'new', tabMatch: 'page', closeCurrent: true };
+  const kagi = { link: `${LINK}&kagi`, name: 'Kagi', openMode: 'bg', tabMatch: 'exact', closeCurrent: false };
+
+  const holdHint = (page: Page) => page.getByText('anywhere to see your keys');
+  const size = async (page: Page, key: string) => {
+    const box = await keyCap(page, key).boundingBox();
+    if (box === null) throw new Error('key not laid out');
+    return { width: box.width, height: box.height };
+  };
+  /** The page has no sideways scroll: the document is no wider than the window. */
+  const pageOverflowsSideways = (page: Page) =>
+    page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  /** The keyboard's nearest sideways-scrolling ancestor is wider than its box. */
+  const keyboardScrollsSideways = (page: Page) =>
+    page.locator('[data-slot="keyboard-grid"]').evaluate((grid) => {
+      let node = grid.parentElement;
+      while (node !== null && getComputedStyle(node).overflowX !== 'auto') node = node.parentElement;
+      return node !== null && node.scrollWidth > node.clientWidth;
+    });
+
+  test('a wide window draws 76×64 keys and the header hint', async ({ context, extensionId }) => {
+    const { page, errors } = await openOptions(context, extensionId);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    expect(await size(page, 'Q')).toEqual({ width: 76, height: 64 });
+    await expect(holdHint(page)).toBeVisible();
+    expect(await pageOverflowsSideways(page)).toBe(false);
+    expect(errors).toEqual([]);
+  });
+
+  test('900 px draws 56×52 keys with no header hint and no sideways scroll', async ({ context, extensionId }) => {
+    const { page, errors } = await openOptions(context, extensionId);
+    await page.setViewportSize({ width: 900, height: 800 });
+
+    await expect.poll(() => size(page, 'Q')).toEqual({ width: 56, height: 52 });
+    await expect(holdHint(page)).toBeHidden();
+    expect(await pageOverflowsSideways(page)).toBe(false);
+    expect(await keyboardScrollsSideways(page)).toBe(false);
+    await expect(page.getByText('Drag to swap')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test('the keys turn compact exactly where the 76×64 keyboard stops fitting its card', async ({
+    context,
+    extensionId,
+  }) => {
+    const { page, errors } = await openOptions(context, extensionId);
+    // Tall enough for no vertical scrollbar, which would take width off the page.
+    await page.setViewportSize({ width: 974, height: 1400 });
+    await expect.poll(() => size(page, 'Q')).toEqual({ width: 76, height: 64 });
+    expect(await pageOverflowsSideways(page)).toBe(false);
+    expect(await keyboardScrollsSideways(page)).toBe(false);
+
+    await page.setViewportSize({ width: 973, height: 1400 });
+    await expect.poll(() => size(page, 'Q')).toEqual({ width: 56, height: 52 });
+    expect(errors).toEqual([]);
+  });
+
+  test('600 px scrolls the keyboard inside its card, and a click still opens the dialog', async ({
+    context,
+    extensionId,
+  }) => {
+    const worker = await serviceWorker(context, extensionId);
+    await store(worker, 'G', { name: 'Pull requests' });
+    const { page, errors } = await openOptions(context, extensionId);
+    await page.setViewportSize({ width: 600, height: 800 });
+
+    await expect.poll(() => size(page, 'Q')).toEqual({ width: 56, height: 52 });
+    expect(await pageOverflowsSideways(page)).toBe(false);
+    expect(await keyboardScrollsSideways(page)).toBe(true);
+
+    await keyCap(page, 'G').click();
+    await expect(editor(page)).toBeVisible();
+    await expect(editorTitle(page)).toHaveText('Pull requests');
+    expect(errors).toEqual([]);
+  });
+
+  test('a mouse drag swaps two keys on compact keys', async ({ context, extensionId }) => {
+    const worker = await serviceWorker(context, extensionId);
+    await store(worker, 'Y', youtube);
+    await store(worker, 'K', kagi);
+    const { page, errors } = await openOptions(context, extensionId);
+    await page.setViewportSize({ width: 900, height: 800 });
+    await expect.poll(() => size(page, 'Y')).toEqual({ width: 56, height: 52 });
+
+    const start = await keyCap(page, 'Y').boundingBox();
+    const end = await keyCap(page, 'K').boundingBox();
+    if (start === null || end === null) throw new Error('key not laid out');
+    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2, { steps: 10 });
+    await expect(keyCap(page, 'K')).toHaveAttribute('data-state', 'drop-target');
+    await page.mouse.up();
+
+    await expect.poll(() => item(worker, 'K')).toEqual(youtube);
+    expect(await item(worker, 'Y')).toEqual(kagi);
+    expect(errors).toEqual([]);
+  });
+
+  test('widening the window brings back 76×64 keys and the hint, with the selection kept', async ({
+    context,
+    extensionId,
+  }) => {
+    const worker = await serviceWorker(context, extensionId);
+    await store(worker, 'K', kagi);
+    const { page, errors } = await openOptions(context, extensionId, 'K');
+    await page.setViewportSize({ width: 900, height: 800 });
+    await expect.poll(() => size(page, 'K')).toEqual({ width: 56, height: 52 });
+    await expect(holdHint(page)).toBeHidden();
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await expect.poll(() => size(page, 'K')).toEqual({ width: 76, height: 64 });
+    await expect(holdHint(page)).toBeVisible();
+    await expect(keyCap(page, 'K')).toHaveAttribute('data-state', 'selected');
+    await expect(editor(page)).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+});
