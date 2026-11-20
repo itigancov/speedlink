@@ -2,7 +2,6 @@
 // check by eye. A wxt.config.ts hook drops it from production builds. Later items add their own sections here.
 // Its own labels are developer-facing identifiers (sizes, states, variants), not user-facing strings.
 import '@/assets/theme.css';
-import { cn } from 'cn';
 import { type ReactNode, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { KeyboardGrid } from '@/components/KeyboardGrid';
@@ -22,6 +21,7 @@ import type { OverlayTile as OverlayTileData } from '@/domain/overlay-model';
 import { displayName, type Shortcut, TILE_HUES } from '@/domain/shortcut';
 import { validShortcut } from '@/domain/test-shortcut';
 import type { SaveState } from '@/hooks/use-autosave';
+import { cn } from '@/lib/cn';
 import { chordLabel, type Platform, triggerLabel } from '@/platform/platform-labels';
 import { FirstRunHint, FirstRunSteps } from '../options/FirstRun';
 import { KeyboardCard } from '../options/KeyboardCard';

@@ -1,5 +1,5 @@
 // The List view (product spec §8.1): the assigned keys in keyboard order, one row each. Selection is the page's.
-import { cn } from 'cn';
+
 import { type Ref, useImperativeHandle, useRef } from 'react';
 import { KeyCap } from '@/components/KeyCap';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
 import { siteOf } from '@/domain/link';
 import { displayName, type Shortcut } from '@/domain/shortcut';
+import { cn } from '@/lib/cn';
 import { type KeyCapsHandle, type KeymapViewProps, keyCapsHandle } from './KeyboardCard';
 
 /** The same inputs as the Keyboard view; `matches` hides the rows outside a search instead of dimming them. */

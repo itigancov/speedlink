@@ -1,9 +1,10 @@
 // Stock shadcn, edited in place: the scrim and the opening animation use our tokens (tw-animate-css isn't installed),
 // a short window scrolls the content, and the built-in close buttons are gone (their "Close" isn't an en.yml string;
 // a dialog draws its own ×).
-import { cn } from 'cn';
+
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import type * as React from 'react';
+import { cn } from '@/lib/cn';
 
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;

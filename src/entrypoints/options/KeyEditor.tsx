@@ -1,7 +1,7 @@
 // "Edit key" (product spec §8.3): the selected key's draft, the content of the page's modal dialog.
 // Presentational: the page owns the dialog, the draft, the autosave and the actions, so the gallery can show every
 // state inline.
-import { cn } from 'cn';
+
 import { AppWindowIcon, ArrowRightIcon, CheckIcon, ChevronDownIcon, XIcon } from 'lucide-react';
 import { type Ref, useId, useState } from 'react';
 import { Monogram } from '@/components/Monogram';
@@ -26,6 +26,7 @@ import {
   type TabMatch,
 } from '@/domain/shortcut';
 import type { SaveState } from '@/hooks/use-autosave';
+import { cn } from '@/lib/cn';
 import { chordLabel, PLATFORM, type Platform } from '@/platform/platform-labels';
 
 /** The page Use current tab would fill in. */

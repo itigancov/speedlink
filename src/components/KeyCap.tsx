@@ -1,12 +1,12 @@
 // One keycap for every surface (product spec §12.2). Key-state colours live here and reference theme tokens;
 // the states are visual, not domain states (design inventory §3.3).
 import { cva } from 'class-variance-authority';
-import { cn } from 'cn';
 import { LockIcon } from 'lucide-react';
 import type { ComponentProps } from 'react';
 import { Monogram, type MonogramSize } from '@/components/Monogram';
 import type { KeyLabel } from '@/domain/keys';
 import type { Shortcut } from '@/domain/shortcut';
+import { cn } from '@/lib/cn';
 import { PLATFORM, type Platform, triggerWord } from '@/platform/platform-labels';
 
 export type KeyCapSize = 'lg' | 'compact' | 'xl' | 'md' | 'sm';

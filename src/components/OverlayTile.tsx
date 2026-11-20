@@ -2,10 +2,11 @@
 // shortcut's monogram tile. A click opens the key, ⇧ + click in a new tab; the pencil edits it in Options and takes
 // the monogram's place on hover (left out where a tile can't: the popup's launcher). It lives in the HUD's shadow
 // root and never takes focus, so the page keeps its own.
-import { cn } from 'cn';
+
 import { PencilIcon } from 'lucide-react';
 import { type MouseEvent, useEffect, useRef } from 'react';
 import type { OverlaySubline, OverlayTile as TileData } from '@/domain/overlay-model';
+import { cn } from '@/lib/cn';
 import { chordLabel, PLATFORM, type Platform, triggerWord } from '@/platform/platform-labels';
 import { KeyCap } from './KeyCap';
 import { Monogram } from './Monogram';

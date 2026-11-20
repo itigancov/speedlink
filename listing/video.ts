@@ -1,6 +1,6 @@
 // The demo loop's encoder: still frames held for their time and cross-faded into each other, encoded with `ffmpeg`
-// (a dev-time requirement of `pnpm listing`) as MP4 and WebM for the landing page and a GIF for the README, then
-// read back with `ffprobe`. Every check throws, so a bad export fails the run before it is committed.
+// (a dev-time requirement of `pnpm listing`) as the README's GIF, then read back with `ffprobe`. Every check throws, so a bad export
+// fails the run before it is committed.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -11,12 +11,6 @@ export interface Shot {
   png: string;
   /** How long it shows, its incoming cross-fade included. */
   seconds: number;
-}
-
-export interface DemoFiles {
-  mp4: string;
-  webm: string;
-  gif: string;
 }
 
 const FPS = 30;
@@ -39,7 +33,7 @@ function run(bin: 'ffmpeg' | 'ffprobe', args: string[]): string {
 
 /**
  * The shots one after another, each cross-fading into the next, and the last fading back into the first so that
- * the loop restarts on the frame it ends on. Lossless, for the three encodes to start from.
+ * the loop restarts on the frame it ends on. Lossless, for the GIF to start from.
  */
 function master(shots: Shot[], out: string): void {
   const [first] = shots;
@@ -117,8 +111,8 @@ function check(file: string, size: { width: number; height: number }): void {
   if (problems.length > 0) throw new Error(`${file} ${problems.join(' and ')}`);
 }
 
-/** Encodes the loop into `files` and checks each export. */
-export function encodeDemo(shots: Shot[], size: { width: number; height: number }, files: DemoFiles): void {
+/** Encodes the loop into the GIF at `gif` and checks it. */
+export function encodeDemo(shots: Shot[], size: { width: number; height: number }, gif: string): void {
   const work = mkdtempSync(join(tmpdir(), 'speedlink-demo-'));
   try {
     const lossless = join(work, 'master.mkv');
@@ -127,29 +121,17 @@ export function encodeDemo(shots: Shot[], size: { width: number; height: number 
 
     run('ffmpeg', [
       ...fromLossless,
-      ...['-c:v', 'libx264', '-preset', 'veryslow', '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart'],
-      files.mp4,
-    ]);
-    run('ffmpeg', [
-      ...fromLossless,
-      ...['-c:v', 'libvpx-vp9', '-crf', '36', '-b:v', '0', '-row-mt', '1', '-pix_fmt', 'yuv420p'],
-      files.webm,
-    ]);
-    run('ffmpeg', [
-      ...fromLossless,
       '-vf',
       `fps=${GIF.fps},scale=${GIF.width}:-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];` +
         '[b][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle',
       '-loop',
       '0',
-      files.gif,
+      gif,
     ]);
 
-    check(files.mp4, size);
-    check(files.webm, size);
-    check(files.gif, { width: GIF.width, height: Math.round((GIF.width * size.height) / size.width) });
-    const { size: gifBytes } = statSync(files.gif);
-    if (gifBytes > GIF.maxBytes) throw new Error(`${files.gif} weighs ${gifBytes} bytes, over ${GIF.maxBytes}`);
+    check(gif, { width: GIF.width, height: Math.round((GIF.width * size.height) / size.width) });
+    const { size: gifBytes } = statSync(gif);
+    if (gifBytes > GIF.maxBytes) throw new Error(`${gif} weighs ${gifBytes} bytes, over ${GIF.maxBytes}`);
   } finally {
     rmSync(work, { recursive: true, force: true });
   }

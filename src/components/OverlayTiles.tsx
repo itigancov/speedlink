@@ -1,8 +1,9 @@
 // The overlay's tile grid and its empty state (product spec §5.4), shared by the HUD's overlay and the popup's launcher
 // (§7). Both live where a press must not move focus, so the pieces keep it where it was.
-import { cn } from 'cn';
+
 import type { Key } from '@/domain/keys';
 import type { OverlayTile as TileData } from '@/domain/overlay-model';
+import { cn } from '@/lib/cn';
 import { PLATFORM, type Platform } from '@/platform/platform-labels';
 import { keepFocus, OverlayTile } from './OverlayTile';
 

@@ -10,7 +10,7 @@ pnpm only, at the version in `packageManager`: `pnpm install`, `pnpm <script>`, 
 - `pnpm format`: apply formatting and sort imports. Fix style with this, by hand never.
 - `pnpm test`: Vitest once. Run a single file with `pnpm test src/path/file.test.ts`.
 - `pnpm e2e`: builds, then runs Playwright against the build (it also builds a negative-control variant into `.output-e2e-throw/` and a variant with service-worker test hooks into `.output-e2e-hooks/`). First run needs `pnpm exec playwright install chromium`.
-- `pnpm listing`: builds the e2e-hooks variant and redraws the Store listing images with its own Playwright config (`playwright.listing.config.ts`, `listing/`): the five screenshots and the promo tile into `store/` (and the landing page's copies into `site/media/`), the extension icons into `public/icon/`, the demo loop (MP4, WebM, poster) and the social card into `site/media/` and its GIF into `docs/media/`. It needs `ffmpeg`/`ffprobe` on `PATH`, and fails on a wrong size, an alpha channel, a loop far off 8 s or a GIF over its budget. Not part of `pnpm e2e` or CI; the listing texts in `store/listing.md` are edited by hand.
+- `pnpm listing`: builds the e2e-hooks variant and redraws the Store listing images with its own Playwright config (`playwright.listing.config.ts`, `listing/`): the five captioned screenshots, the promo tile and the marquee into `store/` (and refreshes the landing page's same-named copies in `site/media/`), the extension icons into `public/icon/`, the three clean frames (Peek, Popup, Keymap) and the social card into `site/media/`, and the demo loop's GIF into `docs/media/`. It needs `ffmpeg`/`ffprobe` on `PATH`, and fails on a wrong size, an alpha channel, a missing captured state, a stray file in `store/`, a loop far off 8 s or a GIF over its budget. Not part of `pnpm e2e` or CI; the listing texts in `store/listing.md` are edited by hand.
 - `pnpm smoke:live`: builds, then runs the four open modes on live sites (`playwright.live.config.ts`, `live/`; release checklist #9). `SPEEDLINK_EXTENSION=<folder>` runs it on an unzipped release candidate instead. Not part of `pnpm e2e` or CI.
 - `pnpm dev` / `pnpm build` / `pnpm zip`: WXT watch mode, unpacked build in `.output/`, Store zip.
 
@@ -24,7 +24,7 @@ src/entrypoints/   background/, hud.content/ (the page content script), popup/, 
 src/domain/        pure TS: keys, key-grid, shortcut, link, tab-match, keymap-ops, fitting-keys, open-plan, assign-plan, edit-plan, assign-picker, keydown, restricted, search, migrations, welcome
 src/platform/      everything touching chrome.*: stores, tabs (open executor), open-key, assign-page (assign with undo), edit-shortcut (key card edits), write-with-undo, options-tab, badge, injection (sendToTab), key-capture, commands, messaging, platform-labels, hud-font, i18n, welcome-tab
 src/components/ui/ stock shadcn;  src/components/: shared custom (KeyCap, KeyboardGrid, Monogram, Brand)
-src/hooks/  src/assets/ (tokens.css, theme.css for pages, hud.css for the HUD)  src/locales/en.yml
+src/lib/cn.ts (the class merger, taught our font sizes)  src/hooks/  src/assets/ (tokens.css, theme.css for pages, hud.css for the HUD)  src/locales/en.yml
 public/icon/       extension icons;  public/fonts/  Inter woff2 + OFL.txt (see README)
 e2e/               Playwright specs, harness (extension.ts), fixture-pages/ and fixture-v1/ (the shipped 1.6 build, for the update spec)
 ```
@@ -37,7 +37,7 @@ Use the terms in `GLOSSARY.md` (it wins over every other doc). Decisions with la
 
 ## UI rules
 
-- Add shadcn components with `pnpm dlx shadcn@4.23.0 add <name>`. Add variants in place with `cva` in the component file.
+- Add shadcn components with `pnpm dlx shadcn@4.23.0 add <name>`. Merge classes with `cn` from `@/lib/cn`, never from the `cn` package: the stock one reads `text-ui` as a colour and drops the colour class beside it. Add variants in place with `cva` in the component file.
 - Style only with tokens from `src/assets/tokens.css` and the Tailwind scale; snap to the nearest token (arbitrary values like `w-[37px]` are off-limits).
 - The HUD (`hud.content`) lives in a Shadow DOM on arbitrary pages, so it uses only inline, non-modal UI: our own `div role="dialog"`, cmdk `Command` inline, a custom `PageToast`. Sonner, Radix portals/dialogs/popovers and focus traps are out: Sonner crashes the content script at `document_start`, and portals and focus traps escape the shadow root or fight the host page's focus (product spec §12.3).
 

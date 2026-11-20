@@ -1,7 +1,8 @@
 // Numbered step cards (product spec §8.1 first run, §9 welcome): one card per step, in a row when three fit and
 // stacked otherwise. With `active` that card is the current step; without it all are neutral (no progress is tracked).
-import { cn } from 'cn';
+
 import type { ReactNode } from 'react';
+import { cn } from '@/lib/cn';
 
 export interface Step {
   id: string;
