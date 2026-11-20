@@ -1,6 +1,6 @@
 # Web Store listing texts
 
-Every text the Developer Dashboard asks for, ready to paste (item 22 does the pasting). Images: `01`–`05` are the screenshots (1280×800), `promo-tile.png` the small promo tile (440×280). `pnpm listing` redraws them and the extension icons from the build; the texts are edited here, by hand.
+Every text the Developer Dashboard asks for, ready to paste (items 22 and 39 do the pasting). Images: `01`–`05` are the screenshots (1280×800), `promo-tile.png` the small promo tile (440×280) and `marquee.png` the marquee (1400×560). `pnpm listing` redraws them and the extension icons from the build; the texts are edited here, by hand.
 
 ## Store listing tab
 
@@ -26,11 +26,13 @@ HOW IT WORKS
 SEE YOUR KEYS
 • Peek: hold ⌥ for a moment and your keys appear over the page. Press one to go, or let go to close.
 • Pinned overlay: press ⌥S, or S during a Peek, to keep it open and search your shortcuts by name or link.
-• A dot marks the shortcuts whose site is open right now.
+• Each site gets its own coloured tile, and keys whose site is open right now are marked green.
 
 PUT A PAGE ON A KEY
 • Click the toolbar icon to assign the page you are on. SpeedLink suggests free keys that fit the site's name, and a toast on the page offers Undo.
-• The Options page shows your keymap as a keyboard: edit a shortcut, drag one key onto another to swap, or search with "/".
+• Want another key? Show keyboard lets you pick any free key, not only the suggested ones.
+• Already on a key? The popup shows that key: change how it opens, move it or remove it.
+• The Options page shows your keymap as a keyboard: click a key to edit it right there, press ⌘V (Ctrl+V on Windows and Linux) to paste a link onto it, drag one key onto another to swap, or search with "/".
 
 COMING FROM SPEEDLINK 1?
 Your keys come over on update. Nothing to export or set up again.
