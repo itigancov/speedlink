@@ -109,7 +109,7 @@ const LETTER = /[\p{L}\p{N}]\p{M}*/u;
 const firstLetter = (text: string): string | undefined => text.match(LETTER)?.[0];
 
 /** The one-letter mark on the shortcut's tile: the first letter of the name, else of the site, uppercased. */
-export function monogram(shortcut: Shortcut): string {
+export function monogram(shortcut: Pick<Shortcut, 'name' | 'link'>): string {
   const letter =
     (shortcut.name === undefined ? undefined : firstLetter(shortcut.name)) ?? firstLetter(siteOf(shortcut.link));
   return (letter ?? '').toUpperCase();

@@ -66,7 +66,7 @@ function Legend({ platform, mode }: { platform: Platform; mode: OverlayMode }) {
   return (
     <div
       data-testid="overlay-legend"
-      className="flex flex-wrap items-center gap-x-4 gap-y-2 border-border border-t pt-3 text-2xs text-muted-foreground"
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 border-border-subtle border-t pt-3 text-2xs text-muted-foreground"
     >
       {item(i18n.t('overlay.legend.key'), i18n.t('overlay.legend.go'))}
       {item(i18n.t('overlay.legend.shiftKey'), i18n.t('overlay.legend.forceNew'))}
@@ -82,7 +82,11 @@ function Legend({ platform, mode }: { platform: Platform; mode: OverlayMode }) {
         <span>{i18n.t('overlay.legend.close')}</span>
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <span aria-hidden="true" className="size-1.5 rounded-full bg-success" />
+        <span
+          aria-hidden="true"
+          data-testid="legend-open-swatch"
+          className="size-3 rounded-sm border border-success-border bg-success-tile"
+        />
         <span>{i18n.t('overlay.legend.openNow')}</span>
       </span>
     </div>
@@ -137,20 +141,20 @@ export function Overlay({
   });
 
   return (
-    <div className="fixed inset-0 flex items-start justify-center px-4 pt-24">
+    <div className="fixed inset-0 flex items-start justify-center px-4 pt-40">
       <div
         data-testid="overlay-scrim"
         aria-hidden="true"
         onMouseDown={keepFocus}
         onClick={actions.close}
-        className="pointer-events-auto absolute inset-0 bg-foreground/30"
+        className="pointer-events-auto absolute inset-0 bg-foreground/40"
       />
       {/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: a press anywhere on the dialog must not move focus (§5.1, §5.2); it is not an action */}
       <div
         role="dialog"
         aria-label={i18n.t('overlay.label')}
         onMouseDown={keepFocus}
-        className="pointer-events-auto relative flex max-h-3/4 w-full max-w-3xl flex-col gap-4 rounded-2xl bg-card p-5 font-sans text-foreground shadow-lg"
+        className="pointer-events-auto relative flex max-h-3/4 w-full max-w-4xl flex-col gap-4 rounded-2xl bg-card p-6 font-sans text-foreground shadow-lg"
       >
         <div className="flex items-center gap-3">
           <Badge variant="accent">
@@ -168,7 +172,7 @@ export function Overlay({
               onMouseDown={(event) => event.stopPropagation()}
               autoComplete="off"
               spellCheck={false}
-              className="min-w-0 flex-1 bg-transparent text-foreground text-ui outline-none placeholder:text-muted-foreground"
+              className="h-10 min-w-0 flex-1 rounded-lg border border-input bg-card px-3 text-foreground text-ui outline-none placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
             />
           ) : (
             <span className="text-muted-foreground text-ui">{i18n.t('overlay.peekHint', ['S'])}</span>

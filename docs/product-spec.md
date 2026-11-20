@@ -194,15 +194,16 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
 - An update from v1 leaves both commands unbound. Mitigation: Options shows the quiet line "Set ⌥S for pages where SpeedLink can't run", linking to `chrome://extensions/shortcuts`, while `commands.getAll()` reports no binding. A no-op 4.0.1 then assigns Alt+S (§14).
 
 ### 5.4 Content
+- **Dialog**: wide (`max-w-4xl`) and low on the page (`pt-40`), `p-6`, rounded, with a slightly darker scrim and a shadow.
 - **Tiles**: one per assigned key, in keyboard order, 4 columns. Past 12 tiles the tile area scrolls inside the dialog (max ~70vh), up to 35. No profile label.
-- **Tile**: keycap (md) + name (or site) + subline:
-  - Smart switch would switch to a tab in this window (the current tab included) → "Open · tab N" (1-based position);
+- **Tile**: a plain white keycap (md, no open dot) on the left, then the name (or site) over the subline, then the shortcut's 20 px coloured monogram tile on the right (the same letter and colour as on its key in Options, §12.2). A tile whose page is open is green (background and border) and keeps its monogram colour:
+  - Smart switch would switch to a tab in this window (the current tab included) → "Open · tab N" (1-based position, green);
   - Smart switch would raise another window → "Open · other window" (green);
   - else Smart → site, New → "new tab", This → "this tab", Background → "background". Both "Open" sublines follow Smart switch's winner (§4.1), so other open modes show their mode even when the page is open.
-- **Top row**: badge "⌥ held" + the hint "Press a key — S to search". In the pinned overlay the badge reads "Pinned" and the hint is the search field's placeholder ("Press a key — or keep typing to search").
-- **Footer legend**: key go · ⇧ + key force new tab · ⌥ release or Esc close · green dot "open now — will switch, not reopen". The pinned overlay adds "type search names & links" and drops "⌥ release" (Esc close), since typing works only there.
+- **Top row**: badge "⌥ held" + the plain hint "Press a key — S to search" (no field: ⌥ is held, so every letter is a key). In the pinned overlay the badge reads "Pinned" and a bordered search box follows, with the placeholder "Press a key — or keep typing to search". The highlighted tile (the top result, or where the arrows moved) has a blue border and ring, and keeps its green when open.
+- **Footer legend**: key go · ⇧ + key force new tab · ⌥ release or Esc close · small green tile swatch "open now — will switch, not reopen". The pinned overlay adds "type search names & links" and drops "⌥ release" (Esc close), since typing works only there.
 - **Empty keymap**: "No keys yet" + an "Open keymap" link.
-- **Mouse**: tile click opens, ⇧+click = Force new tab; both work in Peek too. A pencil on tile hover/focus opens Options `#key=K` (focusing an existing tab without reloading it) and closes the overlay.
+- **Mouse**: tile click opens, ⇧+click = Force new tab; both work in Peek too. A pencil on tile hover/focus (it takes the monogram tile's place) opens Options `#key=K` (focusing an existing tab without reloading it) and closes the overlay.
 - ⌥+free key while the overlay is open: the overlay closes and the "⌥K is free" toast appears.
 - The overlay model (tiles, Open now, tab N, other window) comes from the background on open.
 ↳ rebuild map: issues/13-keyboard-capture.md (keyboard capture), issues/06-behavior-audit.md (behavior audit)
@@ -266,7 +267,7 @@ Toasts render on the page, top frame only. Each is a dark pill: key chip + messa
 
 **Unusable page** (any non-http(s) or restricted page): the popup is a **launcher**, so it is never a dead end.
 - Under the header, a short line "This page can't be put on a key" (the way to the keymap is the footer link). The picker, Save and Opens as are not shown.
-- Then the overlay's tiles for this tab (§5.4: keycap, name or site, "Open · tab N" subline, green dot), from `getOverlayModel{tabId}`, 2 columns at this width; past 12 tiles the area scrolls inside the popup. No pencil and no search.
+- Then the overlay's tiles for this tab (the tiles follow §5.4: keycap, name or site, subline, monogram tile, green when open), from `getOverlayModel{tabId}`, 2 columns at this width; past 12 tiles the area scrolls inside the popup. No pencil and no search.
 - A bare key, ⌥+key or a tile click opens that key's shortcut through `openKey{key, force, tabId}` with the restricted tab as the current tab (normal semantics, not Test): This tab replaces the new tab page, close current closes it. ⇧ (or ⇧+click) = Force new tab. The keys are read by `event.code`; S is ignored.
 - An `opened` / `noop` reply closes the popup. A free key stays open with "⌥K is free" under the tiles; a `failed` reply shows "Couldn't open ⌥K".
 - Empty keymap: "No keys yet" + "Open keymap" (and the footer link).

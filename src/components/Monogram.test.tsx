@@ -19,6 +19,14 @@ describe('Monogram', () => {
     expect(tile(container)?.dataset.hue).toBe('purple');
   });
 
+  it('renders from a name and link alone, as from the full shortcut', () => {
+    const full = validShortcut({ link: 'https://github.com/x', name: 'Code' });
+    const { container } = render(<Monogram shortcut={{ name: 'Code', link: 'https://github.com/x' }} />);
+    const { container: fullContainer } = render(<Monogram shortcut={full} />);
+    expect(tile(container)?.textContent).toBe(tile(fullContainer)?.textContent);
+    expect(tile(container)?.dataset.hue).toBe(tile(fullContainer)?.dataset.hue);
+  });
+
   it('draws no image, at every size', () => {
     for (const size of ['2xs', 'xs', 'sm', 'default', 'md', 'lg'] as const) {
       const { container, unmount } = render(

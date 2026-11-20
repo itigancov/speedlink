@@ -1,12 +1,14 @@
-// One overlay tile (product spec §5.4): keycap (md), name and what pressing the key will do. A click opens the key,
-// ⇧ + click in a new tab; the pencil on hover edits it in Options (left out where a tile can't: the popup's
-// launcher). It lives in the HUD's shadow root and never takes focus, so the page keeps its own.
+// One overlay tile (product spec §5.4): a plain keycap (md), the name and what pressing the key will do, and the
+// shortcut's monogram tile. A click opens the key, ⇧ + click in a new tab; the pencil edits it in Options and takes
+// the monogram's place on hover (left out where a tile can't: the popup's launcher). It lives in the HUD's shadow
+// root and never takes focus, so the page keeps its own.
 import { cn } from 'cn';
 import { PencilIcon } from 'lucide-react';
 import { type MouseEvent, useEffect, useRef } from 'react';
 import type { OverlaySubline, OverlayTile as TileData } from '@/domain/overlay-model';
 import { chordLabel, PLATFORM, type Platform, triggerWord } from '@/platform/platform-labels';
 import { KeyCap } from './KeyCap';
+import { Monogram } from './Monogram';
 
 /** Keeps a pointer press from moving focus onto the overlay; the click still happens. */
 export const keepFocus = (event: MouseEvent) => event.preventDefault();
@@ -40,7 +42,7 @@ export interface OverlayTileProps {
 }
 
 export function OverlayTile({
-  tile: { key, name, subline },
+  tile: { key, name, link, subline },
   highlighted = false,
   onOpen,
   onEdit,
@@ -61,24 +63,25 @@ export function OverlayTile({
         onClick={(event) => onOpen(event.shiftKey)}
         aria-label={i18n.t('overlay.tile', [i18n.t('keyCap.assigned', [triggerWord(platform), key, name]), text])}
         className={cn(
-          'flex w-full cursor-pointer items-center gap-3 rounded-xl border p-2 text-left outline-none transition hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-ring',
-          onEdit !== undefined && 'pr-8',
-          open ? 'border-success-border bg-success-tile' : 'border-border bg-card',
-          highlighted && 'border-primary ring-1 ring-primary',
+          'flex w-full cursor-pointer items-center gap-2.5 rounded-xl border p-3 text-left outline-none transition focus-visible:outline-2 focus-visible:outline-ring',
+          open ? 'bg-success-tile' : 'bg-muted',
+          highlighted
+            ? 'border-primary ring-1 ring-primary'
+            : cn('hover:border-primary/40', open ? 'border-success-border' : 'border-border-subtle'),
         )}
       >
-        <KeyCap decorative label={key} size="md" state="assigned" open={open} />
-        <span className="flex min-w-0 flex-col">
+        <KeyCap decorative label={key} size="md" state="plain" />
+        <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate font-semibold text-ui">{name}</span>
-          <span
-            className={cn(
-              'truncate text-2xs',
-              subline.kind === 'other-window' ? 'text-success-foreground' : 'text-muted-foreground',
-            )}
-          >
+          <span className={cn('truncate text-2xs', open ? 'text-success-foreground' : 'text-muted-foreground')}>
             {text}
           </span>
         </span>
+        <Monogram
+          shortcut={{ name, link }}
+          size="xs"
+          className={cn(onEdit !== undefined && 'group-focus-within:invisible group-hover:invisible')}
+        />
       </button>
       {onEdit !== undefined && (
         <button
@@ -86,7 +89,7 @@ export function OverlayTile({
           onMouseDown={keepFocus}
           onClick={onEdit}
           aria-label={i18n.t('overlay.edit', [chordLabel(key, platform)])}
-          className="absolute top-1 right-1 inline-flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-none transition hover:text-foreground group-hover:opacity-100"
+          className="absolute top-1/2 right-3 inline-flex size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-none transition hover:text-foreground focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
         >
           <PencilIcon aria-hidden="true" className="size-3.5" />
         </button>

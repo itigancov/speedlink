@@ -47,14 +47,14 @@ describe('the overlay: what it shows', () => {
     expect(dialog().hasAttribute('aria-modal')).toBe(false);
   });
 
-  it('shows one tile per key, with its keycap, name and subline, in the given order', () => {
+  it('shows one tile per key, with its keycap, name, subline and monogram, in the given order', () => {
     renderOverlay();
     const tiles = within(dialog()).getAllByTestId('overlay-tile');
     expect(tiles.map((element) => element.textContent)).toEqual([
-      '1DocsOpen · tab 3',
-      'GGitHubOpen · other window',
-      'KCalendarcalendar.example.com',
-      'YYouTubenew tab',
+      '1DocsOpen · tab 3D',
+      'GGitHubOpen · other windowG',
+      'KCalendarcalendar.example.comC',
+      'YYouTubenew tabY',
     ]);
   });
 
@@ -74,10 +74,81 @@ describe('the overlay: what it shows', () => {
     expect(screen.getByText('background')).toBeDefined();
   });
 
-  it('shows "other window" in green', () => {
+  it('shows both "Open" sublines in green', () => {
     renderOverlay();
     expect(screen.getByText('Open · other window').className).toContain('text-success-foreground');
-    expect(screen.getByText('Open · tab 3').className).not.toContain('text-success-foreground');
+    expect(screen.getByText('Open · tab 3').className).toContain('text-success-foreground');
+  });
+
+  it('keeps the sublines of site, new tab, this tab and background muted', () => {
+    renderOverlay({
+      tiles: [
+        tile('K', 'Calendar', { kind: 'mode', mode: 'smart', site: 'calendar.example.com' }),
+        tile('Y', 'YouTube', { kind: 'mode', mode: 'new', site: 'youtube.com' }),
+        tile('T', 'Tracker', { kind: 'mode', mode: 'this', site: 'tracker.example' }),
+        tile('B', 'Board', { kind: 'mode', mode: 'bg', site: 'board.example' }),
+      ],
+    });
+    for (const text of ['calendar.example.com', 'new tab', 'this tab', 'background']) {
+      expect(screen.getByText(text).className).toContain('text-muted-foreground');
+      expect(screen.getByText(text).className).not.toContain('text-success-foreground');
+    }
+  });
+
+  it('draws each tile’s monogram with the letter of its name', () => {
+    renderOverlay({
+      tiles: [
+        tile('G', 'Code', { kind: 'mode', mode: 'new', site: 'github.com' }),
+        tile('Y', 'YouTube', { kind: 'mode', mode: 'new', site: 'youtube.com' }),
+      ],
+    });
+    const [github, youtube] = within(dialog())
+      .getAllByTestId('overlay-tile')
+      .map((element) => element.querySelector<HTMLElement>('[data-slot="monogram"]'));
+    expect(github?.textContent).toBe('C');
+    expect(youtube?.textContent).toBe('Y');
+  });
+
+  it('draws the monogram with the hue of the tile’s link, hidden from assistive tech', () => {
+    renderOverlay({
+      tiles: [
+        { ...tile('G', 'Code', { kind: 'mode', mode: 'new', site: 'github.com' }), link: 'https://github.com/x' },
+      ],
+    });
+    const monogram = screen.getByTestId('overlay-tile').querySelector<HTMLElement>('[data-slot="monogram"]');
+    expect(monogram?.dataset.hue).toBe('amber');
+    expect(monogram?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('turns a tile green when its page is open, in this window or another', () => {
+    renderOverlay();
+    for (const name of [/^Option 1:/, /^Option G:/]) {
+      expect(tileButton(name).className).toContain('bg-success-tile');
+      expect(tileButton(name).className).toContain('border-success-border');
+    }
+    for (const name of [/^Option K:/, /^Option Y:/]) {
+      expect(tileButton(name).className).not.toContain('bg-success-tile');
+    }
+  });
+
+  it('keeps an open tile’s monogram on its site colour', () => {
+    renderOverlay({
+      tiles: [{ ...tile('G', 'Code', { kind: 'other-window' }), link: 'https://github.com/x' }],
+    });
+    const monogram = screen.getByTestId('overlay-tile').querySelector<HTMLElement>('[data-slot="monogram"]');
+    expect(monogram?.dataset.hue).toBe('amber');
+    expect(monogram?.className).not.toContain('bg-success');
+  });
+
+  it('draws a plain keycap with the key, and no open dot, even on an open tile', () => {
+    renderOverlay();
+    const [docs] = within(dialog()).getAllByTestId('overlay-tile');
+    const cap = docs?.querySelector('[data-slot="key-cap"]');
+    expect(cap?.getAttribute('data-state')).toBe('plain');
+    expect(cap?.textContent).toBe('1');
+    for (const element of within(dialog()).getAllByTestId('overlay-tile')) {
+      expect(element.querySelector('[data-slot="key-open"]')).toBeNull();
+    }
   });
 
   it('shows the held badge, the hint and the legend with ⌥ on a Mac', () => {
@@ -87,6 +158,20 @@ describe('the overlay: what it shows', () => {
     expect(screen.getByTestId('overlay-legend').textContent).toBe(
       'keygo⇧ + keyforce new tab⌥ releaseorEscclose' + 'open now — will switch, not reopen',
     );
+  });
+
+  it('has no text field in the Peek: ⌥ is held, so every letter is a key', () => {
+    renderOverlay();
+    expect(screen.queryByRole('searchbox')).toBeNull();
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('marks "open now" in the legend with a green tile swatch, not a dot', () => {
+    renderOverlay();
+    const swatch = within(screen.getByTestId('overlay-legend')).getByTestId('legend-open-swatch');
+    expect(swatch.className).toContain('bg-success-tile');
+    expect(swatch.className).not.toContain('rounded-full');
+    expect(swatch.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('promises no typing in the Peek: ⌥ is held, so every letter is a key', () => {
@@ -229,6 +314,22 @@ describe('the pinned overlay', () => {
     expect(highlighted()).toEqual(['1']);
     typeIn('u');
     expect(highlighted()).toEqual(['G']);
+  });
+
+  it('keeps an open tile green when it is highlighted', () => {
+    pinned();
+    expect(highlighted()).toEqual(['1']);
+    const docs = tileButton(/^Option 1:/);
+    expect(docs.classList.contains('border-primary')).toBe(true);
+    expect(docs.classList.contains('bg-success-tile')).toBe(true);
+    expect(tileButton(/^Option G:/).classList.contains('border-primary')).toBe(false);
+  });
+
+  it('shows the pencil with an edit action, beside the monogram', () => {
+    pinned();
+    const [docs] = screen.getAllByTestId('overlay-tile');
+    expect(within(docs as HTMLElement).getByRole('button', { name: 'Edit ⌥1' })).toBeDefined();
+    expect(docs?.querySelector('[data-slot="monogram"]')).not.toBeNull();
   });
 
   it('moves the highlight with the arrows over the 4-column grid', () => {
