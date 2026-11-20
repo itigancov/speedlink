@@ -1008,6 +1008,25 @@ describe('the key card', () => {
       expect(screen.getByText('This page is on ⌥G')).toBeDefined();
     });
 
+    it('brings back the card of the key that was removed, not another key’s', async () => {
+      removing();
+      undo.mockImplementation(async () => {
+        await store('2', { ...GITHUB, name: 'Two' });
+        return { kind: 'undone' };
+      });
+      await store('2', { ...GITHUB, name: 'Two' });
+      await store('Y', { ...GITHUB, name: 'Why' });
+      await renderPopup();
+      fireEvent.click(removeLink('⌥2'));
+      await settle();
+      expect(screen.getByText('This page is on ⌥Y')).toBeDefined();
+
+      fireEvent.click(button('Undo'));
+      await settle();
+
+      expect(screen.getByText('This page is on ⌥2')).toBeDefined();
+    });
+
     it('says the keys changed when the undo is refused, with no button left', async () => {
       removing();
       undo.mockResolvedValue({ kind: 'stale' });

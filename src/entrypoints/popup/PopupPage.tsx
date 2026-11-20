@@ -676,6 +676,7 @@ function KeyFlow({ actions, tab, keymap, platform }: ViewProps) {
       reply = { kind: 'failed' };
     }
     if (reply.kind === 'undone') {
+      setChosen(removed.key);
       setRemoved(null);
       setMode({ kind: 'auto' });
     } else {
