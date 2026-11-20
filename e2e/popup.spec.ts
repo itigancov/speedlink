@@ -62,6 +62,7 @@ async function openPopup(context: BrowserContext, extensionId: string, tabId: nu
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${extensionId}/popup.html?tabId=${tabId}`);
   await expect(popup.getByTestId('primary')).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Open keymap →' })).toBeVisible();
   return popup;
 }
 
@@ -102,6 +103,27 @@ test('a free key: ↵ saves the page, the popup closes, the saved toast shows an
   await expect.poll(() => storedOn(worker, 'K')).toBeUndefined();
 });
 
+test('Show keyboard swaps the chips for the keyboard, a click picks any key and ↵ saves it', async ({
+  context,
+  extensionId,
+}) => {
+  const worker = await serviceWorker(context);
+  const { page, tabId } = await openPage(context, PAGE);
+  const popup = await openPopup(context, extensionId, tabId);
+
+  await expect(popup.getByRole('group', { name: 'Free & fitting' })).toBeVisible();
+  await popup.getByRole('button', { name: 'Show keyboard' }).click();
+  await expect(popup.getByRole('group', { name: 'Free & fitting' })).toHaveCount(0);
+  await popup.getByRole('button', { name: /^(Option|Alt) 7:/ }).click();
+  await expect(popup.getByTestId('primary')).toHaveText(`Save to ${await chord(popup, '7')}`);
+  const closed = popup.waitForEvent('close');
+  await popup.keyboard.press('Enter');
+
+  await closed;
+  expect(await storedOn(worker, '7')).toEqual(SAVED);
+  await expect(toast(page)).toContainText('→ Fixture: keys saved');
+});
+
 test('a taken key: Replace puts the page on it and the old shortcut is gone', async ({ context, extensionId }) => {
   const worker = await serviceWorker(context);
   await store(worker, 'K', OLD);
@@ -111,7 +133,7 @@ test('a taken key: Replace puts the page on it and the old shortcut is gone', as
   await popup.keyboard.press('KeyK');
   await expect(popup.getByRole('alert')).toContainText(`${await chord(popup, 'K')} already opens Old.`);
   const closed = popup.waitForEvent('close');
-  await popup.getByRole('alert').getByRole('button', { name: 'Replace' }).click();
+  await popup.getByTestId('primary').click();
 
   await closed;
   expect(await storedOn(worker, 'K')).toEqual(SAVED);
@@ -152,6 +174,8 @@ test('an unusable page gets the launcher instead of the picker', async ({ contex
   await expect(popup.getByText('This page can’t be put on a key')).toBeVisible();
   await expect(popup.getByTestId('overlay-tile')).toHaveText([/Docs/]);
   await expect(popup.getByTestId('primary')).toHaveCount(0);
+  await expect(popup.getByRole('button', { name: 'Open keymap →' })).toBeVisible();
+  await expect(popup.getByText(/^Hold /)).toHaveCount(0);
 });
 
 test('on a restricted page a key press opens, and This tab replaces that tab', async ({ context, extensionId }) => {

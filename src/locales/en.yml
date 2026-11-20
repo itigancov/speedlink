@@ -64,22 +64,24 @@ overlay:
     close: close
     openNow: open now — will switch, not reopen
 popup:
-  openKeymap: Open keymap
+  openKeymapLink: Open keymap →
   alreadyOn: Already on $1
   unusable: This page can’t be put on a key
   keyFree: $1 is free
   openFailed: Couldn’t open $1
   prompt: Press a key to put this page on it
   promptFull: All 35 keys are in use — press one to replace it
-  fitting: "Free & fitting:"
-  opensAs: Opens as
+  fitting: Free & fitting
+  showKeyboard: Show keyboard
+  hideKeyboard: Hide keyboard
+  opensAsMode: "Opens as: $1"
   save: Save
   saveTo: Save to $1
   replaceKey: Replace $1
   replace: Replace
   moveTo: Move it to $1
   conflict: $1 already opens $2.
-  tip: "Tip: hold $1 on any page to see all keys"
+  tip: Hold $1 to see all keys
 welcome:
   title: Welcome to SpeedLink
   heading: Hold $1 and press a key to jump to a site
