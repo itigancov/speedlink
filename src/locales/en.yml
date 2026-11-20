@@ -81,6 +81,19 @@ popup:
   replace: Replace
   moveTo: Move it to $1
   conflict: $1 already opens $2.
+  thisPageOn: This page is on $1
+  savedAs: Saved as $1 · $2
+  keysForThisPage: Keys for this page
+  opensAs: Opens as
+  moveToAnother: Move to another key
+  useExactPage: Use this exact page instead
+  removeFrom: Remove from $1
+  removedFrom: Removed from $1
+  undo: Undo
+  putOnAnother: Put it on another key too
+  moveKey: Move to $1
+  promptMove: Press a key to move $1
+  cancel: Cancel
   tip: Hold $1 to see all keys
 welcome:
   title: Welcome to SpeedLink

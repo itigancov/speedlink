@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { keyFromCode, pickerModel } from './assign-picker';
+import { keyFromCode, moveModel, pickerModel } from './assign-picker';
 import type { Keymap } from './keymap-ops';
 import { KEYBOARD_ORDER, type Key } from './keys';
 import type { Shortcut } from './shortcut';
@@ -147,5 +147,53 @@ describe('keyFromCode', () => {
 
   it.each(['KeyS', 'Numpad2', 'Enter', 'Space', ''])('maps %j to nothing', (code) => {
     expect(keyFromCode(code)).toBeNull();
+  });
+});
+
+describe('moveModel', () => {
+  const mail = validShortcut({ link: 'https://mail.google.com/', name: 'Mail' });
+
+  it('has the chips that fit the moved shortcut, and picks the first', () => {
+    const model = moveModel({ G: github }, 'G', null);
+
+    expect(model).toMatchObject({ shortcut: github, chips: ['I', 'T', 'H', 'U'], defaultKey: 'I' });
+  });
+
+  it('never offers the source: it is taken', () => {
+    expect(moveModel({ G: github }, 'G', 'G')?.chips).not.toContain('G');
+  });
+
+  it('picks the first free key when no chip is free', () => {
+    const model = moveModel({ ...fullBut('Z'), G: github }, 'G', null);
+
+    expect(model?.chips).toEqual([]);
+    expect(model?.defaultKey).toBe('Z');
+  });
+
+  it('has no default when every other key is in use', () => {
+    const model = moveModel({ ...fullBut(), G: github }, 'G', null);
+
+    expect(model?.defaultKey).toBeNull();
+  });
+
+  it('describes a free picked key', () => {
+    expect(moveModel({ G: github }, 'G', 'K')?.picked).toEqual({ kind: 'free', key: 'K' });
+  });
+
+  it('describes a taken picked key as a conflict with no Move target', () => {
+    expect(moveModel({ G: github, M: mail }, 'G', 'M')?.picked).toEqual({
+      kind: 'conflict',
+      key: 'M',
+      existing: mail,
+      moveTarget: null,
+    });
+  });
+
+  it('ignores a pick of the source itself', () => {
+    expect(moveModel({ G: github }, 'G', 'G')?.picked).toBeNull();
+  });
+
+  it('is null when the source is free', () => {
+    expect(moveModel({}, 'G', null)).toBeNull();
   });
 });

@@ -8,6 +8,8 @@ document.title = i18n.t('extName');
 
 const actions: PopupActions = {
   assignPage: (request) => sendMessage('assignPage', request),
+  editShortcut: (request) => sendMessage('editShortcut', request),
+  undo: (id) => sendMessage('undo', { id }),
   openOptions: () => sendMessage('openOptions', undefined),
   close: () => window.close(),
   openKey: (request) => sendMessage('openKey', request),

@@ -94,9 +94,9 @@ Case-insensitive substring search.
 - All surfaces see live keymap changes, including remote sync changes.
 
 ### 3.3 Undo record
-- Holds `{ id, expiresAt, keys, written }` in `storage.session` for up to 60 s. Undo is offered while the saved toast is visible and applies only when every touched key still holds what the assign wrote (all or nothing); otherwise nothing changes.
-- `keys` is the previous contents of every touched key (null = free), `written` what the assign put there. `id` is fresh per assign, and every assign replaces the record, so an older toast's Undo is refused.
-- It is created **only** by an assign from the popup or from the page toast, so an Undo after Replace or Move restores the old shortcut too.
+- Holds `{ id, expiresAt, keys, written }` in `storage.session` for up to 60 s. Undo is offered while the saved toast is visible and applies only when every touched key still holds what the change wrote (all or nothing); otherwise nothing changes.
+- `keys` is the previous contents of every touched key (null = free), `written` what the change put there. `id` is fresh per change, and every change replaces the record, so an older toast's (or inline) Undo is refused.
+- It is created **only** by an assign from the popup or from the page toast, and by **Remove** and **Move** on the popup's key card (§7), so an Undo after Replace or Move restores the old shortcut too. Opens as and Use this exact page have no undo.
 - Options edits (autosave, Clear key, swap, move) have no undo.
 ↳ rebuild map: issues/05-domain-model.md (domain model)
 
@@ -234,7 +234,18 @@ Toasts render on the page, top frame only. Each is a dark pill: key chip + messa
 
 **Page card**
 - The shortcut's coloured monogram tile (36 px, no favicon), the tab title and the link.
-- **Already on a key**: each shortcut is matched by its own tab match. The card says "Already on ⌥Y" (or "⌥Y, ⌥2"). Nothing is blocked: saving adds another key.
+- **Already on a key**: each shortcut is matched by its own tab match. The page card shows no "Already on" line while the key card (below) shows; only the picker behind "Put it on another key too" says "Already on ⌥Y" (or "⌥Y, ⌥2").
+
+**Key card** (the page is already on a key): it takes the picker's place under the page card. Which key: the first in keyboard order, or the one picked among the chips below. Local view state, never stored; it follows the live keymap, and falls back to the picker when no key matches any more.
+- A 56 px "⌥G" tile ("Alt+G" off a Mac), "This page is on ⌥G" (never "This site", whatever the tab match), and "Saved as Name · site" (the site stands in for a missing name).
+- **Several keys**: chips named by their chord (`aria-pressed`) above the card switch between their cards. One key has no chips.
+- **Opens as**: a dropdown with the key's current mode (named "Opens as: Smart switch"); a new mode saves at once, with no undo and no toast.
+- **Move to another key** ›: the picker in **move mode**. Chips are the free keys that fit the moved shortcut (§2.6); the default pick is the first chip, else the first free key; the primary reads "Move to ⌥K"; the source key is taken and a press on it is ignored; there is no Opens as (the shortcut keeps its mode). A taken target gives the conflict alert without a Move button and a dark "Replace ⌥K": Replace drops the target's old shortcut (never a swap). ↵ moves. The popup closes after a move and the saved toast "⌥K → Name saved · Undo" shows on the page; its Undo puts every touched key back. A failed move keeps the popup in move mode with "Couldn't save ⌥K".
+- **Use this exact page instead** (the tab's URL as a muted hint), only when the tab's URL differs from the link: the link becomes the tab's full URL and the tab match `exact`; name, open mode and close current stay. No undo; the card updates in place.
+- **Remove from ⌥G** (destructive): frees the key and keeps the popup open with "Removed from ⌥G · Undo" above whatever follows: the card for the page's next key, else the picker. The line stays up to the undo record's lifetime (§3.3) and goes on Undo, after any other successful write from the popup, or when the lifetime ends. A refused Undo reads "Couldn't undo — your keys changed", with no button. No page toast.
+- **Put it on another key too**: a link at the bottom that shows the normal picker (with "Already on ⌥G") and saves through the assign path, closing the popup with the saved toast as usual.
+- **Cancel** (a link on the picker's prompt row) goes from move mode or that picker back to the card. Esc closes the popup as usual.
+- A failed Opens as or Use this exact page shows "Couldn't save ⌥G" on the card. A key that was cleared meanwhile redraws from the fresh keymap, with no message.
 
 **Key picker**
 - Label "Press a key to put this page on it". With all 35 keys in use: "All 35 keys are in use — press one to replace it", no picked key and the keyboard shown.
@@ -496,14 +507,14 @@ e2e/                   Playwright specs + fixture pages
 
 ### 11.3 Who writes the keymap
 - **Options** reads and writes through `platform/keymap-store` directly.
-- **Assign with undo** (popup and the free-key toast) goes **only through the background**: `assignPage{key, tabId?, openMode?, resolve?: 'replace'|'move'}` and `undo{id}`. A content script's own tab (sender.tab) is always the one assigned and it sends no `tabId`; the popup names its tab, and an extension page's own tab (the popup opened in a tab) never counts. The background writes the undo record to `storage.session`, which content scripts can't see.
+- **Assign with undo** (popup and the free-key toast) goes **only through the background**: `assignPage{key, tabId?, openMode?, resolve?: 'replace'|'move'}` and `undo{id}`. The popup's key card edits only through `editShortcut{key, tabId, op}`, `op` being `openMode`, `remove`, `move{to, resolve?: 'replace'}` or `exactPage`; the background reads the keymap and the tab's URL fresh, writes the undo record for Remove and Move, and toasts the tab after a Move. The popup still never writes the keymap. A content script's own tab (sender.tab) is always the one assigned and it sends no `tabId`; the popup names its tab, and an extension page's own tab (the popup opened in a tab) never counts. The background writes the undo record to `storage.session`, which content scripts can't see.
 - The **content script** only reads `sync`.
 - The **overlay** gets its model from the background (`getOverlayModel`).
 
 ### 11.4 Messaging
 One typed protocol in `platform/messaging.ts` on `@webext-core/messaging`. No ad-hoc `runtime.sendMessage`.
 - content → bg: `openKey{key, force}`, `assignPage`, `undo{id}`, `openOptions{key?}`, `getOverlayModel`, `frameEvent{kind: 'show'|'close'|'pin'}`
-- popup → bg: `assignPage`, `openOptions`, and on a restricted page `openKey{key, force, tabId}` and `getOverlayModel{tabId}`. A content script's own tab (sender.tab) always wins and it sends no `tabId`; the popup names the active tab it reads.
+- popup → bg: `assignPage`, `editShortcut{key, tabId, op}`, `undo{id}`, `openOptions`, and on a restricted page `openKey{key, force, tabId}` and `getOverlayModel{tabId}`. A content script's own tab (sender.tab) always wins and it sends no `tabId`; the popup names the active tab it reads.
 - options, welcome → bg: `tryKey{key, force?}`, `openOptions{key?}`
 - bg → tab (`frameId: 0`): `ping`, `overlay{action: 'toggle'}`, `toast{kind: 'saved'|'free'|'switched'|'error', …}`, `frameEvent`
 - Every bg → tab send goes through one `sendToTab` helper: ping → inject → retry once.

@@ -61,3 +61,31 @@ export function keyFromCode(code: string): Key | null {
   const label = keyLabelFromCode(code);
   return label !== null && isAssignable(label) ? label : null;
 }
+
+export interface MoveModel {
+  /** The shortcut being moved. */
+  readonly shortcut: Shortcut;
+  /** Free keys that fit it, at most 4 (the source is taken, so never one). */
+  readonly chips: readonly Key[];
+  /** The first chip, else the first free key; null when every other key is in use. */
+  readonly defaultKey: Key | null;
+  /** The picked key; a taken one is a conflict without a Move target (a move replaces, never relocates). */
+  readonly picked: PickedKey | null;
+}
+
+/**
+ * The picker in move mode (product spec §7): the shortcut on `from` looks for a new key. Null when `from` is free.
+ * The source can't be picked, so picking it gives no pick.
+ */
+export function moveModel(keymap: Keymap, from: Key, picked: Key | null): MoveModel | null {
+  const shortcut = keymap[from];
+  if (shortcut === undefined) return null;
+  const chips = fittingKeys(keymap, { link: shortcut.link, title: shortcut.name });
+  const target = picked === null || picked === from ? null : pickedKey(keymap, picked);
+  return {
+    shortcut,
+    chips,
+    defaultKey: chips[0] ?? firstFreeKey(keymap),
+    picked: target?.kind === 'conflict' ? { ...target, moveTarget: null } : target,
+  };
+}

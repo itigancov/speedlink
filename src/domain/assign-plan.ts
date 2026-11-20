@@ -16,10 +16,17 @@ export interface AssignOptions {
   resolve?: Resolve;
 }
 
-/** How to take an assign back: what every touched key held before (null = free), and what the assign wrote. */
-export interface AssignUndo {
+/** How to take a change back: what every touched key held before (null = free), and what the change wrote. */
+export interface ChangeUndo {
   keys: KeymapChange;
   written: KeymapChange;
+}
+
+/** The undo of a change to `keymap`: each touched key's current shortcut (null when free), and the change itself. */
+export function undoFor(keymap: Keymap, change: KeymapChange): ChangeUndo {
+  const keys: KeymapChange = {};
+  for (const touched of Object.keys(change) as Key[]) keys[touched] = keymap[touched] ?? null;
+  return { keys, written: change };
 }
 
 export type AssignPlan =
@@ -30,7 +37,7 @@ export type AssignPlan =
       /** The new shortcut, as it goes on the key. */
       readonly shortcut: Shortcut;
       readonly change: KeymapChange;
-      readonly undo: AssignUndo;
+      readonly undo: ChangeUndo;
     };
 
 /**
@@ -57,9 +64,7 @@ export function planAssign(keymap: Keymap, key: Key, page: TabPage, options: Ass
 
   const result = assign(keymap, key, shortcut, options.resolve);
   if (result.kind === 'conflict') return result;
-  const keys: KeymapChange = {};
-  for (const touched of Object.keys(result.change) as Key[]) keys[touched] = keymap[touched] ?? null;
-  return { kind: 'written', shortcut, change: result.change, undo: { keys, written: result.change } };
+  return { kind: 'written', shortcut, change: result.change, undo: undoFor(keymap, result.change) };
 }
 
 /**
@@ -68,20 +73,20 @@ export function planAssign(keymap: Keymap, key: Key, page: TabPage, options: Ass
  */
 export const UNDO_LIFETIME_MS = 60_000;
 
-/** `storage.session`'s `undo` (product spec §3.3). `id` is fresh per assign, so only its own toast can undo it. */
-export interface UndoRecord extends AssignUndo {
+/** `storage.session`'s `undo` (product spec §3.3). `id` is fresh per change, so only its own toast (or inline Undo) can undo it. */
+export interface UndoRecord extends ChangeUndo {
   id: string;
   expiresAt: number;
 }
 
 export type UndoPlan = { readonly kind: 'undone'; readonly change: KeymapChange } | { readonly kind: 'stale' };
 
-export function undoRecord(undo: AssignUndo, id: string, now: number): UndoRecord {
+export function undoRecord(undo: ChangeUndo, id: string, now: number): UndoRecord {
   return { id, expiresAt: now + UNDO_LIFETIME_MS, ...undo };
 }
 
 /**
- * Puts the touched keys back, all or nothing: only when every one still holds exactly what the assign wrote (a
+ * Puts the touched keys back, all or nothing: only when every one still holds exactly what the change wrote (a
  * free key matching null), so a newer edit from Options, another tab or another device is never trampled. A
  * missing, expired or foreign record is `stale` too.
  */

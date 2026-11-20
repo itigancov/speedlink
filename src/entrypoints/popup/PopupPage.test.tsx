@@ -5,7 +5,7 @@ import type { Browser } from 'wxt/browser';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { KEYBOARD_ORDER, type Key } from '@/domain/keys';
 import type { OverlayModel } from '@/domain/overlay-model';
-import type { AssignPageReply, OpenKeyReply } from '@/platform/messaging';
+import type { AssignPageReply, EditShortcutReply, OpenKeyReply, UndoReply } from '@/platform/messaging';
 import type { Platform } from '@/platform/platform-labels';
 import { type PopupActions, PopupPage } from './PopupPage';
 
@@ -30,6 +30,10 @@ let openOptions: Mock<PopupActions['openOptions']>;
 let close: Mock<PopupActions['close']>;
 let openKey: Mock<PopupActions['openKey']>;
 let getOverlayModel: Mock<PopupActions['getOverlayModel']>;
+let editShortcut: Mock<PopupActions['editShortcut']>;
+let undo: Mock<PopupActions['undo']>;
+
+const actions = (): PopupActions => ({ assignPage, openOptions, close, openKey, getOverlayModel, editShortcut, undo });
 
 const store = (key: string, fields: object = {}) =>
   browser.storage.sync.set({
@@ -56,13 +60,7 @@ async function fillAllBut(...except: Key[]) {
 const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 0)));
 
 async function renderPopup({ platform = 'mac', tabId }: { platform?: Platform; tabId?: number } = {}) {
-  render(
-    <PopupPage
-      actions={{ assignPage, openOptions, close, openKey, getOverlayModel }}
-      platform={platform}
-      tabId={tabId}
-    />,
-  );
+  render(<PopupPage actions={actions()} platform={platform} tabId={tabId} />);
   await settle();
 }
 
@@ -104,6 +102,8 @@ beforeEach(() => {
   close = vi.fn();
   openKey = vi.fn(async (): Promise<OpenKeyReply> => ({ kind: 'opened', tabId: 7, switched: false }));
   getOverlayModel = vi.fn(async (): Promise<OverlayModel> => ({ tiles: [] }));
+  editShortcut = vi.fn(async (): Promise<EditShortcutReply> => ({ kind: 'saved' }));
+  undo = vi.fn(async (): Promise<UndoReply> => ({ kind: 'undone' }));
 });
 
 afterEach(() => {
@@ -136,9 +136,7 @@ describe('the page card', () => {
 
   it('shows the coloured tile of the page, never its favicon', async () => {
     tabs = [activeTab({ favIconUrl: 'https://github.com/favicon.ico' })];
-    const { container } = render(
-      <PopupPage actions={{ assignPage, openOptions, close, openKey, getOverlayModel }} platform="mac" />,
-    );
+    const { container } = render(<PopupPage actions={actions()} platform="mac" />);
     await settle();
     const tile = container.querySelector<HTMLElement>('[data-slot="monogram"]');
     expect(tile?.textContent).toBe('P');
@@ -146,11 +144,13 @@ describe('the page card', () => {
     expect(container.querySelector('img')).toBeNull();
   });
 
-  it('says which keys already open this tab', async () => {
+  it('says which keys already open this tab, in the picker behind “Put it on another key too”', async () => {
     await store('Y', { link: 'https://github.com/' });
     await store('2', { link: PAGE_URL, tabMatch: 'exact' });
     await store('T', { link: 'https://github.com/other', tabMatch: 'exact' });
     await renderPopup();
+    expect(screen.queryByText(/^Already on/)).toBeNull();
+    fireEvent.click(button('Put it on another key too'));
     expect(screen.getByText('Already on ⌥2, ⌥Y')).toBeDefined();
   });
 
@@ -388,6 +388,7 @@ describe('a taken key', () => {
   it('the key that already holds this page is an ordinary conflict', async () => {
     await store('P', { link: PAGE_URL, name: 'Pulls' });
     await renderPopup();
+    fireEvent.click(button('Put it on another key too'));
     await press('KeyP');
     expect(screen.getByRole('alert').textContent).toMatch(/^⌥P already opens Pulls\./);
   });
@@ -466,9 +467,7 @@ describe('the keyboard view', () => {
   });
 
   it('opens on the chips every time', async () => {
-    const { unmount } = render(
-      <PopupPage actions={{ assignPage, openOptions, close, openKey, getOverlayModel }} platform="mac" />,
-    );
+    const { unmount } = render(<PopupPage actions={actions()} platform="mac" />);
     await settle();
     fireEvent.click(showKeyboard());
     unmount();
@@ -726,7 +725,7 @@ describe('the frame', () => {
 
   it('draws the header and footer while it loads', () => {
     query.mockImplementation(() => new Promise(() => {}));
-    render(<PopupPage actions={{ assignPage, openOptions, close, openKey, getOverlayModel }} platform="mac" />);
+    render(<PopupPage actions={actions()} platform="mac" />);
     expect(screen.getByRole('heading', { name: 'SpeedLink' })).toBeDefined();
     expect(tip('Hold ⌥ to see all keys')).toBeDefined();
     expect(openKeymapLink()).toBeDefined();
@@ -738,5 +737,563 @@ describe('the frame', () => {
     expect(screen.getByText('Alt +')).toBeDefined();
     expect(tip('Hold Alt to see all keys')).toBeDefined();
     expect(chip('G', 'other')).toBeDefined();
+  });
+});
+
+describe('the key card', () => {
+  /** Matches the tab by its site, though its link is only the site's root. */
+  const GITHUB = { link: 'https://github.com/', name: 'GitHub', tabMatch: 'site' };
+
+  const removeLink = (chord = '⌥G') => button(`Remove from ${chord}`);
+  const moveLink = () => button(/^Move to another key/);
+  const exactLink = () => button(/^Use this exact page instead/);
+  const tooLink = () => button('Put it on another key too');
+  const inlineLine = () => screen.getByRole('status');
+  /** A reply for remove/move/exactPage that also changes storage as the background would. */
+  const undoHandle = { id: 'u1', expiresAt: Date.now() + 60_000 };
+
+  describe('what it shows', () => {
+    it('takes the picker’s place on a page that is on a key', async () => {
+      await store('G', GITHUB);
+      await renderPopup();
+
+      expect(screen.getByText('This page is on ⌥G')).toBeDefined();
+      expect(screen.getByText('Saved as GitHub · github.com')).toBeDefined();
+      expect(screen.getByText('⌥G', { selector: '[data-slot=key-tile]' })).toBeDefined();
+      expect(screen.queryByTestId('primary')).toBeNull();
+      expect(screen.queryByTestId('picked-key')).toBeNull();
+      expect(screen.queryByText(/^Already on/)).toBeNull();
+      expect(screen.getByText('Pull requests · acme/speedlink')).toBeDefined();
+    });
+
+    it('is not shown on a page that is on no key', async () => {
+      await store('G', { link: 'https://other.example/' });
+      await renderPopup();
+
+      expect(screen.queryByText(/^This page is on/)).toBeNull();
+      expect(primary()).toBeDefined();
+    });
+
+    it('still says “This page” when the shortcut matches by site, not “This site”', async () => {
+      await store('G', GITHUB);
+      await renderPopup();
+
+      expect(screen.getByText('This page is on ⌥G')).toBeDefined();
+      expect(screen.queryByText(/This site/)).toBeNull();
+    });
+
+    it('shows the site as the name of a shortcut with no name', async () => {
+      await store('G', { link: 'https://github.com/' });
+      await renderPopup();
+
+      expect(screen.getByText('Saved as github.com · github.com')).toBeDefined();
+    });
+
+    it('reads Alt+G off a Mac', async () => {
+      await store('G', GITHUB);
+      await renderPopup({ platform: 'other' });
+
+      expect(screen.getByText('This page is on Alt+G')).toBeDefined();
+      expect(removeLink('Alt+G')).toBeDefined();
+    });
+
+    it('has no chips for one key', async () => {
+      await store('G', GITHUB);
+      await renderPopup();
+
+      expect(screen.queryByRole('group', { name: 'Keys for this page' })).toBeNull();
+    });
+
+    it('follows the live keymap: a change shows, a cleared key falls back to the picker', async () => {
+      await store('G', GITHUB);
+      await renderPopup();
+
+      await act(() => store('G', { ...GITHUB, name: 'Renamed' }));
+      await settle();
+      expect(screen.getByText('Saved as Renamed · github.com')).toBeDefined();
+
+      await act(() => browser.storage.sync.remove('key.G'));
+      await settle();
+      expect(screen.queryByText(/^This page is on/)).toBeNull();
+      expect(primary().textContent).toBe('Save to ⌥G');
+    });
+  });
+
+  describe('a page on several keys', () => {
+    beforeEach(async () => {
+      await store('2', { ...GITHUB, name: 'Two' });
+      await store('Y', { ...GITHUB, name: 'Why' });
+    });
+
+    it('shows the first key in keyboard order, with chips named by their chord, the current one pressed', async () => {
+      await renderPopup();
+
+      expect(screen.getByText('This page is on ⌥2')).toBeDefined();
+      const chips = within(screen.getByRole('group', { name: 'Keys for this page' }));
+      expect(chips.getByRole('button', { name: '⌥2' }).getAttribute('aria-pressed')).toBe('true');
+      expect(chips.getByRole('button', { name: '⌥Y' }).getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('switches to the other key’s card', async () => {
+      await renderPopup();
+
+      fireEvent.click(button('⌥Y'));
+
+      expect(screen.getByText('This page is on ⌥Y')).toBeDefined();
+      expect(screen.getByText('Saved as Why · github.com')).toBeDefined();
+      expect(button('⌥Y').getAttribute('aria-pressed')).toBe('true');
+      expect(removeLink('⌥Y')).toBeDefined();
+    });
+  });
+
+  describe('Opens as', () => {
+    beforeEach(() => store('G', { ...GITHUB, openMode: 'new' }));
+
+    it('shows the key’s current mode, named for assistive tech', async () => {
+      await renderPopup();
+
+      expect(opensAs('New tab').textContent).toBe('New tab');
+    });
+
+    it('saves a new mode at once, with no Save button, undo or toast', async () => {
+      await renderPopup();
+      await act(() => {
+        fireEvent.keyDown(opensAs('New tab'), { key: 'Enter' });
+      });
+      fireEvent.click(screen.getByRole('option', { name: 'Background tab' }));
+      await settle();
+
+      expect(editShortcut).toHaveBeenCalledExactlyOnceWith({
+        key: 'G',
+        tabId: 7,
+        op: { kind: 'openMode', openMode: 'bg' },
+      });
+      expect(close).not.toHaveBeenCalled();
+      expect(screen.queryByRole('status')).toBeNull();
+      expect(queryButton('Undo')).toBeNull();
+    });
+
+    it('says it could not save, and keeps the stored mode', async () => {
+      editShortcut.mockResolvedValue({ kind: 'failed' });
+      await renderPopup();
+      await act(() => {
+        fireEvent.keyDown(opensAs('New tab'), { key: 'Enter' });
+      });
+      fireEvent.click(screen.getByRole('option', { name: 'Background tab' }));
+      await settle();
+
+      expect(screen.getByRole('alert').textContent).toBe('Couldn’t save ⌥G');
+      expect(opensAs('New tab')).toBeDefined();
+    });
+
+    it('lets keys inside the dropdown drive the dropdown only', async () => {
+      await renderPopup();
+      await act(() => {
+        fireEvent.keyDown(opensAs('New tab'), { key: 'Enter' });
+      });
+      await press('KeyK', {}, screen.getByRole('option', { name: 'Background tab' }));
+
+      expect(editShortcut).not.toHaveBeenCalled();
+      expect(screen.queryByText('Move to ⌥K')).toBeNull();
+    });
+  });
+
+  describe('Use this exact page instead', () => {
+    it('is offered when the tab’s URL differs from the link, with the URL as a hint', async () => {
+      await store('G', GITHUB);
+      await renderPopup();
+
+      expect(exactLink().textContent).toContain('github.com/acme/speedlink/pulls');
+    });
+
+    it('is not offered when the link already is this exact page', async () => {
+      await store('G', { ...GITHUB, link: PAGE_URL });
+      await renderPopup();
+
+      expect(queryButton(/^Use this exact page/)).toBeNull();
+    });
+
+    it('asks for the exact page, with no undo, and goes away once the keymap says so', async () => {
+      await store('G', GITHUB);
+      await renderPopup();
+
+      fireEvent.click(exactLink());
+      await settle();
+
+      expect(editShortcut).toHaveBeenCalledExactlyOnceWith({ key: 'G', tabId: 7, op: { kind: 'exactPage' } });
+      expect(screen.queryByRole('status')).toBeNull();
+      expect(close).not.toHaveBeenCalled();
+
+      await act(() => store('G', { ...GITHUB, link: PAGE_URL, tabMatch: 'exact' }));
+      await settle();
+      expect(queryButton(/^Use this exact page/)).toBeNull();
+      expect(screen.getByText('This page is on ⌥G')).toBeDefined();
+    });
+
+    it('says it could not save', async () => {
+      editShortcut.mockResolvedValue({ kind: 'failed' });
+      await store('G', GITHUB);
+      await renderPopup();
+
+      fireEvent.click(exactLink());
+      await settle();
+
+      expect(screen.getByRole('alert').textContent).toBe('Couldn’t save ⌥G');
+    });
+  });
+
+  describe('Remove', () => {
+    /** The background's remove: the key is freed, the undo handle comes back. */
+    const removing = () =>
+      editShortcut.mockImplementation(async ({ key }) => {
+        await browser.storage.sync.remove(`key.${key}`);
+        return { kind: 'saved', undo: undoHandle };
+      });
+
+    it('frees the key, keeps the popup open and shows the picker under “Removed from ⌥G · Undo”', async () => {
+      removing();
+      await store('G', GITHUB);
+      await renderPopup();
+
+      fireEvent.click(removeLink());
+      await settle();
+
+      expect(editShortcut).toHaveBeenCalledExactlyOnceWith({ key: 'G', tabId: 7, op: { kind: 'remove' } });
+      expect(close).not.toHaveBeenCalled();
+      expect(inlineLine().textContent).toBe('Removed from ⌥G · Undo');
+      expect(primary().textContent).toBe('Save to ⌥G');
+    });
+
+    it('shows the card for the page’s next key above the line', async () => {
+      removing();
+      await store('2', { ...GITHUB, name: 'Two' });
+      await store('Y', { ...GITHUB, name: 'Why' });
+      await renderPopup();
+
+      fireEvent.click(removeLink('⌥2'));
+      await settle();
+
+      expect(inlineLine().textContent).toBe('Removed from ⌥2 · Undo');
+      expect(screen.getByText('This page is on ⌥Y')).toBeDefined();
+      expect(screen.queryByRole('group', { name: 'Keys for this page' })).toBeNull();
+    });
+
+    it('sends no page toast of its own: the popup is the result', async () => {
+      removing();
+      await store('G', GITHUB);
+      await renderPopup();
+
+      fireEvent.click(removeLink());
+      await settle();
+
+      expect(assignPage).not.toHaveBeenCalled();
+    });
+
+    it('is undone with the handle, then the card is back and the line is gone', async () => {
+      removing();
+      undo.mockImplementation(async () => {
+        await store('G', GITHUB);
+        return { kind: 'undone' };
+      });
+      await store('G', GITHUB);
+      await renderPopup();
+      fireEvent.click(removeLink());
+      await settle();
+
+      fireEvent.click(button('Undo'));
+      await settle();
+
+      expect(undo).toHaveBeenCalledExactlyOnceWith('u1');
+      expect(screen.queryByRole('status')).toBeNull();
+      expect(screen.getByText('This page is on ⌥G')).toBeDefined();
+    });
+
+    it('brings back the card of the key that was removed, not another key’s', async () => {
+      removing();
+      undo.mockImplementation(async () => {
+        await store('2', { ...GITHUB, name: 'Two' });
+        return { kind: 'undone' };
+      });
+      await store('2', { ...GITHUB, name: 'Two' });
+      await store('Y', { ...GITHUB, name: 'Why' });
+      await renderPopup();
+      fireEvent.click(removeLink('⌥2'));
+      await settle();
+      expect(screen.getByText('This page is on ⌥Y')).toBeDefined();
+
+      fireEvent.click(button('Undo'));
+      await settle();
+
+      expect(screen.getByText('This page is on ⌥2')).toBeDefined();
+    });
+
+    it('says the keys changed when the undo is refused, with no button left', async () => {
+      removing();
+      undo.mockResolvedValue({ kind: 'stale' });
+      await store('G', GITHUB);
+      await renderPopup();
+      fireEvent.click(removeLink());
+      await settle();
+
+      fireEvent.click(button('Undo'));
+      await settle();
+
+      expect(inlineLine().textContent).toBe('Couldn’t undo — your keys changed');
+      expect(queryButton('Undo')).toBeNull();
+    });
+
+    it('says the same when the undo fails', async () => {
+      removing();
+      undo.mockResolvedValue({ kind: 'failed' });
+      await store('G', GITHUB);
+      await renderPopup();
+      fireEvent.click(removeLink());
+      await settle();
+
+      fireEvent.click(button('Undo'));
+      await settle();
+
+      expect(inlineLine().textContent).toBe('Couldn’t undo — your keys changed');
+    });
+
+    it('goes away after another successful write, so it never offers to undo the wrong thing', async () => {
+      removing();
+      await store('2', { ...GITHUB, name: 'Two' });
+      await store('Y', { ...GITHUB, name: 'Why' });
+      await renderPopup();
+      fireEvent.click(removeLink('⌥2'));
+      await settle();
+      editShortcut.mockResolvedValue({ kind: 'saved' });
+
+      await act(() => {
+        fireEvent.keyDown(opensAs(), { key: 'Enter' });
+      });
+      fireEvent.click(screen.getByRole('option', { name: 'Background tab' }));
+      await settle();
+
+      expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('lasts up to the record’s lifetime, then goes', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+      try {
+        editShortcut.mockImplementation(async ({ key }) => {
+          await browser.storage.sync.remove(`key.${key}`);
+          return { kind: 'saved', undo: { id: 'u1', expiresAt: Date.now() + 60_000 } };
+        });
+        await store('G', GITHUB);
+        render(<PopupPage actions={actions()} platform="mac" />);
+        await act(() => vi.advanceTimersByTimeAsync(10));
+        fireEvent.click(removeLink());
+        await act(() => vi.advanceTimersByTimeAsync(10));
+        expect(inlineLine()).toBeDefined();
+
+        await act(() => vi.advanceTimersByTimeAsync(59_000));
+        expect(inlineLine()).toBeDefined();
+        await act(() => vi.advanceTimersByTimeAsync(2_000));
+
+        expect(screen.queryByRole('status')).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('redraws from the fresh keymap, with no message, when the key was already free', async () => {
+      editShortcut.mockImplementation(async () => {
+        await browser.storage.sync.remove('key.G');
+        return { kind: 'missing' };
+      });
+      await store('G', GITHUB);
+      await renderPopup();
+
+      fireEvent.click(removeLink());
+      await settle();
+
+      expect(screen.queryByRole('status')).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(primary()).toBeDefined();
+    });
+  });
+
+  describe('Move to another key', () => {
+    beforeEach(async () => {
+      await store('G', GITHUB);
+      await store('K', { link: 'https://kagi.com/', name: 'Kagi' });
+    });
+
+    const startMove = async () => {
+      await renderPopup();
+      fireEvent.click(moveLink());
+      await settle();
+    };
+
+    it('opens the picker in move mode: fitting chips for the shortcut, a Move primary, no Opens as', async () => {
+      await startMove();
+
+      expect(chips()).toEqual(['I', 'T', 'H', 'U']);
+      expect(primary().textContent).toBe('Move to ⌥I');
+      expect(pickedKey()).toBe('I');
+      expect(screen.queryByRole('combobox')).toBeNull();
+      expect(queryButton('Cancel')).not.toBeNull();
+      expect(screen.queryByText('This page is on ⌥G')).toBeNull();
+    });
+
+    it('moves on the primary and closes the popup, the toast being the background’s', async () => {
+      await startMove();
+      await press('KeyT');
+
+      fireEvent.click(primary());
+      await settle();
+
+      expect(editShortcut).toHaveBeenCalledExactlyOnceWith({
+        key: 'G',
+        tabId: 7,
+        op: { kind: 'move', to: 'T' },
+      });
+      expect(close).toHaveBeenCalledOnce();
+    });
+
+    it('moves on ↵', async () => {
+      await startMove();
+
+      await press('Enter', { key: 'Enter' });
+
+      expect(editShortcut).toHaveBeenCalledExactlyOnceWith({ key: 'G', tabId: 7, op: { kind: 'move', to: 'I' } });
+    });
+
+    it('ignores a press on the source key, which is drawn taken', async () => {
+      await startMove();
+      await press('KeyT');
+      await press('KeyG');
+
+      expect(pickedKey()).toBe('T');
+      fireEvent.click(showKeyboard());
+      expect(miniKey('G').getAttribute('aria-pressed')).not.toBe('true');
+      fireEvent.click(miniKey('G'));
+      expect(pickedKey()).toBe('T');
+    });
+
+    it('answers a taken key with the conflict alert, no Move button and a dark Replace', async () => {
+      await startMove();
+
+      await press('KeyK');
+
+      expect(screen.getByRole('alert').textContent).toBe('⌥K already opens Kagi.');
+      expect(queryButton(/^Move it to/)).toBeNull();
+      expect(primary().textContent).toBe('Replace ⌥K');
+    });
+
+    it('replaces with resolve: replace, and ↵ does the same', async () => {
+      await startMove();
+      await press('KeyK');
+
+      await press('Enter', { key: 'Enter' });
+
+      expect(editShortcut).toHaveBeenCalledExactlyOnceWith({
+        key: 'G',
+        tabId: 7,
+        op: { kind: 'move', to: 'K', resolve: 'replace' },
+      });
+    });
+
+    it('stays in move mode with “Couldn’t save ⌥K” when the move failed, so it can be retried', async () => {
+      editShortcut.mockResolvedValue({ kind: 'failed' });
+      await startMove();
+      await press('KeyT');
+      fireEvent.click(primary());
+      await settle();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(screen.getByRole('alert').textContent).toBe('Couldn’t save ⌥T');
+      expect(primary().textContent).toBe('Move to ⌥T');
+      expect(isDisabled(primary())).toBe(false);
+    });
+
+    it('shows the conflict from the fresh keymap when the target got taken meanwhile', async () => {
+      editShortcut.mockImplementation(async () => {
+        await store('T', { link: 'https://t.example/', name: 'Tee' });
+        return { kind: 'conflict', existing: { link: 'https://t.example/', name: 'Tee' } as never };
+      });
+      await startMove();
+      await press('KeyT');
+      fireEvent.click(primary());
+      await settle();
+
+      expect(screen.getByRole('alert').textContent).toBe('⌥T already opens Tee.');
+      expect(primary().textContent).toBe('Replace ⌥T');
+    });
+
+    it('goes back to the card on Cancel, without closing', async () => {
+      await startMove();
+
+      fireEvent.click(button('Cancel'));
+
+      expect(screen.getByText('This page is on ⌥G')).toBeDefined();
+      expect(close).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the card/picker when the key was cleared meanwhile', async () => {
+      await startMove();
+
+      await act(() => browser.storage.sync.remove('key.G'));
+      await settle();
+
+      expect(screen.queryByText(/^Move to/)).toBeNull();
+      expect(primary().textContent).toBe('Save to ⌥G');
+    });
+  });
+
+  describe('Put it on another key too', () => {
+    beforeEach(() => store('G', GITHUB));
+
+    it('shows the normal picker with the Already on line, and Cancel', async () => {
+      await renderPopup();
+
+      fireEvent.click(tooLink());
+
+      expect(screen.getByText('Already on ⌥G')).toBeDefined();
+      expect(screen.queryByText('This page is on ⌥G')).toBeNull();
+      expect(primary().textContent).toBe('Save to ⌥P');
+      expect(opensAs()).toBeDefined();
+      expect(queryButton('Cancel')).not.toBeNull();
+    });
+
+    it('saves through assignPage and closes, as any assign', async () => {
+      await renderPopup();
+      fireEvent.click(tooLink());
+
+      fireEvent.click(primary());
+      await settle();
+
+      expect(assignPage).toHaveBeenCalledExactlyOnceWith({ key: 'P', tabId: 7, openMode: 'smart' });
+      expect(close).toHaveBeenCalledOnce();
+    });
+
+    it('goes back to the card on Cancel', async () => {
+      await renderPopup();
+      fireEvent.click(tooLink());
+
+      fireEvent.click(button('Cancel'));
+
+      expect(screen.getByText('This page is on ⌥G')).toBeDefined();
+      expect(queryButton('Cancel')).toBeNull();
+    });
+  });
+
+  it('leaves the launcher alone on a page that can’t take a key', async () => {
+    tabs = [activeTab({ url: 'chrome://newtab/', title: 'New Tab' })];
+    await store('G', GITHUB);
+    await renderPopup();
+
+    expect(screen.queryByText(/^This page is on/)).toBeNull();
+    expect(screen.getByText('This page can’t be put on a key')).toBeDefined();
+  });
+
+  it('shows nothing of the card in the page card above it', async () => {
+    await store('G', GITHUB);
+    await renderPopup();
+
+    expect(screen.queryByText(/^Already on/)).toBeNull();
+    expect(screen.getAllByText('github.com/acme/speedlink/pulls').length).toBeGreaterThan(0);
   });
 });
