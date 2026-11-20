@@ -165,6 +165,112 @@ test('a taken key: Move it to ⌥X keeps both, and Undo puts both keys back', as
   expect(await storedOn(worker, '1')).toBeUndefined();
 });
 
+// The key card (product spec §7): the fixture page is on K by its site, so the popup shows the card, not the picker.
+const ON_K = { link: `${ORIGIN}/`, name: 'Fixture site', openMode: 'smart', tabMatch: 'site', closeCurrent: false };
+
+/** The popup for a tab whose page is already on a key, once it has drawn the key card. */
+async function openCard(context: BrowserContext, extensionId: string, tabId: number): Promise<Page> {
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/popup.html?tabId=${tabId}`);
+  await expect(popup.getByText(/^This page is on /)).toBeVisible();
+  return popup;
+}
+
+test('key card: Opens as saves at once', async ({ context, extensionId }) => {
+  const worker = await serviceWorker(context);
+  await store(worker, 'K', ON_K);
+  const { tabId } = await openPage(context, PAGE);
+  const popup = await openCard(context, extensionId, tabId);
+
+  await popup.getByRole('combobox', { name: 'Opens as: Smart switch' }).click();
+  await popup.getByRole('option', { name: 'Background tab' }).click();
+
+  await expect.poll(() => storedOn(worker, 'K')).toEqual({ ...ON_K, openMode: 'bg' });
+  await expect(popup.getByRole('combobox', { name: 'Opens as: Background tab' })).toBeVisible();
+});
+
+test('key card: Remove frees the key and the inline Undo puts it back', async ({ context, extensionId }) => {
+  const worker = await serviceWorker(context);
+  await store(worker, 'K', ON_K);
+  const { tabId } = await openPage(context, PAGE);
+  const popup = await openCard(context, extensionId, tabId);
+
+  await popup.getByRole('button', { name: `Remove from ${await chord(popup, 'K')}` }).click();
+
+  await expect(popup.getByRole('status')).toContainText(`Removed from ${await chord(popup, 'K')}`);
+  await expect(popup.getByTestId('primary')).toBeVisible();
+  expect(await storedOn(worker, 'K')).toBeUndefined();
+
+  await popup.getByRole('button', { name: 'Undo' }).click();
+
+  await expect(popup.getByText(`This page is on ${await chord(popup, 'K')}`)).toBeVisible();
+  expect(await storedOn(worker, 'K')).toEqual(ON_K);
+});
+
+test('key card: Move to another key closes the popup, the saved toast shows and its Undo puts the key back', async ({
+  context,
+  extensionId,
+}) => {
+  const worker = await serviceWorker(context);
+  await store(worker, 'K', ON_K);
+  const { page, tabId } = await openPage(context, PAGE);
+  const popup = await openCard(context, extensionId, tabId);
+
+  await popup.getByRole('button', { name: /^Move to another key/ }).click();
+  await popup.keyboard.press('KeyJ');
+  await expect(popup.getByTestId('primary')).toHaveText(`Move to ${await chord(popup, 'J')}`);
+  const closed = popup.waitForEvent('close');
+  await popup.keyboard.press('Enter');
+
+  await closed;
+  expect(await storedOn(worker, 'K')).toBeUndefined();
+  expect(await storedOn(worker, 'J')).toEqual(ON_K);
+  await expect(toast(page)).toContainText(`${await chord(page, 'J')}`);
+  await expect(toast(page)).toContainText('→ Fixture site saved');
+
+  await toast(page).getByRole('button', { name: 'Undo' }).click();
+
+  await expect.poll(() => storedOn(worker, 'K')).toEqual(ON_K);
+  expect(await storedOn(worker, 'J')).toBeUndefined();
+});
+
+test('key card: Use this exact page instead points the link at the tab and the action goes away', async ({
+  context,
+  extensionId,
+}) => {
+  const worker = await serviceWorker(context);
+  await store(worker, 'K', ON_K);
+  const { tabId } = await openPage(context, PAGE);
+  const popup = await openCard(context, extensionId, tabId);
+
+  await popup.getByRole('button', { name: /^Use this exact page instead/ }).click();
+
+  await expect.poll(() => storedOn(worker, 'K')).toEqual({ ...ON_K, link: PAGE, tabMatch: 'exact' });
+  await expect(popup.getByRole('button', { name: /^Use this exact page instead/ })).toHaveCount(0);
+  await expect(popup.getByText('Saved as Fixture site ·')).toBeVisible();
+});
+
+test('key card: Put it on another key too saves the page on a second key, with the saved toast', async ({
+  context,
+  extensionId,
+}) => {
+  const worker = await serviceWorker(context);
+  await store(worker, 'K', ON_K);
+  const { page, tabId } = await openPage(context, PAGE);
+  const popup = await openCard(context, extensionId, tabId);
+
+  await popup.getByRole('button', { name: 'Put it on another key too' }).click();
+  await expect(popup.getByText(`Already on ${await chord(popup, 'K')}`)).toBeVisible();
+  await popup.keyboard.press('KeyJ');
+  const closed = popup.waitForEvent('close');
+  await popup.keyboard.press('Enter');
+
+  await closed;
+  expect(await storedOn(worker, 'J')).toEqual(SAVED);
+  expect(await storedOn(worker, 'K')).toEqual(ON_K);
+  await expect(toast(page)).toContainText('→ Fixture: keys saved');
+});
+
 test('an unusable page gets the launcher instead of the picker', async ({ context, extensionId }) => {
   const worker = await serviceWorker(context);
   await store(worker, 'D', { link: `${ORIGIN}/frame-child.html?launch`, name: 'Docs', openMode: 'new' });

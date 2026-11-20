@@ -2,7 +2,7 @@
 // On one that can't (the new tab page, chrome://, the Web Store): a launcher, the overlay's tiles with a key press
 // that opens. The popup never writes the keymap: the background assigns (§11.3) and opens (§4.1). Every view sits in
 // the same frame: header bar, grey body, footer bar.
-import { BanIcon } from 'lucide-react';
+import { BanIcon, ChevronRightIcon } from 'lucide-react';
 import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { BrandMark } from '@/components/Brand';
 import { KeyboardGrid } from '@/components/KeyboardGrid';
@@ -13,20 +13,25 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { keyFromCode, type PickedKey, type PickerModel, pickerModel } from '@/domain/assign-picker';
+import { keyFromCode, moveModel, type PickedKey, type PickerModel, pickerModel } from '@/domain/assign-picker';
 import type { Keymap, Resolve } from '@/domain/keymap-ops';
 import { isAssignable, type Key, type KeyLabel } from '@/domain/keys';
-import { withoutScheme } from '@/domain/link';
+import { siteOf, withoutScheme } from '@/domain/link';
 import type { OverlayModel } from '@/domain/overlay-model';
 import { DEFAULT_OPEN_MODE, displayName, OPEN_MODES, type OpenMode } from '@/domain/shortcut';
+import { tabMatches } from '@/domain/tab-match';
 import { useKeymap } from '@/hooks/use-keymap';
-import type { AssignPageReply, OpenKeyReply } from '@/platform/messaging';
+import type { AssignPageReply, EditOp, EditShortcutReply, OpenKeyReply, UndoReply } from '@/platform/messaging';
 import { chordLabel, PLATFORM, type Platform, triggerPlus, triggerSymbol } from '@/platform/platform-labels';
 import type { PopupTab } from '@/platform/tabs';
 import { usePopupTab } from './use-popup-tab';
 
 export interface PopupActions {
   assignPage(request: { key: Key; tabId: number; openMode: OpenMode; resolve?: Resolve }): Promise<AssignPageReply>;
+  /** The key card's edits of the shortcut on `key`: Opens as, Remove, Move, Use this exact page. */
+  editShortcut(request: { key: Key; tabId: number; op: EditOp }): Promise<EditShortcutReply>;
+  /** The inline Undo after a Remove. */
+  undo(id: string): Promise<UndoReply>;
   openOptions(): Promise<void>;
   close(): void;
   /** The launcher: open a key from the tab the popup came from; `force` is Force new tab. */
@@ -128,7 +133,18 @@ function PopupShell({ footer, children }: { footer: ReactNode; children?: ReactN
   );
 }
 
-function PageCard({ tab, model, platform }: { tab: PopupTab; model: PickerModel; platform: Platform }) {
+function PageCard({
+  tab,
+  model,
+  platform,
+  showAlreadyOn,
+}: {
+  tab: PopupTab;
+  model: PickerModel;
+  platform: Platform;
+  /** The line is for the picker only: the key card says which key the page is on. */
+  showAlreadyOn: boolean;
+}) {
   return (
     <section className="flex items-center gap-3 rounded-xl border bg-card p-2.5">
       {model.usable ? (
@@ -142,7 +158,7 @@ function PageCard({ tab, model, platform }: { tab: PopupTab; model: PickerModel;
         <p className="truncate font-semibold text-ui">{tab.title}</p>
         <p className="truncate text-2xs text-muted-foreground">{withoutScheme(tab.url)}</p>
         {!model.usable && <p className="text-2xs text-warning-foreground">{i18n.t('popup.unusable')}</p>}
-        {model.usable && model.alreadyOn.length > 0 && (
+        {showAlreadyOn && model.usable && model.alreadyOn.length > 0 && (
           <p className="text-2xs text-link">
             {i18n.t('popup.alreadyOn', [model.alreadyOn.map((key) => chordLabel(key, platform)).join(', ')])}
           </p>
@@ -165,7 +181,15 @@ interface ViewProps {
   platform: Platform;
 }
 
-function AssignView({ actions, tab, keymap, platform }: ViewProps) {
+interface AssignViewProps extends ViewProps {
+  /** Move mode: the picker looks for a new key for the shortcut on `from`, instead of assigning the page. */
+  move?: { from: Key };
+  /** Back to the key card (move mode, and "Put it on another key too"). */
+  onCancel?: () => void;
+}
+
+/** The picker: the prompt, drop zone, chips or keyboard, conflict alert and the save row. The body of the popup shell. */
+function AssignView({ actions, tab, keymap, platform, move, onCancel }: AssignViewProps) {
   const [picked, setPicked] = useState<Key | null | undefined>(undefined);
   const [openMode, setOpenMode] = useState<OpenMode>(DEFAULT_OPEN_MODE);
   const [saving, setSaving] = useState(false);
@@ -174,20 +198,23 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
   const inFlight = useRef(false);
 
   const model = pickerModel(keymap, tab, picked ?? null);
+  const moving = move === undefined ? null : moveModel(keymap, move.from, picked ?? null);
+  const chips = moving !== null ? moving.chips : model.usable ? model.chips : [];
   // The mini keyboard shows from the start only when there are no chips; after that only the toggle changes it.
-  const [keyboardChosen, setKeyboardChosen] = useState(!model.usable || model.chips.length === 0);
-  const defaultKey = model.usable ? model.defaultKey : null;
+  const [keyboardChosen, setKeyboardChosen] = useState(chips.length === 0);
+  const defaultKey = moving !== null ? moving.defaultKey : model.usable ? model.defaultKey : null;
 
   // The default pick is made once, on the first render; after that only the user picks.
   useEffect(() => {
     if (picked === undefined) setPicked(defaultKey);
   }, [picked, defaultKey]);
 
-  const ready = model.usable && !saving;
-  const pickedState: PickedKey | null = model.usable ? model.picked : null;
+  const ready = (move === undefined ? model.usable : moving !== null) && !saving;
+  const pickedState: PickedKey | null = moving !== null ? moving.picked : model.usable ? model.picked : null;
 
   const pick = (key: Key) => {
-    if (!ready) return;
+    // The source of a move is taken: a press on it is ignored.
+    if (!ready || key === move?.from) return;
     setPicked(key);
     setFailedKey(null);
   };
@@ -198,11 +225,23 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
     inFlight.current = true;
     setSaving(true);
     setFailedKey(null);
-    let reply: AssignPageReply;
+    let reply: AssignPageReply | EditShortcutReply;
     try {
-      reply = await actions.assignPage({ key, tabId: tab.id, openMode, ...(resolve === undefined ? {} : { resolve }) });
+      reply =
+        move === undefined
+          ? await actions.assignPage({
+              key,
+              tabId: tab.id,
+              openMode,
+              ...(resolve === undefined ? {} : { resolve }),
+            })
+          : await actions.editShortcut({
+              key: move.from,
+              tabId: tab.id,
+              op: { kind: 'move', to: key, ...(resolve === 'replace' ? { resolve } : {}) },
+            });
     } catch (error) {
-      console.error('SpeedLink: could not assign', key, error);
+      console.error('SpeedLink: could not save', key, error);
       reply = { kind: 'failed' };
     }
     if (reply.kind === 'saved') {
@@ -211,8 +250,9 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
     }
     inFlight.current = false;
     setSaving(false);
-    // A conflict shows from the live keymap, which already has (or is about to get) the key's new holder.
-    if (reply.kind !== 'conflict') setFailedKey(key);
+    // A conflict shows from the live keymap, which already has (or is about to get) the key's new holder; a free
+    // source key redraws from it too.
+    if (reply.kind !== 'conflict' && reply.kind !== 'missing') setFailedKey(key);
   };
 
   const primaryResolve: Resolve | undefined = pickedState?.kind === 'conflict' ? 'replace' : undefined;
@@ -238,8 +278,7 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const full = model.usable && model.full;
-  const chips = model.usable ? model.chips : [];
+  const full = moving !== null ? moving.defaultKey === null : model.usable && model.full;
   // Chips that vanish (the keymap filled up) leave nothing to toggle back to.
   const showKeyboard = keyboardChosen || chips.length === 0;
   const pickedKey = pickedState?.key ?? null;
@@ -247,14 +286,28 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
   const primaryLabel =
     chord === null
       ? i18n.t(full ? 'popup.replace' : 'popup.save')
-      : i18n.t(primaryResolve === 'replace' ? 'popup.replaceKey' : 'popup.saveTo', [chord]);
+      : i18n.t(
+          primaryResolve === 'replace' ? 'popup.replaceKey' : move === undefined ? 'popup.saveTo' : 'popup.moveKey',
+          [chord],
+        );
 
   return (
-    <PopupShell footer={<AssignFooter actions={actions} platform={platform} />}>
-      <PageCard tab={tab} model={model} platform={platform} />
-
+    <>
       <section className="flex flex-col gap-2 rounded-xl border bg-card p-2.5">
-        <p className="font-medium text-ui">{i18n.t(full ? 'popup.promptFull' : 'popup.prompt')}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-medium text-ui">
+            {full
+              ? i18n.t('popup.promptFull')
+              : move === undefined
+                ? i18n.t('popup.prompt')
+                : i18n.t('popup.promptMove', [chordLabel(move.from, platform)])}
+          </p>
+          {onCancel !== undefined && (
+            <Button variant="link" size="xs" className="px-0" onClick={onCancel}>
+              {i18n.t('popup.cancel')}
+            </Button>
+          )}
+        </div>
         <div
           data-testid="picked-key"
           className="flex h-13 items-center justify-center gap-2 rounded-lg border-2 border-primary/40 border-dashed bg-primary/7"
@@ -358,22 +411,24 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <Select value={openMode} onValueChange={(value) => setOpenMode(value as OpenMode)} disabled={!ready}>
-            <SelectTrigger
-              size="lg"
-              aria-label={i18n.t('popup.opensAsMode', [i18n.t(`options.openMode.${openMode}.title`)])}
-              className="rounded-key bg-card font-medium text-ui"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {OPEN_MODES.map((mode) => (
-                <SelectItem key={mode} value={mode}>
-                  {i18n.t(`options.openMode.${mode}.title`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {move === undefined && (
+            <Select value={openMode} onValueChange={(value) => setOpenMode(value as OpenMode)} disabled={!ready}>
+              <SelectTrigger
+                size="lg"
+                aria-label={i18n.t('popup.opensAsMode', [i18n.t(`options.openMode.${openMode}.title`)])}
+                className="rounded-key bg-card font-medium text-ui"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {OPEN_MODES.map((mode) => (
+                  <SelectItem key={mode} value={mode}>
+                    {i18n.t(`options.openMode.${mode}.title`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button
             data-testid="primary"
             size="xl"
@@ -393,6 +448,311 @@ function AssignView({ actions, tab, keymap, platform }: ViewProps) {
           </Alert>
         )}
       </div>
+    </>
+  );
+}
+
+/** A card's action row: full width, label left, whatever trails it right. */
+const ROW = 'h-auto w-full justify-between rounded-none border-border-subtle border-t px-3 py-2.5 font-medium text-ui';
+
+interface KeyCardProps extends ViewProps {
+  /** The key whose card shows; it holds a shortcut matching this tab. */
+  cardKey: Key;
+  onMove(): void;
+  onAlsoOnAnother(): void;
+  /** A Remove was saved; `undo` is the record to offer inline. */
+  onRemoved(key: Key, undo: { id: string; expiresAt: number }): void;
+  /** Another write from the popup was saved, so an earlier inline Undo no longer applies. */
+  onWrote(): void;
+}
+
+/**
+ * The key card (product spec §7): the page is already on `cardKey`, so the popup manages that key instead of adding
+ * another. Every action is an `editShortcut` to the background; the card itself follows the live keymap.
+ */
+function KeyCard({
+  actions,
+  tab,
+  keymap,
+  platform,
+  cardKey,
+  onMove,
+  onAlsoOnAnother,
+  onRemoved,
+  onWrote,
+}: KeyCardProps) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const inFlight = useRef(false);
+  const shortcut = keymap[cardKey];
+  if (shortcut === undefined) return null;
+  const chord = chordLabel(cardKey, platform);
+
+  const run = async (op: EditOp): Promise<EditShortcutReply | null> => {
+    if (inFlight.current || tab.id === undefined) return null;
+    inFlight.current = true;
+    setBusy(true);
+    setFailed(false);
+    let reply: EditShortcutReply;
+    try {
+      reply = await actions.editShortcut({ key: cardKey, tabId: tab.id, op });
+    } catch (error) {
+      console.error('SpeedLink: could not edit', cardKey, error);
+      reply = { kind: 'failed' };
+    }
+    inFlight.current = false;
+    setBusy(false);
+    // A key that is free now redraws from the live keymap, without a message.
+    if (reply.kind !== 'saved' && reply.kind !== 'missing') setFailed(true);
+    return reply;
+  };
+
+  const write = async (op: EditOp) => {
+    const reply = await run(op);
+    if (reply?.kind === 'saved') onWrote();
+  };
+
+  const remove = async () => {
+    const reply = await run({ kind: 'remove' });
+    if (reply?.kind === 'saved' && reply.undo !== undefined) onRemoved(cardKey, reply.undo);
+  };
+
+  const exact = !tabMatches(tab.url, shortcut.link, 'exact');
+  return (
+    <section className="flex flex-col overflow-hidden rounded-xl border bg-card">
+      <div className="flex items-center gap-3 p-3">
+        <span
+          aria-hidden="true"
+          data-slot="key-tile"
+          className="inline-flex size-14 shrink-0 items-center justify-center rounded-key border border-primary/20 bg-primary/7 font-bold text-link text-md"
+        >
+          {chord}
+        </span>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <p className="font-semibold text-md">{i18n.t('popup.thisPageOn', [chord])}</p>
+          <p className="truncate text-2xs text-muted-foreground">
+            {i18n.t('popup.savedAs', [displayName(shortcut), siteOf(shortcut.link)])}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-2 border-border-subtle border-t px-3 py-2">
+        <span aria-hidden="true" className="font-medium text-ui">
+          {i18n.t('popup.opensAs')}
+        </span>
+        <Select
+          value={shortcut.openMode}
+          onValueChange={(value) => void write({ kind: 'openMode', openMode: value as OpenMode })}
+          disabled={busy}
+        >
+          <SelectTrigger
+            size="sm"
+            aria-label={i18n.t('popup.opensAsMode', [i18n.t(`options.openMode.${shortcut.openMode}.title`)])}
+            className="bg-card font-medium text-ui"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {OPEN_MODES.map((mode) => (
+              <SelectItem key={mode} value={mode}>
+                {i18n.t(`options.openMode.${mode}.title`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Button variant="ghost" className={ROW} disabled={busy} onClick={onMove}>
+        {i18n.t('popup.moveToAnother')}
+        <ChevronRightIcon aria-hidden="true" className="text-muted-foreground" />
+      </Button>
+      {exact && (
+        <Button variant="ghost" className={ROW} disabled={busy} onClick={() => void write({ kind: 'exactPage' })}>
+          {i18n.t('popup.useExactPage')}
+          <span className="min-w-0 truncate font-normal text-2xs text-muted-foreground">{withoutScheme(tab.url)}</span>
+        </Button>
+      )}
+      <Button variant="destructive-ghost" className={ROW} disabled={busy} onClick={() => void remove()}>
+        {i18n.t('popup.removeFrom', [chord])}
+      </Button>
+
+      {failed && (
+        <Alert variant="destructive" className="rounded-none border-x-0 border-b-0 px-3 py-2 text-ui">
+          <AlertDescription className="col-span-2 col-start-1 text-ui">
+            {i18n.t('pageToast.saveFailed', [chord])}
+          </AlertDescription>
+        </Alert>
+      )}
+      <div className="border-border-subtle border-t px-3 py-1.5">
+        <Button variant="link" size="xs" className="px-0" disabled={busy} onClick={onAlsoOnAnother}>
+          {i18n.t('popup.putOnAnother')}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/** The keys a page is on, to switch between their cards; named by their chord, the shown one pressed. */
+function KeyChips({
+  keys,
+  current,
+  platform,
+  onPick,
+}: {
+  keys: readonly Key[];
+  current: Key;
+  platform: Platform;
+  onPick: (key: Key) => void;
+}) {
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a group of toggle buttons, not a fieldset of inputs
+    <div role="group" aria-label={i18n.t('popup.keysForThisPage')} className="flex items-center gap-1.5">
+      {keys.map((key) => (
+        <Button
+          key={key}
+          variant="outline"
+          size="xs"
+          aria-label={chordLabel(key, platform)}
+          aria-pressed={key === current}
+          onClick={() => onPick(key)}
+          className="aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground"
+        >
+          {chordLabel(key, platform)}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/** The inline Undo after a Remove: "Removed from ⌥G · Undo", or why the Undo was refused. */
+interface RemovedLine {
+  key: Key;
+  undo: { id: string; expiresAt: number };
+  status: 'ready' | 'working' | 'refused';
+}
+
+/** Which part of the popup the user is in; the key card is the default whenever the page is on a key. */
+type Mode = { kind: 'auto' } | { kind: 'too' } | { kind: 'move'; from: Key };
+
+/**
+ * The popup on a page that can take a key. On a page already on a key it shows the key card (`auto`), and from
+ * there move mode or the picker for "Put it on another key too"; on one that is on no key, the picker. All of it is
+ * local view state over the live keymap, never stored.
+ */
+function KeyFlow({ actions, tab, keymap, platform }: ViewProps) {
+  const [mode, setMode] = useState<Mode>({ kind: 'auto' });
+  const [chosen, setChosen] = useState<Key | null>(null);
+  const [removed, setRemoved] = useState<RemovedLine | null>(null);
+
+  const model = pickerModel(keymap, tab, null);
+  const alreadyOn = model.usable ? model.alreadyOn : [];
+  const cardKey = chosen !== null && alreadyOn.includes(chosen) ? chosen : (alreadyOn[0] ?? null);
+  const view =
+    cardKey === null
+      ? 'picker'
+      : mode.kind === 'move' && keymap[mode.from] !== undefined
+        ? 'move'
+        : mode.kind === 'too'
+          ? 'too'
+          : 'card';
+
+  const expiresAt = removed?.undo.expiresAt;
+  // The record lapses at `expiresAt`: from then on the line would offer an Undo that comes back stale.
+  useEffect(() => {
+    if (expiresAt === undefined) return;
+    const timer = setTimeout(() => setRemoved(null), Math.max(0, expiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [expiresAt]);
+
+  const undoRemove = async () => {
+    if (removed === null || removed.status !== 'ready') return;
+    const { id } = removed.undo;
+    setRemoved({ ...removed, status: 'working' });
+    let reply: UndoReply;
+    try {
+      reply = await actions.undo(id);
+    } catch (error) {
+      console.error('SpeedLink: could not undo', error);
+      reply = { kind: 'failed' };
+    }
+    if (reply.kind === 'undone') {
+      setRemoved(null);
+      setMode({ kind: 'auto' });
+    } else {
+      setRemoved((current) => (current?.undo.id === id ? { ...current, status: 'refused' } : current));
+    }
+  };
+
+  const back = () => setMode({ kind: 'auto' });
+  return (
+    <PopupShell footer={<AssignFooter actions={actions} platform={platform} />}>
+      <PageCard tab={tab} model={model} platform={platform} showAlreadyOn={view === 'too'} />
+
+      {removed !== null && (
+        <p role="status" className="flex items-center gap-1.5 rounded-xl border bg-card px-3 py-2 text-ui">
+          {removed.status === 'refused' ? (
+            i18n.t('pageToast.undoStale')
+          ) : (
+            <>
+              {i18n.t('popup.removedFrom', [chordLabel(removed.key, platform)])}
+              {' · '}
+              <Button
+                variant="link"
+                size="xs"
+                className="px-0"
+                disabled={removed.status === 'working'}
+                onClick={() => void undoRemove()}
+              >
+                {i18n.t('popup.undo')}
+              </Button>
+            </>
+          )}
+        </p>
+      )}
+
+      {view === 'card' && cardKey !== null && (
+        <>
+          {alreadyOn.length > 1 && (
+            <KeyChips keys={alreadyOn} current={cardKey} platform={platform} onPick={setChosen} />
+          )}
+          <KeyCard
+            key={cardKey}
+            actions={actions}
+            tab={tab}
+            keymap={keymap}
+            platform={platform}
+            cardKey={cardKey}
+            onMove={() => setMode({ kind: 'move', from: cardKey })}
+            onAlsoOnAnother={() => setMode({ kind: 'too' })}
+            onRemoved={(key, undo) => {
+              setRemoved({ key, undo, status: 'ready' });
+              setMode({ kind: 'auto' });
+            }}
+            onWrote={() => setRemoved(null)}
+          />
+        </>
+      )}
+      {view === 'move' && mode.kind === 'move' && (
+        <AssignView
+          key={`move-${mode.from}`}
+          actions={actions}
+          tab={tab}
+          keymap={keymap}
+          platform={platform}
+          move={{ from: mode.from }}
+          onCancel={back}
+        />
+      )}
+      {(view === 'picker' || view === 'too') && (
+        <AssignView
+          key={view}
+          actions={actions}
+          tab={tab}
+          keymap={keymap}
+          platform={platform}
+          onCancel={view === 'too' ? back : undefined}
+        />
+      )}
     </PopupShell>
   );
 }
@@ -500,6 +860,6 @@ export function PopupPage({ actions, tabId, platform = PLATFORM }: PopupPageProp
   }
 
   // A page that can't go on a key has nothing to assign; it gets the launcher (§7).
-  const View = pickerModel(keymap, tab, null).usable ? AssignView : Launcher;
+  const View = pickerModel(keymap, tab, null).usable ? KeyFlow : Launcher;
   return <View actions={actions} tab={tab} keymap={keymap} platform={platform} />;
 }
