@@ -40,7 +40,7 @@ test('"Open keymap" turns the welcome tab into Options', async ({ context, exten
 
   // Options mirrors its selected key into the hash as soon as it has read the keymap.
   await expect(welcome).toHaveURL(new RegExp(`^chrome-extension://${extensionId}/options\\.html(#key=[A-Z0-9])?$`));
-  await expect(welcome.getByRole('heading', { level: 1, name: 'Keymap' })).toBeVisible();
+  await expect(welcome.getByRole('heading', { level: 1, name: 'Put your first link on a key' })).toBeVisible();
   expect(context.pages()).toHaveLength(tabs);
   expect(welcomeTabs(context)).toHaveLength(0);
 });
