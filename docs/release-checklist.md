@@ -66,7 +66,7 @@ For a check by hand, load `<dir>/rc` in Chrome Stable with **Load unpacked** on 
 The check has two parts:
 
 - **Local CRX test** (below): Chromium's real update path, run whenever the manifest changes.
-- **Store update**: the real 1.6 → 4.0 update from the Web Store in Chrome Stable on the author's install, run with check #1 after publish. After the update, the card on `chrome://extensions` is on, with no "needs your approval" banner.
+- **Store update**: the real 1.6 → 4.0 update from the Web Store in Chrome Stable on the author's install, run with check #1 after publish, only when the manifest changed (see "Which checks a release runs"). After the update, the card on `chrome://extensions` is on, with no "needs your approval" banner.
 
 **When.** At RC the test `the manifest warns about exactly what 1.6 warns about` in `e2e/manifest.spec.ts` stands in for the local CRX test. It compares `chrome.management.getPermissionWarningsByManifest` for the built manifest and the shipped 1.6 manifest (`e2e/fixture-v1/`), with a `history` control that must change the list. While it passes, the last local CRX result still holds, because Chromium computes the warnings from the manifest alone. When it fails, the local CRX test below is due before release. The real CRX update path can't be automated: the install prompt is native UI, and a force-install by policy grants permissions without a prompt, which voids the test.
 

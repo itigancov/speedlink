@@ -26,7 +26,7 @@ HOW IT WORKS
 SEE YOUR KEYS
 • Peek: hold ⌥ for a moment and your keys appear over the page. Press one to go, or let go to close.
 • Pinned overlay: press ⌥S, or S during a Peek, to keep it open and search your shortcuts by name or link.
-• Each site gets its own coloured tile, and keys whose site is open right now are marked green.
+• Every site gets a coloured tile with its letter, and keys whose site is open right now are marked green.
 
 PUT A PAGE ON A KEY
 • Click the toolbar icon to assign the page you are on. SpeedLink suggests free keys that fit the site's name, and a toast on the page offers Undo.

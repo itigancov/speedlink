@@ -621,7 +621,7 @@ Key-state colors live inside `KeyCap`.
 
 ## 13. Manifest
 
-- `version: "4.1.1"`; `minimum_chrome_version: "121"`, set by `Tab.lastAccessed` (Smart switch, §4.1). Other APIs used are lower (`storage.session` 102, `runtime.getContexts` 116). No `key` field.
+- `version: "4.2.0"`; `minimum_chrome_version: "121"`, set by `Tab.lastAccessed` (Smart switch, §4.1). Other APIs used are lower (`storage.session` 102, `runtime.getContexts` 116). No `key` field.
 - `permissions: storage, tabs, scripting`; `host_permissions: ["<all_urls>"]`.
 - Content script `<all_urls>`, `all_frames: true`, `run_at: document_start`.
 - Icons: the 16/32/48/128 PNGs drawn from the `Brand` logo mark by `pnpm listing`, at the same paths as v1's. The 128 px icon is 96 px of artwork inside 16 px of transparent padding.
