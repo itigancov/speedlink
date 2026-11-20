@@ -83,6 +83,10 @@ export interface KeyboardCardProps extends KeymapViewProps {
   onDrop: (from: Key, to: Key) => void;
   /** A drag started (true) or ended either way (false). */
   onDragActiveChange?: (active: boolean) => void;
+  /** The key drawn as "Start here" (first run), unless it is selected or a drop target. Defaults to none. */
+  startKey?: Key | null;
+  /** What sits under the keys in place of the legend: first run's hint. */
+  footer?: ReactNode;
   /** Freezes the card mid-drag, for the gallery. */
   frozenDrag?: DragFrame;
   ref?: Ref<KeyCapsHandle>;
@@ -93,6 +97,30 @@ const FIRST_KEY = KEYBOARD_ORDER[0] as Key;
 
 function Swatch({ className }: { className: string }) {
   return <span aria-hidden="true" className={cn('size-3.5 rounded-sm border', className)} />;
+}
+
+/** The legend under the keys: key states, and how to fill and move a key. */
+function Legend({ platform }: { platform?: Platform }) {
+  return (
+    <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 border-border-subtle border-t pt-4 text-muted-foreground text-xs">
+      <li className="flex items-center gap-2">
+        <Swatch className="border-primary/20 bg-primary/7" />
+        {i18n.t('options.legend.assigned')}
+      </li>
+      <li className="flex items-center gap-2">
+        <Swatch className="border-input bg-card" />
+        {i18n.t('options.legend.free')}
+      </li>
+      <li className="flex items-center gap-2">
+        <span aria-hidden="true" className="size-2 rounded-full bg-success" />
+        {i18n.t('options.legend.open')}
+      </li>
+      <li data-slot="legend-hint" className="ml-auto">
+        {i18n.t('options.legend.select')} <span aria-hidden="true">·</span> <Kbd>{pasteLabel(platform)}</Kbd>{' '}
+        {i18n.t('options.legend.paste')} <span aria-hidden="true">·</span> {i18n.t('options.legend.drag')}
+      </li>
+    </ul>
+  );
 }
 
 const KEYBOARD_CODES = { start: ['Space'], cancel: ['Escape'], end: ['Space', 'Enter'] };
@@ -182,6 +210,8 @@ export function KeyboardCard({
   onDragActiveChange,
   frozenDrag,
   size = 'lg',
+  startKey = null,
+  footer,
   platform,
   ref,
 }: KeyboardCardProps) {
@@ -269,7 +299,9 @@ export function KeyboardCard({
         : label === selected
           ? 'selected'
           : shortcut === undefined
-            ? 'free'
+            ? label === startKey
+              ? 'start'
+              : 'free'
             : 'assigned';
     return (
       <KeyCap
@@ -368,24 +400,7 @@ export function KeyboardCard({
             <KeyboardGrid size={size} renderKey={renderKey} />
           </div>
         </div>
-        <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 border-border-subtle border-t pt-4 text-muted-foreground text-xs">
-          <li className="flex items-center gap-2">
-            <Swatch className="border-primary/20 bg-primary/7" />
-            {i18n.t('options.legend.assigned')}
-          </li>
-          <li className="flex items-center gap-2">
-            <Swatch className="border-input bg-card" />
-            {i18n.t('options.legend.free')}
-          </li>
-          <li className="flex items-center gap-2">
-            <span aria-hidden="true" className="size-2 rounded-full bg-success" />
-            {i18n.t('options.legend.open')}
-          </li>
-          <li data-slot="legend-hint" className="ml-auto">
-            {i18n.t('options.legend.select')} <span aria-hidden="true">·</span> <Kbd>{pasteLabel(platform)}</Kbd>{' '}
-            {i18n.t('options.legend.paste')} <span aria-hidden="true">·</span> {i18n.t('options.legend.drag')}
-          </li>
-        </ul>
+        {footer ?? <Legend platform={platform} />}
       </div>
       <DragOverlay dropAnimation={null}>{liveDrag === null ? null : lifted(liveDrag.source)}</DragOverlay>
     </DndContext>

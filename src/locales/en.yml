@@ -109,6 +109,24 @@ options:
     before: Press
     after: on any page to open its link.
     used: $1 of 35 keys in use.
+  firstRun:
+    heading: Put your first link on a key
+    subline:
+      before: Then press
+      thatKey: that key
+      after: on any page to open it.
+      free: All 35 keys are free.
+    steps: First steps
+    pick:
+      title: Pick a key
+      line: Click it below, or just press it on your keyboard.
+    paste:
+      title: Paste a link
+      line: $1 works right away. The name comes from the page.
+    use:
+      title: Use it anywhere
+      line: Hold $1 on any page to see your keys.
+    hint: Not sure where to start? Open a site you use every day, click the SpeedLink icon in the toolbar and press a key.
   view:
     label: View
     keyboard: Keyboard
@@ -119,7 +137,6 @@ options:
     link: Link
     opensAs: Opens as
     closesCurrent: · closes current
-    empty: No keys yet — pick one in Keyboard view
     noMatch: No keys match
   legend:
     assigned: Assigned

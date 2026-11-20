@@ -8,6 +8,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { Kbd } from '@/components/ui/kbd';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { firstFreeKey } from '@/domain/fitting-keys';
 import { checkDraft } from '@/domain/key-draft';
 import { pageKeyDecision } from '@/domain/keydown';
 import { clear, dropChange, type Keymap } from '@/domain/keymap-ops';
@@ -25,11 +26,12 @@ import { openShortcutSettings, SEARCH_HASH, SHORTCUT_SETTINGS } from '@/platform
 import { isEditableTarget, keyInput } from '@/platform/key-capture';
 import { readKeymap, writeChange } from '@/platform/keymap-store';
 import { sendMessage } from '@/platform/messaging';
-import { chordLabel, triggerLabel, triggerPlusKey } from '@/platform/platform-labels';
+import { chordLabel, triggerLabel, triggerPlus, triggerPlusKey } from '@/platform/platform-labels';
+import { FirstRunHint, StepCards } from './FirstRun';
 import { KeyboardCard, type KeyCapsHandle, LG_KEYBOARD_CARD_WIDTH } from './KeyboardCard';
 import { EDITOR_PANEL, KeyEditor } from './KeyEditor';
 import { ListCard } from './ListCard';
-import { hashFor, useKeyEditor } from './use-key-editor';
+import { hashFor, keyFromHash, useKeyEditor } from './use-key-editor';
 
 type View = 'keyboard' | 'list';
 
@@ -151,6 +153,10 @@ function CommandHint() {
 
 function KeymapView({ keymap }: { keymap: Keymap }) {
   const [view, setView] = useState<View>('keyboard');
+  /** First run: no key yet. Derived from the live keymap, so every way in or out follows from it (§8.1). */
+  const firstRun = Object.keys(keymap).length === 0;
+  // First run has only the keyboard; a List view chosen before the last key was cleared comes back with the keys.
+  const shown: View = firstRun ? 'keyboard' : view;
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const linkRef = useRef<HTMLInputElement>(null);
@@ -212,6 +218,18 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
     },
   });
 
+  // First run opens with the Start here key focused, so ↵, Space and ⌘V act on it at once. Only on load, and not
+  // when the page opened on a key or the search, which have their own focus; later returns to first run follow
+  // §8.2's close-returns-focus rule.
+  const [focusOnLoad] = useState<Key | null>(() =>
+    firstRun && keyFromHash(window.location.hash) === null && window.location.hash !== SEARCH_HASH
+      ? firstFreeKey(keymap)
+      : null,
+  );
+  const startKey = firstRun ? firstFreeKey(keymap) : null;
+  useEffect(() => {
+    if (focusOnLoad !== null) keyboardRef.current?.focusKey(focusOnLoad);
+  }, [focusOnLoad]);
   useEffect(() => {
     if (key !== null) lastKey.current = key;
   }, [key]);
@@ -223,8 +241,8 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
   });
 
   // The page's keyboard (§8.2): on the document, so presses and pastes from inside the dialog reach it too.
-  const latest = useRef({ key, keymap, view, openAt, pasteLink: editor.pasteLink });
-  latest.current = { key, keymap, view, openAt, pasteLink: editor.pasteLink };
+  const latest = useRef({ key, keymap, view: shown, openAt, pasteLink: editor.pasteLink });
+  latest.current = { key, keymap, view: shown, openAt, pasteLink: editor.pasteLink };
   useEffect(() => {
     // A bare letter or digit opens its key's dialog, or switches the open dialog to it.
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -274,7 +292,7 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
   const onSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      const target = enterTarget(keymap, query, { assignedOnly: view === 'list' });
+      const target = enterTarget(keymap, query, { assignedOnly: shown === 'list' });
       if (target !== null) openAt(target, 'link');
     } else if (event.key === 'Escape') {
       event.preventDefault();
@@ -325,30 +343,46 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
         holdHint={roomy}
       />
       <main className="mx-auto flex max-w-280 flex-col gap-6 p-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+        {firstRun ? (
           <div className="flex flex-col gap-1.5">
-            <h1 className="font-bold text-3xl tracking-tight">{i18n.t('options.heading')}</h1>
+            <h1 className={cn('font-bold tracking-tight', roomy ? 'text-3xl' : 'text-2xl')}>
+              {i18n.t('options.firstRun.heading')}
+            </h1>
             <p className="text-muted-foreground text-sm">
-              {i18n.t('options.subline.before')} <strong className="text-foreground">{triggerPlusKey()}</strong>{' '}
-              {i18n.t('options.subline.after')} {i18n.t('options.subline.used', [used])}
+              {i18n.t('options.firstRun.subline.before')}{' '}
+              <strong className="text-foreground">
+                {triggerPlus()} {i18n.t('options.firstRun.subline.thatKey')}
+              </strong>{' '}
+              {i18n.t('options.firstRun.subline.after')} {i18n.t('options.firstRun.subline.free')}
             </p>
           </div>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            aria-label={i18n.t('options.view.label')}
-            value={view}
-            onValueChange={(value) => {
-              if (value !== '') setView(value as View);
-            }}
-            className="bg-card"
-          >
-            <ToggleGroupItem value="keyboard">{i18n.t('options.view.keyboard')}</ToggleGroupItem>
-            <ToggleGroupItem value="list">{i18n.t('options.view.list')}</ToggleGroupItem>
-          </ToggleGroup>
-        </div>
+        ) : (
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="flex flex-col gap-1.5">
+              <h1 className="font-bold text-3xl tracking-tight">{i18n.t('options.heading')}</h1>
+              <p className="text-muted-foreground text-sm">
+                {i18n.t('options.subline.before')} <strong className="text-foreground">{triggerPlusKey()}</strong>{' '}
+                {i18n.t('options.subline.after')} {i18n.t('options.subline.used', [used])}
+              </p>
+            </div>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              aria-label={i18n.t('options.view.label')}
+              value={view}
+              onValueChange={(value) => {
+                if (value !== '') setView(value as View);
+              }}
+              className="bg-card"
+            >
+              <ToggleGroupItem value="keyboard">{i18n.t('options.view.keyboard')}</ToggleGroupItem>
+              <ToggleGroupItem value="list">{i18n.t('options.view.list')}</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        )}
+        {firstRun && <StepCards active={key === null ? 1 : 2} />}
         <div ref={cardRef}>
-          {view === 'keyboard' ? (
+          {shown === 'keyboard' ? (
             <KeyboardCard
               ref={keyboardRef}
               size={roomy ? 'lg' : 'compact'}
@@ -356,6 +390,8 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
               openKeys={openKeys}
               selected={key}
               matches={matches}
+              startKey={startKey}
+              footer={firstRun ? <FirstRunHint /> : undefined}
               onSelect={(clicked) => openAt(clicked)}
               onDrop={(from, to) => void onDrop(from, to)}
               onDragActiveChange={(active) => {
@@ -398,7 +434,7 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            if (lastKey.current !== null) (view === 'list' ? listRef : keyboardRef).current?.focusKey(lastKey.current);
+            if (lastKey.current !== null) (shown === 'list' ? listRef : keyboardRef).current?.focusKey(lastKey.current);
           }}
           // In Link or Name with an unsaved change, the first Esc only leaves the field; nothing is reverted.
           onEscapeKeyDown={(event) => {

@@ -23,6 +23,7 @@ import { displayName, type Shortcut, TILE_HUES } from '@/domain/shortcut';
 import { validShortcut } from '@/domain/test-shortcut';
 import type { SaveState } from '@/hooks/use-autosave';
 import { chordLabel, type Platform, triggerLabel } from '@/platform/platform-labels';
+import { FirstRunHint, StepCards } from '../options/FirstRun';
 import { KeyboardCard } from '../options/KeyboardCard';
 import { EDITOR_PANEL, KeyEditor } from '../options/KeyEditor';
 import { ListCard } from '../options/ListCard';
@@ -336,6 +337,30 @@ function KeyboardCards({ size }: { size: 'lg' | 'compact' }) {
   );
 }
 
+/** First run: the step cards with step 1 and step 2 active, then the keys with Start here and the hint. */
+function FirstRunPieces({ size }: { size: 'lg' | 'compact' }) {
+  return (
+    <div className="flex flex-col gap-4">
+      {PLATFORMS.map((platform) => (
+        <div key={platform} className="flex flex-col gap-4">
+          <StepCards active={1} platform={platform} />
+          <StepCards active={2} platform={platform} />
+        </div>
+      ))}
+      <KeyboardCard
+        size={size}
+        keymap={{}}
+        openKeys={new Set<Key>()}
+        selected={null}
+        startKey="1"
+        footer={<FirstRunHint />}
+        onSelect={noop}
+        onDrop={noop}
+      />
+    </div>
+  );
+}
+
 /** The keyboard card under a search: "tube" matches Y only (K, selected, dims), and a query with no match. */
 function SearchedKeyboardCards({ size }: { size: 'lg' | 'compact' }) {
   return (
@@ -551,6 +576,12 @@ function App() {
       </Section>
       <Section title="Options: keyboard card, per platform">
         <KeyboardCards size="lg" />
+      </Section>
+      <Section title="Options: first run (step 1 and step 2 active, Start here, hint)">
+        <FirstRunPieces size="lg" />
+      </Section>
+      <Section title="Options: first run, compact keys (a narrow window)">
+        <FirstRunPieces size="compact" />
       </Section>
       <Section title="Options: keyboard card under a search">
         <SearchedKeyboardCards size="lg" />

@@ -53,9 +53,7 @@ export function ListCard({ keymap, openKeys, selected, matches = null, onSelect,
           </TableRow>
         </TableHeader>
         <TableBody>
-          {assigned.length === 0 ? (
-            <Message>{i18n.t('options.list.empty')}</Message>
-          ) : rows.length === 0 ? (
+          {rows.length === 0 ? (
             <Message>{i18n.t('options.list.noMatch')}</Message>
           ) : (
             rows.map(({ key, shortcut }) => {
