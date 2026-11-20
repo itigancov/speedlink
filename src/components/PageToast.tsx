@@ -2,10 +2,10 @@
 // about one, message, an optional right-aligned action, and an optional ×. Presentational only; `ToastRegion` decides what shows and for how long. It lives in the HUD's
 // shadow root, so it is custom (no Sonner) and never takes focus.
 import { cva } from 'class-variance-authority';
-import { cn } from 'cn';
 import { XIcon } from 'lucide-react';
 import type { ComponentProps, MouseEvent } from 'react';
 import type { Shortcut } from '@/domain/shortcut';
+import { cn } from '@/lib/cn';
 import { Monogram } from './Monogram';
 
 export type PageToastTone = 'free' | 'saved' | 'switched' | 'error';

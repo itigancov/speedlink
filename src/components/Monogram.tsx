@@ -1,8 +1,8 @@
 // A square tile with the shortcut's one-letter monogram, white on the colour of its site (product spec §12.2).
 // Decoration only: whatever draws it names the shortcut.
 import { cva } from 'class-variance-authority';
-import { cn } from 'cn';
 import { monogram, type Shortcut, type TileHue, tileHue } from '@/domain/shortcut';
+import { cn } from '@/lib/cn';
 
 const HUE_CLASS: Record<TileHue, string> = {
   red: 'bg-tile-red',

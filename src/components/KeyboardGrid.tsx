@@ -1,8 +1,9 @@
 // The staggered four-row keyboard (product spec §12.2). It owns only layout: the rows, their stagger and the gap.
 // State, selection, clicks and drag belong to the screen, through `renderKey`.
-import { cn } from 'cn';
+
 import { Fragment, type ReactNode } from 'react';
 import { KEYBOARD_ROWS, type KeyLabel } from '@/domain/keys';
+import { cn } from '@/lib/cn';
 
 export type KeyboardGridSize = 'lg' | 'compact' | 'sm';
 

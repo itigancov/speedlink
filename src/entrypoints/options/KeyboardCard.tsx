@@ -13,7 +13,6 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { cn } from 'cn';
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -30,6 +29,7 @@ import { ARROWS, neighbourKey } from '@/domain/key-grid';
 import type { Keymap } from '@/domain/keymap-ops';
 import { isAssignable, KEYBOARD_ORDER, type Key, type KeyLabel } from '@/domain/keys';
 import { displayName } from '@/domain/shortcut';
+import { cn } from '@/lib/cn';
 import { chordLabel, type Platform, pasteLabel } from '@/platform/platform-labels';
 
 /** A drag in progress: the key being carried and the key it would land on, if any. */

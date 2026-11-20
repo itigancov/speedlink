@@ -1,5 +1,5 @@
 // Options · Keymap (product spec §8): the `/` search, the Keyboard or List view and the selected key's editor dialog.
-import { cn } from 'cn';
+
 import { SearchIcon } from 'lucide-react';
 import { type KeyboardEvent, type Ref, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { Brand } from '@/components/Brand';
@@ -22,6 +22,7 @@ import { useKeymap } from '@/hooks/use-keymap';
 import { lastWebTab, useOpenTabs } from '@/hooks/use-open-tabs';
 import { useOverlayCommandBound } from '@/hooks/use-overlay-command-bound';
 import { usePageKeys } from '@/hooks/use-page-keys';
+import { cn } from '@/lib/cn';
 import { openShortcutSettings, SEARCH_HASH, SHORTCUT_SETTINGS } from '@/platform/commands';
 import { isEditableTarget, keyInput } from '@/platform/key-capture';
 import { readKeymap, writeChange } from '@/platform/keymap-store';
