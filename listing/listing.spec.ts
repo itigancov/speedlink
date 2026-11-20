@@ -21,12 +21,12 @@ import {
   CARD,
   type Caption,
   captionedShotPage,
-  DEMO_PAGE,
-  type DemoTab,
   heroPage,
   iconPage,
   MARQUEE,
+  MOCK_PAGE,
   type MockFrame,
+  type MockTab,
   marqueePage,
   promoTilePage,
   smartSwitchPage,
@@ -153,7 +153,7 @@ async function seedKeymap(worker: Worker): Promise<void> {
 const names = new Map(DEMO_KEYMAP.map(({ link, name }) => [new URL(link).hostname, name]));
 
 /** The window's web tabs as the service worker sees them, in strip order, named as the demo keymap names them. */
-async function strip(worker: Worker): Promise<DemoTab[]> {
+async function strip(worker: Worker): Promise<MockTab[]> {
   const tabs = (await worker.evaluate(() => chrome.tabs.query({}))).filter(({ url }) => url?.startsWith('https:'));
   const window = tabs.find(({ active }) => active)?.windowId ?? tabs[0]?.windowId;
   return tabs
@@ -242,7 +242,7 @@ test('draws the icons, the promo tile, the marquee, the five shots, the clean fr
     await page.goto(link);
   }
   const backdrop = await context.newPage();
-  await backdrop.setViewportSize(DEMO_PAGE);
+  await backdrop.setViewportSize(MOCK_PAGE);
   await backdrop.goto(BACKDROP_URL);
   await backdrop.bringToFront();
   const [tab] = await worker.evaluate((url) => chrome.tabs.query({ url }), BACKDROP_URL);
@@ -282,7 +282,7 @@ test('draws the icons, the promo tile, the marquee, the five shots, the clean fr
 
   // The Keymap frame: Options on Y with its key editor open, in the mock as the active tab.
   const options = await context.newPage();
-  await options.setViewportSize(DEMO_PAGE);
+  await options.setViewportSize(MOCK_PAGE);
   await options.goto(`chrome-extension://${extensionId}/options.html#key=Y`);
   const editor = options.getByRole('dialog', { name: 'Edit key' });
   await expect(editor).toBeVisible();
@@ -363,7 +363,7 @@ test('records the demo loop for the README', async ({ context, extensionId }) =>
     pages.set(key, page);
   }
   const backdrop = await context.newPage();
-  await backdrop.setViewportSize(DEMO_PAGE);
+  await backdrop.setViewportSize(MOCK_PAGE);
   await backdrop.goto(BACKDROP_URL);
   await backdrop.bringToFront();
   await expect.poll(activeLink).toBe(BACKDROP_URL);
@@ -371,7 +371,7 @@ test('records the demo loop for the README', async ({ context, extensionId }) =>
   /** Each still, in the browser mock. */
   const frames: { name: string; png: Buffer; seconds: number }[] = [];
   const frame = async (name: string, page: Page, keys: KeyLabel[], seconds: number) => {
-    await page.setViewportSize(DEMO_PAGE);
+    await page.setViewportSize(MOCK_PAGE);
     const pagePng = (await page.screenshot({ animations: 'disabled' })).toString('base64');
     const drawn = await drawingPage(
       context,

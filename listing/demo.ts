@@ -6,7 +6,7 @@ import type { Key } from '@/domain/keys';
 import type { PlanTab } from '@/domain/open-plan';
 import { buildOverlayModel, type OverlayTile } from '@/domain/overlay-model';
 import { parseShortcut } from '@/domain/shortcut';
-import type { DemoTab } from './templates';
+import type { MockTab } from './templates';
 
 interface DemoShortcut {
   key: string;
@@ -47,12 +47,12 @@ const KEYMAP: Keymap = Object.fromEntries(
 );
 
 /** The template shots' window: the article in front, then every demo site that is left open, in keymap order. */
-const WINDOW: DemoTab[] = [
+const WINDOW: MockTab[] = [
   { title: BACKDROP_TITLE, link: BACKDROP_URL, active: true },
   ...DEMO_KEYMAP.filter(({ open }) => open).map(({ name, link }) => ({ title: name, link, active: false })),
 ];
 
-const planTab = ({ link, title }: DemoTab, index: number): PlanTab => ({
+const planTab = ({ link, title }: MockTab, index: number): PlanTab => ({
   id: index + 1,
   windowId: 1,
   index,
@@ -79,7 +79,7 @@ export function demoTiles(keys: Key[]): OverlayTile[] {
 }
 
 /** Shot2's two tab strips: before Alt + G (the article in front) and after (the same tabs, GitHub in front). */
-export function smartSwitchStrips(): { before: DemoTab[]; after: DemoTab[] } {
+export function smartSwitchStrips(): { before: MockTab[]; after: MockTab[] } {
   const github = DEMO_KEYMAP.find(({ key }) => key === 'G')?.link;
   return {
     before: WINDOW,

@@ -202,7 +202,7 @@ export function heroPage(stylesheets: string[], data: TileData[]): string {
 }
 
 /** A tab in the browser mock's strip: its title, and its link for the monogram. */
-export interface DemoTab {
+export interface MockTab {
   title: string;
   link: string;
   active: boolean;
@@ -213,7 +213,7 @@ export interface DemoTab {
 /** The browser mock's two bars, above the page. */
 const BARS = 92;
 /** The size a page is captured at to fill the mock below its bars. */
-export const DEMO_PAGE = { width: 1280, height: 800 - BARS };
+export const MOCK_PAGE = { width: 1280, height: 800 - BARS };
 
 const monogramOf = (title: string, link: string) => {
   const shortcut = parseShortcut({ link, name: title, openMode: 'smart', tabMatch: 'site', closeCurrent: false });
@@ -247,7 +247,7 @@ const MOCK_STYLES = `
 `;
 
 /** The mock's bars for `tabs`; the address is the active tab's host and path unless `address` names the page. */
-function bars(tabs: DemoTab[], { address, iconFocused = false }: { address?: string; iconFocused?: boolean } = {}) {
+function bars(tabs: MockTab[], { address, iconFocused = false }: { address?: string; iconFocused?: boolean } = {}) {
   const active = tabs.find(({ active }) => active);
   const url = active === undefined || active.extension ? undefined : new URL(active.link);
   const shown =
@@ -269,8 +269,8 @@ function bars(tabs: DemoTab[], { address, iconFocused = false }: { address?: str
 
 /** One picture in the browser mock: a clean frame, or a still of the demo loop. */
 export interface MockFrame {
-  tabs: DemoTab[];
-  /** The page below the bars, as a PNG at `DEMO_PAGE`'s size. */
+  tabs: MockTab[];
+  /** The page below the bars, as a PNG at `MOCK_PAGE`'s size. */
   pagePng: string;
   /** The omnibox's text for a page that has no web address (the Options page). */
   address?: string;
@@ -290,7 +290,7 @@ export function browserFramePage(stylesheets: string[], { tabs, pagePng, address
       body { width: 1280px; height: 800px; position: relative; overflow: hidden; background: #fff !important;
         color: var(--foreground); }
       ${MOCK_STYLES}
-      .page { display: block; width: ${DEMO_PAGE.width}px; height: ${DEMO_PAGE.height}px; }
+      .page { display: block; width: ${MOCK_PAGE.width}px; height: ${MOCK_PAGE.height}px; }
       .popup { position: absolute; top: ${BARS - 6}px; right: 8px; border-radius: 12px;
         box-shadow: 0 12px 32px rgb(0 0 0 / 0.28), 0 0 0 1px rgb(0 0 0 / 0.08); }
       .keys { position: absolute; left: 32px; bottom: 32px; display: flex; align-items: center; gap: 10px; padding: 12px;
@@ -311,8 +311,8 @@ export function browserFramePage(stylesheets: string[], { tabs, pagePng, address
  * Shot2, Smart switch: the headline and the sub, the window's tab strip before ⌥ / Alt + G, the chord, and the
  * same strip after it, with GitHub in front and no tab added.
  */
-export function smartSwitchPage(stylesheets: string[], { before, after }: { before: DemoTab[]; after: DemoTab[] }) {
-  const panel = (label: string, tabs: DemoTab[]) =>
+export function smartSwitchPage(stylesheets: string[], { before, after }: { before: MockTab[]; after: MockTab[] }) {
+  const panel = (label: string, tabs: MockTab[]) =>
     `<section><div class="label">${label}</div><div class="window">${bars(tabs)}<div class="page"></div></div></section>`;
   return page(
     `

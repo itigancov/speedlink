@@ -1,5 +1,6 @@
 // The demo loop's encoder: still frames held for their time and cross-faded into each other, encoded with `ffmpeg`
-// (a dev-time requirement of `pnpm listing`) as the README's GIF, then read back with `ffprobe`. Every check throws, so a bad export fails the run before it is committed.
+// (a dev-time requirement of `pnpm listing`) as the README's GIF, then read back with `ffprobe`. Every check throws, so a bad export
+// fails the run before it is committed.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
