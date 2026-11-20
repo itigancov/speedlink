@@ -39,7 +39,8 @@ const monogramVariants = cva(
 export type MonogramSize = '2xs' | 'xs' | 'sm' | 'default' | 'md' | 'lg';
 
 export interface MonogramProps {
-  shortcut: Shortcut;
+  /** The shortcut's name and link: all the tile reads. */
+  shortcut: Pick<Shortcut, 'name' | 'link'>;
   size?: MonogramSize;
   /** A 1 px white ring, for a tile on a selected (blue) key. */
   ringed?: boolean;

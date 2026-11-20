@@ -34,6 +34,13 @@ const store = (worker: Worker, key: string, name: string) =>
     { link: target(key.toLowerCase()), name, openMode: 'new', tabMatch: 'exact', closeCurrent: false },
   ] as const);
 
+/** Puts a link on a key with Smart switch, so its tile says "Open" while its page is open. */
+const storeSmart = (worker: Worker, key: string, name: string) =>
+  worker.evaluate(([item, value]) => chrome.storage.sync.set({ [item]: value }), [
+    `key.${key}`,
+    { link: target(key.toLowerCase()), name, openMode: 'smart', tabMatch: 'exact', closeCurrent: false },
+  ] as const);
+
 const tabsOn = async (worker: Worker, url: string) =>
   (await worker.evaluate(() => chrome.tabs.query({}))).filter((tab) => tab.url === url).length;
 
@@ -95,6 +102,52 @@ test.describe('the Peek', () => {
     await expect(overlay(page)).toContainText('Press a key — S to search');
     await expect(overlay(page)).not.toContainText('keep typing');
     await expect(overlay(page).getByTestId('overlay-legend')).not.toContainText('search names & links');
+    await page.keyboard.up('Alt');
+  });
+
+  test('draws the tile’s monogram and an open key in the token colours, so the tokens reach the shadow root', async ({
+    context,
+  }) => {
+    const worker = await serviceWorker(context);
+    await storeSmart(worker, 'K', 'Kanban');
+    await store(worker, 'G', 'GitHub');
+    const opened = await context.newPage();
+    await opened.goto(target('k'), { waitUntil: 'load' });
+    const page = await open(context, `${ORIGIN}/keys.html`);
+
+    await page.keyboard.down('Alt');
+    const kanban = overlay(page).getByTestId('overlay-tile').filter({ hasText: 'Kanban' });
+    const github = overlay(page).getByTestId('overlay-tile').filter({ hasText: 'GitHub' });
+    await expect(kanban).toBeVisible();
+
+    /** The computed background of `element`, and of a probe painted with the token `token` in the same shadow root. */
+    const paint = (element: Locator, token: (hue: string | undefined) => string) =>
+      element.evaluate((node, tokenSource) => {
+        const resolve = (name: string) => {
+          const probe = document.createElement('span');
+          probe.style.backgroundColor = `var(${name})`;
+          node.parentNode?.append(probe);
+          const color = getComputedStyle(probe).backgroundColor;
+          probe.remove();
+          return color;
+        };
+        const hue = (node as HTMLElement).dataset.hue;
+        return {
+          actual: getComputedStyle(node).backgroundColor,
+          expected: resolve(new Function('hue', `return (${tokenSource})(hue)`)(hue)),
+        };
+      }, token.toString());
+
+    const monogram = await paint(kanban.locator('[data-slot="monogram"]'), (hue) => `--tile-${hue}`);
+    expect(monogram.actual).not.toBe('rgba(0, 0, 0, 0)');
+    expect(monogram.actual).toBe(monogram.expected);
+
+    const openTile = await paint(kanban.getByRole('button', { name: /K: Kanban/ }), () => '--success-tile');
+    expect(openTile.actual).not.toBe('rgba(0, 0, 0, 0)');
+    expect(openTile.actual).toBe(openTile.expected);
+
+    const closedTile = await paint(github.getByRole('button', { name: /G: GitHub/ }), () => '--success-tile');
+    expect(closedTile.actual).not.toBe(closedTile.expected);
     await page.keyboard.up('Alt');
   });
 

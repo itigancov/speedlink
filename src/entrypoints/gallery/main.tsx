@@ -544,9 +544,10 @@ function OverlayTiles() {
       {PLATFORMS.map((platform) => (
         <div key={platform} className="flex flex-col gap-2">
           <Caption>
-            {platform} (hover a tile for its pencil; the first is highlighted, as the pinned top result)
+            {platform} (hover a tile for its pencil; the first is highlighted and open, as the pinned top result; Docs
+            and GitHub are open; the long name truncates)
           </Caption>
-          <div className="grid max-w-3xl grid-cols-4 gap-2">
+          <div className="grid max-w-4xl grid-cols-4 gap-2">
             {OVERLAY_TILES.map((tile, index) => (
               <OverlayTile
                 key={tile.key}
@@ -560,6 +561,28 @@ function OverlayTiles() {
           </div>
         </div>
       ))}
+      <div className="flex flex-col gap-2">
+        <Caption>Highlighted, on a muted tile and on an open one</Caption>
+        <div className="grid max-w-4xl grid-cols-4 gap-2">
+          <OverlayTile tile={OVERLAY_TILES[2] as OverlayTileData} highlighted onOpen={() => {}} onEdit={() => {}} />
+          <OverlayTile tile={OVERLAY_TILES[1] as OverlayTileData} highlighted onOpen={() => {}} onEdit={() => {}} />
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        <Caption>Pencil shown (hover forced): it takes the monogram's place</Caption>
+        <div className="grid max-w-4xl grid-cols-4 gap-2 [&_[data-slot=monogram]]:invisible [&_button]:opacity-100">
+          <OverlayTile tile={OVERLAY_TILES[0] as OverlayTileData} onOpen={() => {}} onEdit={() => {}} />
+          <OverlayTile tile={OVERLAY_TILES[2] as OverlayTileData} onOpen={() => {}} onEdit={() => {}} />
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        <Caption>Launcher: 2 columns, no pencil</Caption>
+        <div className="grid w-96 grid-cols-2 gap-2">
+          {OVERLAY_TILES.map((tile) => (
+            <OverlayTile key={tile.key} tile={tile} onOpen={() => {}} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

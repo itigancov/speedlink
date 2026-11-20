@@ -566,6 +566,16 @@ describe('an unusable page: the launcher', () => {
     expect(queryButton(/^Edit/)).toBeNull();
   });
 
+  it('draws the launcher’s tiles as the overlay does: a monogram tile, green when the page is open, in two columns', async () => {
+    await renderPopup();
+    expect(tile('D').querySelector('[data-slot="monogram"]')?.textContent).toBe('D');
+    expect(tile('Y').querySelector('[data-slot="monogram"]')?.textContent).toBe('Y');
+    expect(tile('D').classList.contains('bg-success-tile')).toBe(true);
+    expect(tile('Y').classList.contains('bg-success-tile')).toBe(false);
+    expect(tile('D').querySelector('[data-slot="key-open"]')).toBeNull();
+    expect(screen.getByTestId('overlay-tiles').className).toContain('grid-cols-2');
+  });
+
   it('keeps the picker for a usable page', async () => {
     tabs = [activeTab()];
     await renderPopup();
