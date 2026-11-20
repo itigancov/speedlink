@@ -95,14 +95,13 @@ describe('the overlay: what it shows', () => {
     }
   });
 
-  it('draws each tile’s monogram: the letter of its name, on the colour of its site', () => {
+  it('draws each tile’s monogram with the letter of its name', () => {
     renderOverlay({
       tiles: [
         tile('G', 'Code', { kind: 'mode', mode: 'new', site: 'github.com' }),
         tile('Y', 'YouTube', { kind: 'mode', mode: 'new', site: 'youtube.com' }),
       ],
     });
-    // The links are the fixtures' own; the hues are those of the same sites in Options (Monogram.test).
     const [github, youtube] = within(dialog())
       .getAllByTestId('overlay-tile')
       .map((element) => element.querySelector<HTMLElement>('[data-slot="monogram"]'));
