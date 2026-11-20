@@ -212,7 +212,7 @@ UI (overlay, toasts) renders in the **top frame only**. A sub-frame sends `openK
 
 ## 6. Page toasts and badge
 
-Toasts render on the page, top frame only. Each is a dark pill: key chip + message + action link.
+Toasts render on the page, top frame only. Each is a dark pill: key chip + message + action link. The saved and switched toasts also show the shortcut's tile (§12.2) between the chip and the message; the free-key and error toasts have none.
 
 | Toast | Shown when | Action | Lifetime |
 |---|---|---|---|
@@ -424,7 +424,7 @@ The "Set ⌥S" line, per §5.3.
 - An extension page. It opens on **fresh install** and on **update from 1.x** (`reason: 'update'`, `previousVersion` starting with `1.`). 4.x → 4.y updates open nothing.
 - Content:
   - "Hold ⌥ and press a key to jump to a site";
-  - three steps: put a page on a key (the icon, or ⌥ + a free key) → press ⌥ + key anywhere → hold ⌥ to see your keys;
+  - three steps, drawn as step cards (the same pattern as first run, §8.1, but none active): put a page on a key (the icon, or ⌥ + a free key) → press ⌥ + key anywhere → hold ⌥ to see your keys; the cards stay in one column;
   - a tip to pin the icon;
   - an "Open keymap" button.
 - ⌥+key works here as on Options (§4.6): an assigned key opens in a new tab and the welcome tab stays; ⌥ + a free key opens Options on that key (`#key=K`); ⌥S opens Options.

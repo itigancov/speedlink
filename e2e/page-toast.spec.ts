@@ -73,6 +73,7 @@ test.describe('the free-key toast', () => {
     await expect(toast(page)).toBeVisible();
     await expect(toast(page)).toContainText(await chord(page, 'K'));
     await expect(toast(page)).toContainText('is free');
+    await expect(toast(page).locator('[data-slot="monogram"]')).toHaveCount(0);
     await expect(toast(page).getByRole('button', { name: 'Put this page on it' })).toBeVisible();
     await expect(page.getByRole('status')).toHaveAttribute('aria-live', 'polite');
 
@@ -131,6 +132,7 @@ test.describe('assign with undo', () => {
 
     await expect(toast(page)).toContainText(await chord(page, 'K'));
     await expect(toast(page)).toContainText('→ Fixture: keys saved');
+    await expect(toast(page).locator('[data-slot="monogram"]')).toHaveCount(1);
     expect(await storedOn(worker, 'K')).toEqual({
       link: `${ORIGIN}/keys.html`,
       name: 'Fixture: keys',
@@ -178,6 +180,7 @@ test.describe('the switched toast', () => {
     await expect(toast(docs)).toBeVisible();
     await expect(toast(docs)).toContainText(await chord(docs, 'D'));
     await expect(toast(docs)).toContainText('Switched to your open Docs tab');
+    await expect(toast(docs).locator('[data-slot="monogram"]')).toHaveCount(1);
     await expect(toast(page)).toHaveCount(0);
     await expect(toast(docs)).toHaveCount(0, { timeout: 5000 });
   });

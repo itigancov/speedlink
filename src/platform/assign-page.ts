@@ -48,7 +48,13 @@ export function createAssignPage(): AssignPage {
 
       const written = await writeWithUndo(plan.change, plan.undo);
       if (!written.ok) return { kind: 'failed' };
-      sendToast(tabId, { kind: 'saved', key, name: displayName(plan.shortcut), undoId: written.id });
+      sendToast(tabId, {
+        kind: 'saved',
+        key,
+        name: displayName(plan.shortcut),
+        link: plan.shortcut.link,
+        undoId: written.id,
+      });
       return { kind: 'saved', undoId: written.id };
     } catch (error) {
       console.error('SpeedLink: could not assign', key, error);

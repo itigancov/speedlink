@@ -27,7 +27,7 @@ import { isEditableTarget, keyInput } from '@/platform/key-capture';
 import { readKeymap, writeChange } from '@/platform/keymap-store';
 import { sendMessage } from '@/platform/messaging';
 import { chordLabel, triggerLabel, triggerPlus, triggerPlusKey } from '@/platform/platform-labels';
-import { FirstRunHint, StepCards } from './FirstRun';
+import { FirstRunHint, FirstRunSteps } from './FirstRun';
 import { KeyboardCard, type KeyCapsHandle, LG_KEYBOARD_CARD_WIDTH } from './KeyboardCard';
 import { EDITOR_PANEL, KeyEditor } from './KeyEditor';
 import { ListCard } from './ListCard';
@@ -380,7 +380,7 @@ function KeymapView({ keymap }: { keymap: Keymap }) {
             </ToggleGroup>
           </div>
         )}
-        {firstRun && <StepCards active={key === null ? 1 : 2} />}
+        {firstRun && <FirstRunSteps active={key === null ? 1 : 2} />}
         <div ref={cardRef}>
           {shown === 'keyboard' ? (
             <KeyboardCard

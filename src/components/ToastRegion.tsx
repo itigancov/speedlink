@@ -149,6 +149,7 @@ function ShownToast({
           {...hover}
           chip={chip}
           tone="switched"
+          shortcut={{ name: toast.name, link: toast.link }}
           message={i18n.t('pageToast.switched', [toast.name])}
           actionLabel={i18n.t('pageToast.openNew')}
           onAction={() => actions.openNew(toast.key)}
@@ -160,6 +161,7 @@ function ShownToast({
           {...hover}
           chip={chip}
           tone="saved"
+          shortcut={{ name: toast.name, link: toast.link }}
           message={i18n.t('pageToast.saved', [toast.name])}
           actionLabel={i18n.t('pageToast.undo')}
           onAction={() => {

@@ -23,10 +23,11 @@ import { displayName, type Shortcut, TILE_HUES } from '@/domain/shortcut';
 import { validShortcut } from '@/domain/test-shortcut';
 import type { SaveState } from '@/hooks/use-autosave';
 import { chordLabel, type Platform, triggerLabel } from '@/platform/platform-labels';
-import { FirstRunHint, StepCards } from '../options/FirstRun';
+import { FirstRunHint, FirstRunSteps } from '../options/FirstRun';
 import { KeyboardCard } from '../options/KeyboardCard';
 import { EDITOR_PANEL, KeyEditor } from '../options/KeyEditor';
 import { ListCard } from '../options/ListCard';
+import { WelcomeSteps } from '../welcome/WelcomePage';
 
 const SIZES: KeyCapSize[] = ['lg', 'compact', 'xl', 'md', 'sm'];
 const STATES: KeyCapState[] = [
@@ -226,55 +227,83 @@ const noop = () => {};
 const gallerySlot = createToastSlot();
 const LONG_NAME = 'A shortcut with a very long name that keeps going well past the pill';
 
+/** Every toast state, per platform, on a light and a dark page: the pill is always the inverse surface. */
+const TOAST_BACKDROPS = [
+  { name: 'light page', className: 'bg-white' },
+  { name: 'dark page', className: 'bg-neutral-900' },
+];
+
+function ToastSamples({ platform }: { platform: Platform }) {
+  const guide = { name: 'The Guide', link: 'https://docs.example.com/guide' };
+  const youtube = { name: 'YouTube', link: 'https://www.youtube.com/' };
+  const long = { name: LONG_NAME, link: 'https://example.com/' };
+  return (
+    <>
+      <PageToast
+        chip={chordLabel('K', platform)}
+        tone="free"
+        message={i18n.t('pageToast.free')}
+        actionLabel={i18n.t('pageToast.putPageOnKey')}
+        onAction={noop}
+        onClose={noop}
+        closeLabel={i18n.t('pageToast.close')}
+      />
+      <PageToast
+        chip={chordLabel('Y', platform)}
+        tone="switched"
+        shortcut={youtube}
+        message={i18n.t('pageToast.switched', [youtube.name])}
+        actionLabel={i18n.t('pageToast.openNew')}
+        onAction={noop}
+      />
+      <PageToast
+        chip={chordLabel('Y', platform)}
+        tone="switched"
+        shortcut={long}
+        message={i18n.t('pageToast.switched', [long.name])}
+        actionLabel={i18n.t('pageToast.openNew')}
+        onAction={noop}
+      />
+      <PageToast
+        chip={chordLabel('K', platform)}
+        tone="saved"
+        shortcut={guide}
+        message={i18n.t('pageToast.saved', [guide.name])}
+        actionLabel={i18n.t('pageToast.undo')}
+        onAction={noop}
+      />
+      <PageToast
+        chip={chordLabel('K', platform)}
+        tone="saved"
+        shortcut={long}
+        message={i18n.t('pageToast.saved', [long.name])}
+        actionLabel={i18n.t('pageToast.undo')}
+        onAction={noop}
+      />
+      <PageToast chip={chordLabel('K', platform)} tone="error" message={i18n.t('pageToast.undoStale')} />
+      <PageToast
+        chip={chordLabel('K', platform)}
+        tone="error"
+        message={i18n.t('pageToast.saveFailed', [chordLabel('K', platform)])}
+      />
+    </>
+  );
+}
+
 function Toasts() {
   return (
     <div className="flex flex-col gap-4">
       {PLATFORMS.map((platform) => (
-        <div key={platform} className="flex flex-col items-start gap-2">
+        <div key={platform} className="flex flex-col gap-2">
           <Caption>{platform}</Caption>
-          <PageToast
-            chip={chordLabel('K', platform)}
-            tone="free"
-            message={i18n.t('pageToast.free')}
-            actionLabel={i18n.t('pageToast.putPageOnKey')}
-            onAction={noop}
-            onClose={noop}
-            closeLabel={i18n.t('pageToast.close')}
-          />
-          <PageToast
-            chip={chordLabel('Y', platform)}
-            tone="switched"
-            message={i18n.t('pageToast.switched', ['YouTube'])}
-            actionLabel={i18n.t('pageToast.openNew')}
-            onAction={noop}
-          />
-          <PageToast
-            chip={chordLabel('Y', platform)}
-            tone="switched"
-            message={i18n.t('pageToast.switched', [LONG_NAME])}
-            actionLabel={i18n.t('pageToast.openNew')}
-            onAction={noop}
-          />
-          <PageToast
-            chip={chordLabel('K', platform)}
-            tone="saved"
-            message={i18n.t('pageToast.saved', ['The Guide'])}
-            actionLabel={i18n.t('pageToast.undo')}
-            onAction={noop}
-          />
-          <PageToast
-            chip={chordLabel('K', platform)}
-            tone="saved"
-            message={i18n.t('pageToast.saved', [LONG_NAME])}
-            actionLabel={i18n.t('pageToast.undo')}
-            onAction={noop}
-          />
-          <PageToast chip={chordLabel('K', platform)} tone="error" message={i18n.t('pageToast.undoStale')} />
-          <PageToast
-            chip={chordLabel('K', platform)}
-            tone="error"
-            message={i18n.t('pageToast.saveFailed', [chordLabel('K', platform)])}
-          />
+          <div className="flex flex-col gap-4">
+            {TOAST_BACKDROPS.map(({ name, className }) => (
+              <div key={name} className={cn('flex flex-col items-start gap-2 rounded-lg p-4', className)}>
+                <Caption>{name}</Caption>
+                <ToastSamples platform={platform} />
+              </div>
+            ))}
+          </div>
         </div>
       ))}
       <Caption>ToastRegion (bottom centre of this window)</Caption>
@@ -285,15 +314,33 @@ function Toasts() {
         <Button variant="outline" onClick={() => gallerySlot.show({ kind: 'free', key: 'J' })}>
           free J
         </Button>
-        <Button variant="outline" onClick={() => gallerySlot.show({ kind: 'switched', key: 'Y', name: 'YouTube' })}>
+        <Button
+          variant="outline"
+          onClick={() =>
+            gallerySlot.show({ kind: 'switched', key: 'Y', name: 'YouTube', link: 'https://www.youtube.com/' })
+          }
+        >
           switched Y (3 s)
         </Button>
-        <Button variant="outline" onClick={() => gallerySlot.show({ kind: 'switched', key: 'Y', name: LONG_NAME })}>
+        <Button
+          variant="outline"
+          onClick={() =>
+            gallerySlot.show({ kind: 'switched', key: 'Y', name: LONG_NAME, link: 'https://example.com/' })
+          }
+        >
           switched, long name
         </Button>
         <Button
           variant="outline"
-          onClick={() => gallerySlot.show({ kind: 'saved', key: 'K', name: 'The Guide', undoId: 'gallery' })}
+          onClick={() =>
+            gallerySlot.show({
+              kind: 'saved',
+              key: 'K',
+              name: 'The Guide',
+              link: 'https://docs.example.com/guide',
+              undoId: 'gallery',
+            })
+          }
         >
           saved K (5 s)
         </Button>
@@ -343,8 +390,8 @@ function FirstRunPieces({ size }: { size: 'lg' | 'compact' }) {
     <div className="flex flex-col gap-4">
       {PLATFORMS.map((platform) => (
         <div key={platform} className="flex flex-col gap-4">
-          <StepCards active={1} platform={platform} />
-          <StepCards active={2} platform={platform} />
+          <FirstRunSteps active={1} platform={platform} />
+          <FirstRunSteps active={2} platform={platform} />
         </div>
       ))}
       <KeyboardCard
@@ -605,6 +652,13 @@ function App() {
       </Section>
       <Section title="Options: first run, compact keys (a narrow window)">
         <FirstRunPieces size="compact" />
+      </Section>
+      <Section title="Welcome: step cards (none current), per platform">
+        <div className="flex flex-col gap-4">
+          {PLATFORMS.map((platform) => (
+            <WelcomeSteps key={platform} platform={platform} />
+          ))}
+        </div>
       </Section>
       <Section title="Options: keyboard card under a search">
         <SearchedKeyboardCards size="lg" />

@@ -3,8 +3,8 @@
 import { PinIcon, PuzzleIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Brand } from '@/components/Brand';
+import { StepCards } from '@/components/StepCards';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Kbd } from '@/components/ui/kbd';
 import type { Key } from '@/domain/keys';
 import { useKeymap } from '@/hooks/use-keymap';
@@ -44,26 +44,39 @@ function openOptions(key?: Key) {
   );
 }
 
-export function WelcomePage({ platform = PLATFORM, navigate = replacePage }: WelcomePageProps) {
-  // ⌥ + a free key assigns it in Options, ⌥S opens Options.
-  usePageKeys({ keymap: useKeymap(), onFree: openOptions, onReserved: openOptions });
+/** The three moves as step cards; none is current, as the page tracks no progress. */
+export function WelcomeSteps({ platform }: { platform: Platform }) {
   const steps = [
     {
       id: 'assign',
       title: i18n.t('welcome.steps.assign.title'),
-      body: i18n.t('welcome.steps.assign.body', [TRIGGER_MARK]),
+      line: i18n.t('welcome.steps.assign.body', [TRIGGER_MARK]),
     },
     {
       id: 'open',
       title: i18n.t('welcome.steps.open.title', [TRIGGER_MARK]),
-      body: i18n.t('welcome.steps.open.body'),
+      line: i18n.t('welcome.steps.open.body'),
     },
     {
       id: 'peek',
       title: i18n.t('welcome.steps.peek.title', [TRIGGER_MARK]),
-      body: i18n.t('welcome.steps.peek.body'),
+      line: i18n.t('welcome.steps.peek.body'),
     },
   ];
+  return (
+    <StepCards
+      steps={steps.map(({ id, title, line }) => ({
+        id,
+        title: withTrigger(title, platform),
+        line: withTrigger(line, platform),
+      }))}
+    />
+  );
+}
+
+export function WelcomePage({ platform = PLATFORM, navigate = replacePage }: WelcomePageProps) {
+  // ⌥ + a free key assigns it in Options, ⌥S opens Options.
+  usePageKeys({ keymap: useKeymap(), onFree: openOptions, onReserved: openOptions });
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b bg-card px-8 py-4">
@@ -73,24 +86,7 @@ export function WelcomePage({ platform = PLATFORM, navigate = replacePage }: Wel
         <h1 className="text-balance font-bold text-3xl">
           {withTrigger(i18n.t('welcome.heading', [TRIGGER_MARK]), platform)}
         </h1>
-        <Card className="px-6">
-          <ol className="flex flex-col gap-6">
-            {steps.map(({ id, title, body }, index) => (
-              <li key={id} className="flex items-start gap-4">
-                <span
-                  aria-hidden="true"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/7 font-bold text-link"
-                >
-                  {index + 1}
-                </span>
-                <div className="flex flex-col gap-1">
-                  <h2 className="font-semibold text-md">{withTrigger(title, platform)}</h2>
-                  <p className="text-muted-foreground text-ui">{withTrigger(body, platform)}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </Card>
+        <WelcomeSteps platform={platform} />
         <p className="flex items-start gap-2 text-muted-foreground text-ui">
           <span aria-hidden="true" className="flex shrink-0 items-center gap-1 pt-0.5">
             <PuzzleIcon className="size-4" />
